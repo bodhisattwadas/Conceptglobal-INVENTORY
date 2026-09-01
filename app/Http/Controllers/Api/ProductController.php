@@ -19,9 +19,9 @@ class ProductController extends Controller
 
         $products = Cache::remember($cacheKey, 300, function () use ($query, $companyId, $forPurchase) {
             return Product::query()
-                ->with(['unit', 'company'])
+                ->with(['unit', 'company', 'inventoryStock'])
                 ->where('is_active', true)
-                ->when(! $forPurchase, fn ($builder) => $builder->where('quantity', '>', 0))
+                ->when(! $forPurchase, fn ($builder) => $builder->whereHas('inventoryStock', fn ($stock) => $stock->where('quantity', '>', 0)))
                 ->when($companyId, fn ($builder) => $builder->where('company_id', $companyId))
                 ->when($query, function ($q) use ($query) {
                     $q->where(function ($searchQuery) use ($query) {
@@ -43,7 +43,7 @@ class ProductController extends Controller
                         'sku' => $product->sku,
                         'brand' => $product->company ? ($product->company->short_name ?: $product->company->company_name) : null,
                         'brand_id' => $product->company_id,
-                        'quantity' => $product->quantity,
+                        'quantity' => $product->inventoryStock?->quantity ?? 0,
                         'unit' => $product->unit ? [
                             'symbol' => $product->unit->symbol,
                             'name' => $product->unit->name

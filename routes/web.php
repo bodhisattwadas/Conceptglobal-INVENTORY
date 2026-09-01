@@ -6,9 +6,8 @@ use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinanceReportController;
 use App\Http\Controllers\CompanyController;
-use App\Http\Controllers\VendorProfileController;
-use App\Http\Controllers\SupplierProfileController;
 use App\Http\Controllers\VendorInvoiceController;
+use App\Http\Controllers\SupplierProfileController;
 use Illuminate\Support\Facades\Storage;
 
 Route::get('media/{path}', function (string $path) {
@@ -60,7 +59,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('inventory.batches.update');
     Route::get('companies/{company}', [CompanyController::class, 'show'])->name('companies.show');
     Route::delete('companies/{company}', [CompanyController::class, 'destroy'])->name('companies.destroy');
-    Route::get('vendors/{vendor}/profile.pdf', [VendorProfileController::class, 'download'])->name('vendors.profile.pdf');
     Route::get('suppliers/{supplier}/profile.pdf', [SupplierProfileController::class, 'download'])->name('suppliers.profile.pdf');
 
     // =========================================================================
@@ -107,6 +105,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('complete', 'complete')->name('complete');
         Route::patch('restore', 'restore')->name('restore');
     });
+
+    // =========================================================================
+    // Admin
+    // =========================================================================
+    Route::view('coupons', 'coupons.index')->name('coupons.index');
 
     // =========================================================================
     // Finance

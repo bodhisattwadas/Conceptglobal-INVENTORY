@@ -10,7 +10,7 @@ class CompanyController extends Controller
 {
     public function show(Company $company): View
     {
-        $company->loadCount(['suppliers', 'vendors']);
+        $company->loadCount(['suppliers']);
 
         return view('companies.show', compact('company'));
     }

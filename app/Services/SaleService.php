@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\DB;
 class SaleService
 {
     public function __construct(
-        protected FinanceTransactionService $financeService
+        protected FinanceTransactionService $financeService,
+        protected InventoryService $inventoryService
     ) {
     }
 
@@ -72,6 +73,8 @@ class SaleService
                     // Update stock
                     $product->quantity -= $itemData->quantity;
                     $product->save();
+                    $this->inventoryService->adjustForSale($product->id, -$itemData->quantity, 'sale', $sale->invoice_number, 'Sold via sale.');
+                    $this->inventoryService->deductFromBatches($product->id, $itemData->quantity, 'sale', $sale->invoice_number, 'Sold via sale.');
 
                     $unitPrice = $product->selling_price;
                     $quantity = $itemData->quantity;
@@ -164,6 +167,8 @@ class SaleService
                     foreach ($sale->items as $item) {
                         if ($item->product) {
                             $item->product->increment('quantity', $item->quantity);
+                            $this->inventoryService->adjustForSale($item->product_id, $item->quantity, 'sale_cancel', $sale->invoice_number, 'Restored due to sale cancellation.');
+                            $this->inventoryService->restoreBatchesForReference($item->product_id, $sale->invoice_number, 'sale', 'sale_cancel', 'Restored due to sale cancellation.');
                         }
                     }
                 }
@@ -254,6 +259,8 @@ class SaleService
                 }
 
                 $product->decrement('quantity', $item->quantity);
+                $this->inventoryService->adjustForSale($item->product_id, -$item->quantity, 'sale_restore', $sale->invoice_number, 'Deducted due to sale restore from cancelled.');
+                $this->inventoryService->deductFromBatches($item->product_id, $item->quantity, 'sale_restore', $sale->invoice_number, 'Deducted due to sale restore from cancelled.');
             }
 
             // Restore to PENDING

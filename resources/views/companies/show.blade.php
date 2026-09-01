@@ -29,7 +29,6 @@
                     <div><x-input-label value="{{ __('Brand Name') }}" class="text-muted-foreground" /><p class="text-sm font-medium">{{ $company->short_name ?: '-' }}</p></div>
                     <div><x-input-label value="{{ __('Company Type') }}" class="text-muted-foreground" /><p class="text-sm font-medium">{{ $company->company_type ?: '-' }}</p></div>
                     <div><x-input-label value="{{ __('Suppliers Linked') }}" class="text-muted-foreground" /><p class="text-sm font-medium">{{ $company->suppliers_count ?? 0 }}</p></div>
-                    <div><x-input-label value="{{ __('Vendors Linked') }}" class="text-muted-foreground" /><p class="text-sm font-medium">{{ $company->vendors_count ?? 0 }}</p></div>
                     <div><x-input-label value="{{ __('GSTIN') }}" class="text-muted-foreground" /><p class="text-sm font-medium">{{ $company->gstin ?: '-' }}</p></div>
                     <div><x-input-label value="{{ __('PAN') }}" class="text-muted-foreground" /><p class="text-sm font-medium">{{ $company->pan ?: '-' }}</p></div>
                     <div><x-input-label value="{{ __('Phone') }}" class="text-muted-foreground" /><p class="text-sm font-medium">{{ format_indian_phone($company->phone) }}</p></div>

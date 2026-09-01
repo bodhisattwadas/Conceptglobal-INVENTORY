@@ -310,6 +310,109 @@ Typical workflow:
 3. Save.
 4. Select this unit while creating or editing products.
 
+## Sales
+
+The Sales menu groups point-of-sale checkout, sales history, and customers.
+
+### POS
+
+Route: `/sales/create`
+
+Purpose:
+POS (Point of Sale) is the screen used to create a new sale: pick products, set quantities and discounts, choose a customer, and take payment.
+
+Use this module to:
+- Search and add products to the cart.
+- Apply a per-item discount and/or a global discount.
+- Select or quick-create a customer.
+- Choose a payment method and record cash received.
+- Save the sale as `Pending` or `Completed`.
+- Print the sale receipt after saving.
+
+Typical workflow:
+1. Open `Sales -> POS`.
+2. Search and add products to the cart.
+3. Adjust quantities and discounts.
+4. Select a customer (optional).
+5. Choose payment method and enter cash received if paying by cash.
+6. Save the sale.
+7. Print the receipt if needed.
+
+### Sales
+
+Route: `/sales`
+
+Purpose:
+Sales lists all recorded sales and lets staff review, print, complete, or cancel/restore them.
+
+Use this module to:
+- View sale invoice number, customer, date, status, and total.
+- Open a sale to see line items.
+- Print a sale receipt.
+- Mark a `Pending` sale as `Completed`.
+- Cancel a sale (restores stock) or restore a cancelled sale back to `Pending`.
+
+Sale statuses:
+- `Pending`: sale is recorded but not yet completed/paid.
+- `Completed`: sale is finalized and recorded in Finance.
+- `Cancelled`: sale is voided and stock/finance entries are reversed.
+
+Typical workflow:
+1. Open `Sales -> Sales`.
+2. Search or filter sales.
+3. Open a sale to view details.
+4. Mark as completed, print, or cancel/restore as needed.
+
+### Customers
+
+Route: `/master/customers`
+
+Purpose:
+Customers is the master data module for people or organizations sales are recorded against.
+
+Use this module to:
+- Create and edit customer records.
+- Select a customer during POS checkout.
+
+Typical workflow:
+1. Open `Sales -> Customers`.
+2. Create or edit a customer.
+3. Select this customer during POS checkout.
+
+## Money
+
+The Money menu groups finance category setup and finance transaction tracking.
+
+### Transactions
+
+Route: `/finance/transactions`
+
+Purpose:
+Transactions lists finance ledger entries (income/expense), including entries automatically recorded from completed sales and received purchases.
+
+Use this module to:
+- View transaction date, category, type, amount, and reference.
+- Record manual income/expense transactions.
+- Print a transaction record.
+
+### Categories
+
+Route: `/finance/categories`
+
+Purpose:
+Categories groups finance transactions (e.g. Sales Income, Purchase Expense, Utilities) for reporting.
+
+Use this module to:
+- Create finance categories.
+- Edit categories.
+- Set category type (income/expense).
+
+Typical workflow:
+1. Open `Money -> Categories`.
+2. Create categories needed for reporting.
+3. Open `Money -> Transactions`.
+4. Record manual transactions against a category, or review auto-recorded sale/purchase entries.
+
 ## Admin
 
 The Admin menu groups user and system configuration.
@@ -366,30 +469,7 @@ Typical workflow:
 3. Edit the value.
 4. Save.
 
-## Visible But Disabled Placeholders
 
-These menu items are visible but disabled in the current UI. They should not be treated as ready modules yet.
-
-### Sales
-
-Visible items:
-- POS
-- Sales
-- Customers
-
-Current status:
-Visible in menu, but disabled.
-
-### Money
-
-Visible items:
-- Transactions
-- Categories
-
-Current status:
-Visible in menu, but disabled.
-
-## File And Image Access On Deployment
 
 Uploaded files are stored in Laravel under:
 

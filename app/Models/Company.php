@@ -55,31 +55,6 @@ class Company extends Model
         return $this->belongsTo(self::class, 'parent_company_id');
     }
 
-    public function vendorCompanies(): HasMany
-    {
-        return $this->hasMany(VendorCompany::class);
-    }
-
-    public function vendors(): BelongsToMany
-    {
-        return $this->belongsToMany(Vendor::class, 'vendor_companies')
-            ->using(VendorCompany::class)
-            ->withPivot([
-                'is_primary',
-                'vendor_code_for_company',
-                'payment_terms_id',
-                'credit_limit',
-                'purchase_currency_id',
-                'purchase_enabled',
-                'payment_enabled',
-                'preferred_vendor',
-                'lead_time_days',
-                'status',
-                'notes',
-            ])
-            ->withTimestamps();
-    }
-
     public function suppliers(): BelongsToMany
     {
         return $this->belongsToMany(Supplier::class, 'supplier_companies')->withTimestamps();
