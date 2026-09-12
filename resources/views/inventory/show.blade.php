@@ -10,6 +10,7 @@
             ->values() ?? collect();
         $nextExpiry = $batches->firstWhere('expiry_date', '!=', null)?->expiry_date;
         $movements = $product?->inventoryMovements
+            ?->filter(fn ($movement) => $movement->purchase_item_id !== null)
             ?->sortByDesc('created_at')
             ->values() ?? collect();
     @endphp
@@ -158,7 +159,7 @@
             <section class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                 <div class="border-b border-gray-100 px-6 py-4">
                     <h3 class="text-base font-semibold text-gray-900">{{ __('Batch Movement Log') }}</h3>
-                    <p class="mt-1 text-sm text-gray-500">{{ __('Purchase receipts, FIFO sale deductions, cancellations, and sale restores by batch.') }}</p>
+                    <p class="mt-1 text-sm text-gray-500">{{ __('Only batch-linked movements are shown here: purchase receipts, FIFO sale deductions, cancellations, and sale restores. Overall stock movement entries are kept separately for audit totals.') }}</p>
                 </div>
 
                 <div class="overflow-x-auto">
