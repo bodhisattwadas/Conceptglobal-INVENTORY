@@ -6,24 +6,26 @@ use App\Models\InventoryStock;
 use Illuminate\Database\Eloquent\Builder;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
+use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
 use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
 use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\PowerGridFields;
 use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
 
 final class InventoryTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'inventory-table';
+
     public string $sortField = 'updated_at';
+
     public string $sortDirection = 'desc';
 
     public function setUp(): array
     {
         return [
-            PowerGrid::exportable('inventory_export_' . now()->format('Y_m_d'))
+            PowerGrid::exportable('inventory_export_'.now()->format('Y_m_d'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
             PowerGrid::header()->showSearchInput(),
             PowerGrid::footer()->showPerPage()->showRecordCount(),
@@ -33,24 +35,24 @@ final class InventoryTable extends PowerGridComponent
     public function datasource(): Builder
     {
         return InventoryStock::query()
-            ->with(['product.company', 'product.unit', 'product.category', 'product.purchaseItems']);
+            ->with(['product.company', 'product.unit', 'product.category', 'product.purchaseItems.purchase']);
     }
 
     public function fields(): PowerGridFields
     {
         return PowerGrid::fields()
             ->add('id')
-            ->add('sku', fn(InventoryStock $model) => $model->product?->sku ?: '-')
-            ->add('product_name', fn(InventoryStock $model) => $model->product?->name ?: '-')
-            ->add('brand_name', fn(InventoryStock $model) => $model->product?->company?->short_name ?: $model->product?->company?->company_name ?: '-')
-            ->add('category_name', fn(InventoryStock $model) => $model->product?->category?->name ?: '-')
+            ->add('sku', fn (InventoryStock $model) => $model->product?->sku ?: '-')
+            ->add('product_name', fn (InventoryStock $model) => $model->product?->name ?: '-')
+            ->add('brand_name', fn (InventoryStock $model) => $model->product?->company?->short_name ?: $model->product?->company?->company_name ?: '-')
+            ->add('category_name', fn (InventoryStock $model) => $model->product?->category?->name ?: '-')
             ->add('quantity')
-            ->add('quantity_with_unit', fn(InventoryStock $model) => $this->numberWithUnit((int) $model->quantity, $model))
-            ->add('batch_quantities', fn(InventoryStock $model) => $this->batchQuantities($model))
-            ->add('unit', fn(InventoryStock $model) => $model->product?->unit?->symbol ?: $model->product?->unit?->name ?: '-')
-            ->add('min_stock', fn(InventoryStock $model) => $model->product?->min_stock ?? 0)
-            ->add('min_stock_with_unit', fn(InventoryStock $model) => $this->numberWithUnit((int) ($model->product?->min_stock ?? 0), $model))
-            ->add('stock_badge', fn(InventoryStock $model) => $this->stockBadge($model))
+            ->add('quantity_with_unit', fn (InventoryStock $model) => $this->numberWithUnit((int) $model->quantity, $model))
+            ->add('batch_quantities', fn (InventoryStock $model) => $this->batchQuantities($model))
+            ->add('unit', fn (InventoryStock $model) => $model->product?->unit?->symbol ?: $model->product?->unit?->name ?: '-')
+            ->add('min_stock', fn (InventoryStock $model) => $model->product?->min_stock ?? 0)
+            ->add('min_stock_with_unit', fn (InventoryStock $model) => $this->numberWithUnit((int) ($model->product?->min_stock ?? 0), $model))
+            ->add('stock_badge', fn (InventoryStock $model) => $this->stockBadge($model))
             ->add('updated_at');
     }
 
@@ -100,7 +102,10 @@ final class InventoryTable extends PowerGridComponent
     {
         $batches = $stock->product?->purchaseItems
             ?->filter(fn ($item) => (int) ($item->received_quantity ?? 0) > 0)
-            ->sortBy(fn ($item) => $item->expiry_date?->timestamp ?? PHP_INT_MAX)
+            ->sortBy(fn ($item) => [
+                $item->purchase?->purchase_date?->timestamp ?? PHP_INT_MAX,
+                $item->id,
+            ])
             ->values() ?? collect();
 
         if ($batches->isEmpty()) {

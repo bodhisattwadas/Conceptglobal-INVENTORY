@@ -2,35 +2,44 @@
 
 namespace App\Livewire\Users;
 
-use App\Models\User;
-use Livewire\Component;
-use Livewire\Attributes\On;
 use App\DTOs\UserData;
+use App\Enums\UserRole;
+use App\Models\User;
 use App\Services\UserService;
-use Illuminate\Validation\Rule;
-use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\On;
+use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class UserForm extends Component
 {
     use WithFileUploads;
 
     public ?User $user = null;
+
     public bool $isEditing = false;
 
     public $name;
+
     public $username;
+
     public $email;
-    public string $role = 'staff';
+
+    public string $role = 'sales';
+
     public $profile_photo = null;
+
     public ?string $currentProfilePhotoPath = null;
+
     public $password;
+
     public $password_confirmation;
 
     public array $roles = [
         'admin' => 'Admin',
         'manager' => 'Manager',
-        'staff' => 'Staff',
+        'sales' => 'Sales',
     ];
 
     public function rules(): array
@@ -49,7 +58,7 @@ class UserForm extends Component
     public function create(): void
     {
         $this->reset(['user', 'isEditing', 'name', 'username', 'email', 'profile_photo', 'currentProfilePhotoPath', 'password', 'password_confirmation']);
-        $this->role = 'staff';
+        $this->role = UserRole::Sales->value;
         $this->dispatch('open-modal', name: 'user-form-modal');
     }
 
@@ -62,7 +71,7 @@ class UserForm extends Component
         $this->name = $user->name;
         $this->username = $user->username;
         $this->email = $user->email;
-        $this->role = $user->role ?? 'staff';
+        $this->role = $user->role ?? UserRole::Sales->value;
         $this->profile_photo = null;
         $this->currentProfilePhotoPath = $user->profile_photo_path;
         $this->password = '';
@@ -102,11 +111,11 @@ class UserForm extends Component
 
             // Reset after save
             $this->reset(['user', 'isEditing', 'name', 'username', 'email', 'profile_photo', 'currentProfilePhotoPath', 'password', 'password_confirmation']);
-            $this->role = 'staff';
+            $this->role = UserRole::Sales->value;
 
         } catch (\Exception $e) {
             $this->deleteUploadedPhoto($validated['profile_photo_path']);
-            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('toast', message: 'Error: '.$e->getMessage(), type: 'error');
         }
     }
 

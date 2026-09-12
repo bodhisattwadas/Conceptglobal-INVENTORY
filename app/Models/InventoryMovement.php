@@ -11,6 +11,8 @@ class InventoryMovement extends Model
         'product_id',
         'purchase_id',
         'purchase_item_id',
+        'sale_id',
+        'sale_item_id',
         'type',
         'quantity',
         'balance_after',
@@ -22,6 +24,8 @@ class InventoryMovement extends Model
         'product_id' => 'integer',
         'purchase_id' => 'integer',
         'purchase_item_id' => 'integer',
+        'sale_id' => 'integer',
+        'sale_item_id' => 'integer',
         'quantity' => 'integer',
         'balance_after' => 'integer',
     ];
@@ -39,5 +43,15 @@ class InventoryMovement extends Model
     public function purchaseItem(): BelongsTo
     {
         return $this->belongsTo(PurchaseItem::class);
+    }
+
+    public function sale(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class);
+    }
+
+    public function saleItem(): BelongsTo
+    {
+        return $this->belongsTo(SaleItem::class);
     }
 }

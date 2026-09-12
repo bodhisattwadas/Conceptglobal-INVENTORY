@@ -42,7 +42,7 @@
 
                     <div class="space-y-1">
                         <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Role') }}</label>
-                        <p class="text-sm text-foreground font-medium">{{ ucfirst($user->role ?? 'staff') }}</p>
+                        <p class="text-sm text-foreground font-medium">{{ ucfirst($user->role ?? 'sales') }}</p>
                     </div>
                 </div>
 

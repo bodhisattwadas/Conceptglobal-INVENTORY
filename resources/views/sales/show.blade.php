@@ -91,6 +91,7 @@
                                 <tr>
                                     <th class="px-6 py-3">Code</th>
                                     <th class="px-6 py-3">Product</th>
+                                    <th class="px-6 py-3">FIFO Batches</th>
                                     <th class="px-6 py-3">Unit</th>
                                     <th class="px-6 py-3 text-center">Qty</th>
                                     <th class="px-6 py-3 text-right">Price</th>
@@ -106,6 +107,27 @@
                                         </td>
                                         <td class="px-6 py-4 font-medium text-gray-900">
                                             {{ $item->product->name }}
+                                        </td>
+                                        <td class="px-6 py-4 text-sm text-gray-700">
+                                            @php
+                                                $batchMovements = $item->inventoryMovements
+                                                    ->filter(fn ($movement) => in_array($movement->type, ['sale', 'sale_restore'], true) && $movement->quantity < 0)
+                                                    ->sortBy('created_at')
+                                                    ->values();
+                                            @endphp
+
+                                            @forelse($batchMovements as $movement)
+                                                <div class="font-mono text-xs">
+                                                    <span class="font-semibold text-gray-900">{{ $movement->purchaseItem?->batch_number ?: 'Batch' }}</span>
+                                                    <span class="text-gray-500">:</span>
+                                                    <span class="font-semibold text-red-700">{{ abs($movement->quantity) }}</span>
+                                                    @if($movement->purchaseItem?->purchase)
+                                                        <span class="text-gray-400">/ {{ $movement->purchaseItem->purchase->invoice_number ?: 'PO-'.$movement->purchaseItem->purchase->id }}</span>
+                                                    @endif
+                                                </div>
+                                            @empty
+                                                <span class="text-gray-400">-</span>
+                                            @endforelse
                                         </td>
                                         <td class="px-6 py-4 text-sm text-gray-500">
                                             {{ $item->product->unit->symbol ?? $item->product->unit->name ?? '-' }}
@@ -127,14 +149,14 @@
                             </tbody>
                             <tfoot class="bg-gray-50 font-bold">
                                 <tr>
-                                    <td colspan="6" class="px-6 py-4 text-right">Subtotal</td>
+                                    <td colspan="7" class="px-6 py-4 text-right">Subtotal</td>
                                     <td class="px-6 py-4 text-right text-gray-700">
                                         @money($sale->subtotal)
                                     </td>
                                 </tr>
                                 @if($sale->total_discount > 0)
                                     <tr>
-                                        <td colspan="6" class="px-6 py-4 text-right text-red-600">Total Discount (Items)</td>
+                                        <td colspan="7" class="px-6 py-4 text-right text-red-600">Total Discount (Items)</td>
                                         <td class="px-6 py-4 text-right text-red-600">
                                             - @money($sale->total_discount - $sale->global_discount)
                                         </td>
@@ -142,26 +164,26 @@
                                 @endif
                                 @if($sale->global_discount > 0)
                                     <tr>
-                                        <td colspan="6" class="px-6 py-4 text-right text-red-600">Global Discount (Transaction)</td>
+                                        <td colspan="7" class="px-6 py-4 text-right text-red-600">Global Discount (Transaction)</td>
                                         <td class="px-6 py-4 text-right text-red-600">
                                             - @money($sale->global_discount)
                                         </td>
                                     </tr>
                                 @endif
                                 <tr>
-                                    <td colspan="6" class="px-6 py-4 text-right">Total</td>
+                                    <td colspan="7" class="px-6 py-4 text-right">Total</td>
                                     <td class="px-6 py-4 text-right text-indigo-600 text-lg">
                                         @money($sale->total)
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td colspan="6" class="px-6 py-4 text-right text-gray-600">Cash Received</td>
+                                    <td colspan="7" class="px-6 py-4 text-right text-gray-600">Cash Received</td>
                                     <td class="px-6 py-4 text-right text-gray-800">
                                         @money($sale->cash_received)
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td colspan="6" class="px-6 py-4 text-right text-gray-600">Change</td>
+                                    <td colspan="7" class="px-6 py-4 text-right text-gray-600">Change</td>
                                     <td class="px-6 py-4 text-right text-green-600">
                                         @money($sale->change)
                                     </td>
@@ -281,12 +303,31 @@
 
                         <p class="mt-1 text-sm text-gray-600" x-text="modalMessage"></p>
 
+                        @if($sale->status === \App\Enums\SaleStatus::PENDING && $sale->payment_method === \App\Enums\PaymentMethod::CASH)
+                            <template x-if="actionUrl.endsWith('/complete')">
+                                <div class="mt-5">
+                                    <x-input-label for="cash_received" :value="__('Cash Received')" hint="Enter the amount collected before completing this sale." />
+                                    <input
+                                        id="cash_received"
+                                        name="cash_received"
+                                        type="number"
+                                        min="{{ $sale->total }}"
+                                        step="1"
+                                        value="{{ max($sale->cash_received, $sale->total) }}"
+                                        required
+                                        form="complete-sale-form"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                    >
+                                </div>
+                            </template>
+                        @endif
+
                         <div class="mt-6 flex justify-end">
                             <x-secondary-button x-on:click="$dispatch('close-modal', { name: 'confirmation-modal' })" x-bind:disabled="submitting">
                                 {{ __('Back') }}
                             </x-secondary-button>
 
-                            <form :action="actionUrl" method="POST" class="ml-3" @submit="submitting = true">
+                            <form id="complete-sale-form" :action="actionUrl" method="POST" class="ml-3" @submit="submitting = true">
                                 @csrf
                                 <input type="hidden" name="_method" :value="actionMethod">
 

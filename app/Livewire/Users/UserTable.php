@@ -3,23 +3,26 @@
 namespace App\Livewire\Users;
 
 use App\Models\User;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
+use App\Services\UserService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
+use Livewire\Attributes\On;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
-use PowerComponents\LivewirePowerGrid\PowerGridFields;
-use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
-use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
+use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
+use PowerComponents\LivewirePowerGrid\PowerGridComponent;
+use PowerComponents\LivewirePowerGrid\PowerGridFields;
+use PowerComponents\LivewirePowerGrid\Traits\WithExport;
 
 final class UserTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'user-table';
+
     public string $sortField = 'created_at';
+
     public string $sortDirection = 'desc';
 
     public function setUp(): array
@@ -27,7 +30,7 @@ final class UserTable extends PowerGridComponent
         $this->showCheckBox();
 
         return [
-            PowerGrid::exportable('users_export_' . now()->format('Y_m_d'))
+            PowerGrid::exportable('users_export_'.now()->format('Y_m_d'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
 
             PowerGrid::header()
@@ -51,16 +54,16 @@ final class UserTable extends PowerGridComponent
             ->add('profile_photo_path')
             ->add('avatar', function (User $model) {
                 if (! $model->profile_photo_path) {
-                    return '<div class="h-9 w-9 rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-500">' . e(strtoupper(substr($model->name, 0, 1))) . '</div>';
+                    return '<div class="h-9 w-9 rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-500">'.e(strtoupper(substr($model->name, 0, 1))).'</div>';
                 }
 
-                return '<img src="' . e(public_storage_url($model->profile_photo_path)) . '" alt="' . e($model->name) . '" class="h-9 w-9 rounded-full object-cover">';
+                return '<img src="'.e(public_storage_url($model->profile_photo_path)).'" alt="'.e($model->name).'" class="h-9 w-9 rounded-full object-cover">';
             })
             ->add('name')
             ->add('username')
             ->add('email')
             ->add('role')
-            ->add('role_label', fn (User $model) => ucfirst($model->role ?? 'staff'))
+            ->add('role_label', fn (User $model) => ucfirst($model->role ?? 'sales'))
             ->add('created_at_formatted', fn (User $model) => Carbon::parse($model->created_at)->format('d/m/Y H:i'));
     }
 
@@ -97,7 +100,7 @@ final class UserTable extends PowerGridComponent
             Column::make('Created At', 'created_at_formatted', 'created_at')
                 ->sortable(),
 
-            Column::action('Action')
+            Column::action('Action'),
         ];
     }
 
@@ -126,12 +129,12 @@ final class UserTable extends PowerGridComponent
                     'title' => 'Delete User?',
                     'description' => "Are you sure you want to delete user '{$row->name}'? This action cannot be undone.",
                 ])
-                ->tooltip('Delete User')
+                ->tooltip('Delete User'),
         ];
     }
 
-    #[\Livewire\Attributes\On('delete')]
-    public function delete($userId, \App\Services\UserService $service): void
+    #[On('delete')]
+    public function delete($userId, UserService $service): void
     {
         $user = User::find($userId);
 

@@ -21,6 +21,7 @@
                         </a>
 
                         <!-- Sales Dropdown -->
+                        @if(Auth::user()->hasRole('admin', 'sales'))
                         <x-nav-dropdown active="{{ request()->routeIs(['sales.*', 'customers.*']) }}">
                             <x-slot name="icon">
                                 <x-heroicon-o-banknotes class="mr-2 h-4 w-4" />
@@ -40,8 +41,10 @@
                                 </x-dropdown-link>
                             </x-slot>
                         </x-nav-dropdown>
+                        @endif
 
                         <!-- Buying Dropdown -->
+                        @if(Auth::user()->hasRole('admin', 'manager'))
                         <x-nav-dropdown active="{{ request()->routeIs(['purchases.*', 'vendor-invoices.*', 'suppliers.*']) }}">
                             <x-slot name="icon">
                                 <x-heroicon-o-shopping-cart class="mr-2 h-4 w-4" />
@@ -88,8 +91,10 @@
                                 </x-dropdown-link>
                             </x-slot>
                         </x-nav-dropdown>
+                        @endif
 
                         <!-- Finance Dropdown -->
+                        @if(Auth::user()->isAdmin())
                         <x-nav-dropdown active="{{ request()->routeIs(['finance.*']) }}">
                             <x-slot name="icon">
                                 <x-heroicon-o-currency-dollar class="mr-2 h-4 w-4" />
@@ -127,6 +132,7 @@
                                 </x-dropdown-link>
                             </x-slot>
                         </x-nav-dropdown>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -146,9 +152,11 @@
                             {{ __('Profile') }}
                         </x-dropdown-link>
 
-                        <x-dropdown-link :href="route('settings.index')" :active="request()->routeIs('settings.*')">
-                            {{ __('Settings') }}
-                        </x-dropdown-link>
+                        @if(Auth::user()->isAdmin())
+                            <x-dropdown-link :href="route('settings.index')" :active="request()->routeIs('settings.*')">
+                                {{ __('Settings') }}
+                            </x-dropdown-link>
+                        @endif
 
                         <!-- Authentication -->
                         <form method="POST" action="{{ route('logout') }}">
@@ -218,6 +226,7 @@
                         <a href="{{ route('dashboard') }}" class="text-md font-semibold hover:underline {{ request()->routeIs('dashboard') ? 'text-primary' : '' }}">Dashboard</a>
 
                         <!-- Mobile Sales Accordion -->
+                        @if(Auth::user()->hasRole('admin', 'sales'))
                         <div x-data="{ expanded: {{ request()->routeIs(['sales.*', 'customers.*']) ? 'true' : 'false' }} }" class="border-b-0">
                             <button @click="expanded = !expanded" class="flex flex-1 items-center justify-between py-0 font-semibold transition-all hover:underline [&[data-state=open]>svg]:rotate-180 w-full text-left text-md {{ request()->routeIs(['sales.*', 'customers.*']) ? 'text-primary' : '' }}">
                                 Sales
@@ -231,8 +240,10 @@
                                 </div>
                             </div>
                         </div>
+                        @endif
 
                         <!-- Mobile Buying Accordion -->
+                        @if(Auth::user()->hasRole('admin', 'manager'))
                         <div x-data="{ expanded: {{ request()->routeIs(['purchases.*', 'vendor-invoices.*', 'suppliers.*']) ? 'true' : 'false' }} }" class="border-b-0">
                             <button @click="expanded = !expanded" class="flex flex-1 items-center justify-between py-0 font-semibold transition-all hover:underline [&[data-state=open]>svg]:rotate-180 w-full text-left text-md {{ request()->routeIs(['purchases.*', 'vendor-invoices.*', 'suppliers.*']) ? 'text-primary' : '' }}">
                                 Buying
@@ -263,8 +274,10 @@
                                 </div>
                             </div>
                         </div>
+                        @endif
 
                         <!-- Mobile Finance Accordion -->
+                        @if(Auth::user()->isAdmin())
                         <div x-data="{ expanded: {{ request()->routeIs(['finance.*']) ? 'true' : 'false' }} }" class="border-b-0">
                             <button @click="expanded = !expanded" class="flex flex-1 items-center justify-between py-0 font-semibold transition-all hover:underline [&[data-state=open]>svg]:rotate-180 w-full text-left text-md {{ request()->routeIs(['finance.*']) ? 'text-primary' : '' }}">
                                 Money
@@ -292,6 +305,7 @@
                                 </div>
                             </div>
                         </div>
+                        @endif
 
 
                     <!-- Mobile User Menu -->
@@ -301,9 +315,11 @@
                                 <a href="{{ route('profile.index') }}" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input h-9 px-4 py-2 w-full {{ request()->routeIs('profile.*') ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent hover:text-accent-foreground' }}">
                                     Profile
                                 </a>
-                                <a href="{{ route('settings.index') }}" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input h-9 px-4 py-2 w-full {{ request()->routeIs('settings.*') ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent hover:text-accent-foreground' }}">
-                                    Settings
-                                </a>
+                                @if(Auth::user()->isAdmin())
+                                    <a href="{{ route('settings.index') }}" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input h-9 px-4 py-2 w-full {{ request()->routeIs('settings.*') ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent hover:text-accent-foreground' }}">
+                                        Settings
+                                    </a>
+                                @endif
                                 <form method="POST" action="{{ route('logout') }}" class="w-full">
                                     @csrf
                                     <button type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 w-full">

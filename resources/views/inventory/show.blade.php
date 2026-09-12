@@ -3,9 +3,15 @@
         $product = $inventoryStock->product;
         $batches = $product?->purchaseItems
             ?->filter(fn ($item) => (int) ($item->received_quantity ?? 0) > 0)
-            ->sortBy(fn ($item) => $item->expiry_date?->timestamp ?? PHP_INT_MAX)
+            ->sortBy(fn ($item) => [
+                $item->purchase?->purchase_date?->timestamp ?? PHP_INT_MAX,
+                $item->id,
+            ])
             ->values() ?? collect();
         $nextExpiry = $batches->firstWhere('expiry_date', '!=', null)?->expiry_date;
+        $movements = $product?->inventoryMovements
+            ?->sortByDesc('created_at')
+            ->values() ?? collect();
     @endphp
 
     <x-slot name="header">
@@ -85,8 +91,8 @@
 
             <section class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                 <div class="border-b border-gray-100 px-6 py-4">
-                    <h3 class="text-base font-semibold text-gray-900">{{ __('Received Batches') }}</h3>
-                    <p class="mt-1 text-sm text-gray-500">{{ __('Manufacturing and expiry dates captured while receiving purchase orders.') }}</p>
+                    <h3 class="text-base font-semibold text-gray-900">{{ __('Active FIFO Batches') }}</h3>
+                    <p class="mt-1 text-sm text-gray-500">{{ __('Only batches with remaining quantity are shown here. Fully sold batches remain in the movement log below.') }}</p>
                 </div>
 
                 <div class="overflow-x-auto">
@@ -142,6 +148,60 @@
                             @empty
                                 <tr>
                                     <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500">{{ __('No received batches found for this product.') }}</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                <div class="border-b border-gray-100 px-6 py-4">
+                    <h3 class="text-base font-semibold text-gray-900">{{ __('Batch Movement Log') }}</h3>
+                    <p class="mt-1 text-sm text-gray-500">{{ __('Purchase receipts, FIFO sale deductions, cancellations, and sale restores by batch.') }}</p>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('Date') }}</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('Type') }}</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('Batch No') }}</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('Reference') }}</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium uppercase text-gray-500">{{ __('Qty') }}</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium uppercase text-gray-500">{{ __('Batch Balance') }}</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('Notes') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">
+                            @forelse($movements as $movement)
+                                <tr>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $movement->created_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                                    <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ str($movement->type)->replace('_', ' ')->title() }}</td>
+                                    <td class="px-4 py-3 text-sm font-bold text-gray-900">{{ $movement->purchaseItem?->batch_number ?: '-' }}</td>
+                                    <td class="px-4 py-3 text-sm font-medium text-blue-700">
+                                        @if($movement->sale)
+                                            <a href="{{ route('sales.show', $movement->sale) }}" class="hover:underline">
+                                                {{ $movement->reference ?: $movement->sale->invoice_number }}
+                                            </a>
+                                        @elseif($movement->purchase)
+                                            <a href="{{ route('purchases.show', $movement->purchase) }}" class="hover:underline">
+                                                {{ $movement->reference ?: $movement->purchase->invoice_number }}
+                                            </a>
+                                        @else
+                                            {{ $movement->reference ?: '-' }}
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-center text-sm font-semibold {{ $movement->quantity < 0 ? 'text-red-700' : 'text-emerald-700' }}">
+                                        {{ $movement->quantity > 0 ? '+' : '' }}{{ $movement->quantity }}
+                                    </td>
+                                    <td class="px-4 py-3 text-center text-sm font-semibold text-gray-900">{{ $movement->balance_after }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-600">{{ $movement->notes ?: '-' }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-500">{{ __('No batch movement logs found for this product.') }}</td>
                                 </tr>
                             @endforelse
                         </tbody>

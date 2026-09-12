@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Sale;
 use App\DTOs\SaleData;
-use Illuminate\Http\Request;
-use App\Services\SaleService;
 use App\Exceptions\SaleException;
-use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\CompleteSaleRequest;
 use App\Http\Requests\StoreSaleRequest;
+use App\Models\Sale;
+use App\Services\SaleService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class SalesController extends Controller
 {
@@ -38,7 +39,7 @@ class SalesController extends Controller
                     'message' => 'Sale created successfully',
                     'data' => $sale,
                     'print_url' => route('sales.print', $sale->id),
-                    'redirect' => route('sales.create')
+                    'redirect' => route('sales.create'),
                 ], 201);
             }
 
@@ -49,27 +50,33 @@ class SalesController extends Controller
             if ($request->wantsJson()) {
                 return response()->json(['message' => $e->getMessage()], 400);
             }
+
             return back()->with('error', $e->getMessage())->withInput();
 
         } catch (\Exception $e) {
             if ($request->wantsJson()) {
                 return response()->json(['message' => $e->getMessage()], 400);
             }
+
             return back()->with('error', $e->getMessage())->withInput();
         }
     }
 
     public function show(Sale $sale)
     {
-        $sale->load(['items.product.unit', 'customer', 'creator']);
+        $sale->load(['items.product.unit', 'items.inventoryMovements.purchaseItem.purchase', 'customer', 'creator']);
+
         return view('sales.show', compact('sale'));
     }
 
     public function destroy(Request $request, Sale $sale, SaleService $saleService)
     {
         try {
-            $reason = $request->input('reason');
+            $reason = $request->validate([
+                'reason' => ['nullable', 'string', 'max:1000'],
+            ])['reason'] ?? null;
             $saleService->cancelSale($sale, $reason);
+
             return redirect()->route('sales.index')->with('success', 'Sale cancelled successfully.');
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
@@ -79,6 +86,7 @@ class SalesController extends Controller
     public function print(Sale $sale)
     {
         $sale->load(['items.product.unit', 'customer', 'creator']);
+
         return view('sales.print', compact('sale'));
     }
 
@@ -86,18 +94,17 @@ class SalesController extends Controller
     {
         try {
             $saleService->restoreSale($sale);
+
             return redirect()->back()->with('success', 'Sale restored to Pending.');
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }
     }
 
-    public function complete(Request $request, Sale $sale, SaleService $saleService)
+    public function complete(CompleteSaleRequest $request, Sale $sale, SaleService $saleService)
     {
         try {
-            $paymentData = $request->only(['cash_received', 'change']);
-
-            $saleService->completeSale($sale, $paymentData);
+            $saleService->completeSale($sale, $request->validated());
 
             return redirect()->back()->with('success', 'Sale marked as completed.');
 

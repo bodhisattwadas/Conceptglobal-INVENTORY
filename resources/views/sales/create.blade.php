@@ -623,8 +623,8 @@
                     // Confirmation
                     openConfirmation() {
                         if (this.cart.length === 0) return;
-                        if (this.payment.method === 'cash' && this.payment.cash_received < this.total) {
-                            this.$dispatch('toast', { message: 'Insufficient payment!', type: 'error' });
+                        if (this.total < 0) {
+                            this.$dispatch('toast', { message: 'Discount cannot exceed the sale subtotal.', type: 'error' });
                             return;
                         }
 
@@ -633,6 +633,11 @@
 
                     // Submit Sale
                     async submitSale() {
+                        if (this.saleStatus === 'completed' && this.payment.method === 'cash' && this.payment.cash_received < this.total) {
+                            this.$dispatch('toast', { message: 'Insufficient payment!', type: 'error' });
+                            return;
+                        }
+
                         this.isSubmitting = true;
 
                         try {

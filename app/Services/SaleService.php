@@ -2,13 +2,15 @@
 
 namespace App\Services;
 
-use Exception;
-use App\Models\Sale;
 use App\DTOs\SaleData;
-use App\Models\Product;
-use App\Enums\SaleStatus;
 use App\Enums\PaymentMethod;
+use App\Enums\SaleStatus;
 use App\Exceptions\SaleException;
+use App\Models\InventoryMovement;
+use App\Models\Product;
+use App\Models\Sale;
+use App\Models\SaleItem;
+use Exception;
 use Illuminate\Support\Facades\DB;
 
 class SaleService
@@ -16,8 +18,7 @@ class SaleService
     public function __construct(
         protected FinanceTransactionService $financeService,
         protected InventoryService $inventoryService
-    ) {
-    }
+    ) {}
 
     /**
      * Create a new sale with items and deduction of stock.
@@ -42,8 +43,8 @@ class SaleService
                     'status' => $data->status,
                     'payment_method' => $data->payment_method,
                     'notes' => $data->notes,
-                    'cash_received' => $data->cash_received,
-                    'change' => $data->change,
+                    'cash_received' => $data->payment_method === PaymentMethod::CASH ? $data->cash_received : 0,
+                    'change' => 0,
                     'subtotal' => 0,
                     'global_discount' => $data->global_discount,
                     'total_discount' => 0,
@@ -52,13 +53,11 @@ class SaleService
 
                 $totalSubtotal = 0;
                 $totalDiscount = 0;
-                $timestamp = now();
-                $saleItems = [];
 
                 foreach ($data->items as $itemData) {
                     $product = $products->get($itemData->product_id);
 
-                    if (!$product) {
+                    if (! $product) {
                         throw SaleException::productNotFound($itemData->product_id);
                     }
 
@@ -70,24 +69,18 @@ class SaleService
                         );
                     }
 
-                    // Update stock
-                    $product->quantity -= $itemData->quantity;
-                    $product->save();
-                    $this->inventoryService->adjustForSale($product->id, -$itemData->quantity, 'sale', $sale->invoice_number, 'Sold via sale.');
-                    $this->inventoryService->deductFromBatches($product->id, $itemData->quantity, 'sale', $sale->invoice_number, 'Sold via sale.');
-
                     $unitPrice = $product->selling_price;
                     $quantity = $itemData->quantity;
                     $discount = $itemData->discount;
 
                     if ($discount > $unitPrice) {
-                        throw SaleException::invalidDiscount("Item discount (" . format_money($discount) . ") cannot exceed unit price (" . format_money($unitPrice) . ") for product '{$product->name}'.");
+                        throw SaleException::invalidDiscount('Item discount ('.format_money($discount).') cannot exceed unit price ('.format_money($unitPrice).") for product '{$product->name}'.");
                     }
 
                     $finalPrice = $unitPrice - $discount;
-                    $subtotal   = $finalPrice * $quantity;
+                    $subtotal = $finalPrice * $quantity;
 
-                    $saleItems[] = [
+                    $saleItem = SaleItem::create([
                         'sale_id' => $sale->id,
                         'product_id' => $product->id,
                         'quantity' => $quantity,
@@ -96,35 +89,34 @@ class SaleService
                         'discount' => $discount,
                         'final_price' => $finalPrice,
                         'subtotal' => $subtotal,
-                        'created_at' => $timestamp,
-                        'updated_at' => $timestamp,
-                    ];
+                    ]);
+
+                    // Update stock and consume oldest received batches first.
+                    $product->quantity -= $itemData->quantity;
+                    $product->save();
+                    $this->inventoryService->adjustForSale($product->id, -$itemData->quantity, 'sale', $sale->invoice_number, 'Sold via sale.', $sale, $saleItem);
+                    $this->inventoryService->deductFromBatches($product->id, $itemData->quantity, 'sale', $sale->invoice_number, 'Sold via sale.', $sale, $saleItem);
 
                     $totalSubtotal += $subtotal;
                     $totalDiscount += $discount * $quantity;
                 }
 
-                // Batch insert items
-                if (!empty($saleItems)) {
-                    \App\Models\SaleItem::insert($saleItems);
-                }
-
                 if ($data->global_discount > $totalSubtotal) {
-                    throw SaleException::invalidDiscount("Global discount (" . format_money($data->global_discount) . ") cannot exceed subtotal (" . format_money($totalSubtotal) . ").");
+                    throw SaleException::invalidDiscount('Global discount ('.format_money($data->global_discount).') cannot exceed subtotal ('.format_money($totalSubtotal).').');
                 }
 
                 $total = $totalSubtotal - $data->global_discount;
 
                 if ($data->status === SaleStatus::COMPLETED) {
-                    if ($data->payment_method === \App\Enums\PaymentMethod::CASH && $data->cash_received < $total) {
+                    if ($data->payment_method === PaymentMethod::CASH && $data->cash_received < $total) {
                         throw SaleException::insufficientPayment($total, $data->cash_received);
                     }
                 }
                 $change = 0;
 
                 // Calculate change if payment method is cash
-                if ($data->payment_method === \App\Enums\PaymentMethod::CASH && $data->cash_received >= $total) {
-                    $change = $data->cash_received - $total;
+                if ($data->payment_method === PaymentMethod::CASH && $sale->cash_received >= $total) {
+                    $change = $sale->cash_received - $total;
                 }
 
                 $sale->update([
@@ -142,8 +134,9 @@ class SaleService
                 return $sale;
 
             } catch (Exception $e) {
-                if ($e instanceof SaleException)
+                if ($e instanceof SaleException) {
                     throw $e;
+                }
                 throw SaleException::creationFailed($e->getMessage(), ['data' => $data]);
             }
         });
@@ -167,8 +160,17 @@ class SaleService
                     foreach ($sale->items as $item) {
                         if ($item->product) {
                             $item->product->increment('quantity', $item->quantity);
-                            $this->inventoryService->adjustForSale($item->product_id, $item->quantity, 'sale_cancel', $sale->invoice_number, 'Restored due to sale cancellation.');
-                            $this->inventoryService->restoreBatchesForReference($item->product_id, $sale->invoice_number, 'sale', 'sale_cancel', 'Restored due to sale cancellation.');
+                            $this->inventoryService->adjustForSale($item->product_id, $item->quantity, 'sale_cancel', $sale->invoice_number, 'Restored due to sale cancellation.', $sale, $item);
+                            $originalType = InventoryMovement::query()
+                                ->where('sale_item_id', $item->id)
+                                ->where('type', 'sale_restore')
+                                ->exists() ? 'sale_restore' : 'sale';
+                            $lastCancellationAt = InventoryMovement::query()
+                                ->where('sale_item_id', $item->id)
+                                ->where('type', 'sale_cancel')
+                                ->max('created_at');
+
+                            $this->inventoryService->restoreBatchesForReference($item->product_id, $sale->invoice_number, $originalType, 'sale_cancel', 'Restored due to sale cancellation.', $sale, $item, $lastCancellationAt);
                         }
                     }
                 }
@@ -176,7 +178,7 @@ class SaleService
                 $updateData = ['status' => SaleStatus::CANCELLED];
 
                 if ($reason) {
-                    $updateData['notes'] = ($sale->notes ? $sale->notes . "\n" : '') . "[Cancelled]: " . $reason;
+                    $updateData['notes'] = ($sale->notes ? $sale->notes."\n" : '').'[Cancelled]: '.$reason;
                 }
 
                 $sale->update($updateData);
@@ -187,8 +189,9 @@ class SaleService
                 return $sale;
 
             } catch (Exception $e) {
-                if ($e instanceof SaleException)
+                if ($e instanceof SaleException) {
                     throw $e;
+                }
                 throw SaleException::cancellationFailed($e->getMessage(), ['id' => $sale->id]);
             }
         });
@@ -204,22 +207,17 @@ class SaleService
                 throw SaleException::invalidStatus('complete', $sale->status->label(), ['id' => $sale->id]);
             }
 
-            $updateData = ['status' => SaleStatus::COMPLETED];
+            $cashReceived = (int) ($paymentData['cash_received'] ?? $sale->cash_received);
 
-            if (!empty($paymentData)) {
-                $updateData['cash_received'] = $paymentData['cash_received'] ?? $sale->cash_received;
-
-                if ($sale->payment_method === PaymentMethod::CASH && $updateData['cash_received'] < $sale->total) {
-                    throw SaleException::insufficientPayment($sale->total, $updateData['cash_received']);
-                }
-
-                // Calculate Change
-                if ($sale->payment_method === PaymentMethod::CASH && $updateData['cash_received'] >= $sale->total) {
-                    $updateData['change'] = $updateData['cash_received'] - $sale->total;
-                } else {
-                    $updateData['change'] = 0;
-                }
+            if ($sale->payment_method === PaymentMethod::CASH && $cashReceived < $sale->total) {
+                throw SaleException::insufficientPayment($sale->total, $cashReceived);
             }
+
+            $updateData = [
+                'status' => SaleStatus::COMPLETED,
+                'cash_received' => $sale->payment_method === PaymentMethod::CASH ? $cashReceived : 0,
+                'change' => $sale->payment_method === PaymentMethod::CASH ? $cashReceived - $sale->total : 0,
+            ];
 
             $sale->update($updateData);
 
@@ -246,7 +244,7 @@ class SaleService
             foreach ($sale->items as $item) {
                 $product = $item->product()->lockForUpdate()->find($item->product_id);
 
-                if (!$product) {
+                if (! $product) {
                     throw SaleException::productNotFound($item->product_id);
                 }
 
@@ -259,8 +257,8 @@ class SaleService
                 }
 
                 $product->decrement('quantity', $item->quantity);
-                $this->inventoryService->adjustForSale($item->product_id, -$item->quantity, 'sale_restore', $sale->invoice_number, 'Deducted due to sale restore from cancelled.');
-                $this->inventoryService->deductFromBatches($item->product_id, $item->quantity, 'sale_restore', $sale->invoice_number, 'Deducted due to sale restore from cancelled.');
+                $this->inventoryService->adjustForSale($item->product_id, -$item->quantity, 'sale_restore', $sale->invoice_number, 'Deducted due to sale restore from cancelled.', $sale, $item);
+                $this->inventoryService->deductFromBatches($item->product_id, $item->quantity, 'sale_restore', $sale->invoice_number, 'Deducted due to sale restore from cancelled.', $sale, $item);
             }
 
             // Restore to PENDING
@@ -275,8 +273,6 @@ class SaleService
     /**
      * Permanently delete a cancelled sale.
      *
-     * @param Sale $sale
-     * @return void
      * @throws Exception
      */
     public function deleteSale(Sale $sale): void
@@ -301,17 +297,18 @@ class SaleService
      */
     private function generateInvoiceNumber(): string
     {
-        $prefix = 'INV.' . date('ymd') . '.';
+        $prefix = 'INV.'.date('ymd').'.';
 
-        $latest = Sale::where('invoice_number', 'like', $prefix . '%')
+        $latest = Sale::where('invoice_number', 'like', $prefix.'%')
             ->orderBy('id', 'desc')
             ->first();
 
-        if (!$latest) {
-            return $prefix . '0001';
+        if (! $latest) {
+            return $prefix.'0001';
         }
 
         $lastNumber = (int) substr($latest->invoice_number, -4);
-        return $prefix . str_pad($lastNumber + 1, 4, '0', STR_PAD_LEFT);
+
+        return $prefix.str_pad($lastNumber + 1, 4, '0', STR_PAD_LEFT);
     }
 }

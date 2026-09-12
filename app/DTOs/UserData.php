@@ -8,7 +8,7 @@ class UserData
         public readonly string $name,
         public readonly string $username,
         public readonly string $email,
-        public readonly string $role = 'staff',
+        public readonly string $role = 'sales',
         public readonly ?string $profile_photo_path = null,
         public readonly ?string $password = null,
     ) {}
@@ -19,7 +19,7 @@ class UserData
             name: $data['name'],
             username: $data['username'],
             email: $data['email'],
-            role: $data['role'] ?? 'staff',
+            role: $data['role'] ?? 'sales',
             profile_photo_path: $data['profile_photo_path'] ?? null,
             password: $data['password'] ?? null,
         );

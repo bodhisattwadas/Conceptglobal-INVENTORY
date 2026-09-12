@@ -2,9 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
 use App\Models\User;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
@@ -36,7 +35,7 @@ class UserSeeder extends Seeder
             'name' => 'Sales Staff',
             'username' => 'staff',
             'email' => 'staff@example.com',
-            'role' => 'staff',
+            'role' => 'sales',
             'profile_photo_path' => null,
             'password' => Hash::make('password'),
         ]);
