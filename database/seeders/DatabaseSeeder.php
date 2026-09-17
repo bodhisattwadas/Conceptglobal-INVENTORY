@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
             // Independent/base data.
             UserSeeder::class,
             UnitSeeder::class,
-            //CategorySeeder::class,
+            CategorySeeder::class,
             //BrandCompanySeeder::class,
             //FinanceCategorySeeder::class,
             SettingSeeder::class,
