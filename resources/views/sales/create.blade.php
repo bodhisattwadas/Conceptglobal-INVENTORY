@@ -63,7 +63,7 @@
                                         <input
                                             type="text"
                                             :value="formatNumber(item.discount)"
-                                            @input="item.discount = unformatNumber($event.target.value)"
+                                            @input="setItemDiscount(index, unformatNumber($event.target.value))"
                                             class="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
                                             :class="window.currencyPosition === 'left' ? 'pl-8 pr-2 text-right' : 'pr-8 pl-2 text-left'"
                                             placeholder="0"
@@ -149,7 +149,7 @@
                                 <input
                                     type="text"
                                     :value="formatNumber(globalDiscount)"
-                                    @input="globalDiscount = unformatNumber($event.target.value)"
+                                    @input="setGlobalDiscount(unformatNumber($event.target.value))"
                                     class="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md py-1"
                                     :class="window.currencyPosition === 'left' ? 'pl-8 pr-2 text-right' : 'pr-8 pl-2 text-left'"
                                     placeholder="0"
@@ -523,6 +523,26 @@
                         this.$dispatch('toast', { message: 'Product "' + removedItem.name + '" removed from cart.', type: 'info' });
                     },
 
+                    setItemDiscount(index, value) {
+                        if (value > 0 && this.globalDiscount > 0) {
+                            this.$dispatch('toast', { message: 'Remove the global/coupon discount before adding item discounts.', type: 'warning' });
+                            this.cart[index].discount = 0;
+                            return;
+                        }
+
+                        this.cart[index].discount = value;
+                    },
+
+                    setGlobalDiscount(value) {
+                        if (value > 0 && this.totalDiscount > 0) {
+                            this.$dispatch('toast', { message: 'Remove item discounts before adding a global/coupon discount.', type: 'warning' });
+                            this.globalDiscount = 0;
+                            return;
+                        }
+
+                        this.globalDiscount = value;
+                    },
+
                     // Customer Modal Open
                     openCustomerModal() {
                         this.$dispatch('open-modal', { name: 'customer-modal' });
@@ -625,6 +645,10 @@
                         if (this.cart.length === 0) return;
                         if (this.total < 0) {
                             this.$dispatch('toast', { message: 'Discount cannot exceed the sale subtotal.', type: 'error' });
+                            return;
+                        }
+                        if (this.totalDiscount > 0 && this.globalDiscount > 0) {
+                            this.$dispatch('toast', { message: 'Only one discount type can be applied per sale.', type: 'error' });
                             return;
                         }
 

@@ -7,6 +7,7 @@ use App\Enums\SaleStatus;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreSaleRequest extends FormRequest
 {
@@ -82,6 +83,21 @@ class StoreSaleRequest extends FormRequest
             'items.*.unit_price.min' => 'Unit price must be at least 0.',
             'items.*.discount.min' => 'Discount must be at least 0.',
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $hasItemDiscount = collect($this->input('items', []))
+                ->contains(fn (mixed $item): bool => is_array($item) && (int) ($item['discount'] ?? 0) > 0);
+
+            if ($hasItemDiscount && (int) $this->input('global_discount', 0) > 0) {
+                $validator->errors()->add(
+                    'global_discount',
+                    'Use either item discounts or one global/coupon discount, not both.'
+                );
+            }
+        });
     }
 
     private function normalizeMoney(mixed $value): mixed

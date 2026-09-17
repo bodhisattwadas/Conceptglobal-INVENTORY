@@ -50,11 +50,12 @@
                     :label="$type === 'percentage' ? 'Percentage (%)' : 'Discount Amount'"
                     type="number"
                     step="0.01"
-                    min="0"
+                    min="1"
+                    max="{{ $type === 'percentage' ? '100' : null }}"
                     wire:model="value"
-                    placeholder="0"
+                    placeholder="{{ $type === 'percentage' ? '10 = 10%' : '5000' }}"
                     required
-                    hint="{{ $type === 'percentage' ? 'Percent off the sale subtotal. Example: 10.' : 'Flat amount deducted from the sale. Example: 5000.' }}"
+                    hint="{{ $type === 'percentage' ? 'Enter the percent number only. Example: 10 means 10% off.' : 'Flat amount deducted from the sale. Example: 5000.' }}"
                 />
 
                 <x-form-input

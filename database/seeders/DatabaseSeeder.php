@@ -18,15 +18,15 @@ class DatabaseSeeder extends Seeder
             // Independent/base data.
             UserSeeder::class,
             UnitSeeder::class,
-            CategorySeeder::class,
-            BrandCompanySeeder::class,
-            FinanceCategorySeeder::class,
+            //CategorySeeder::class,
+            //BrandCompanySeeder::class,
+            //FinanceCategorySeeder::class,
             SettingSeeder::class,
 
             // Data that depends on the base records above.
             //CustomerSeeder::class,
-            SupplierSeeder::class,
-            ProductSeeder::class,
+            //SupplierSeeder::class,
+           // ProductSeeder::class,
         ];
 
         foreach ($seeders as $seeder) {
