@@ -68,7 +68,7 @@ class SupplierForm extends Component
     {
         $this->asPage = $asPage;
 
-        if ($supplier) {
+        if ($supplier?->exists) {
             $this->fillFromSupplier($supplier);
         }
     }
@@ -186,7 +186,7 @@ class SupplierForm extends Component
         try {
             $supplierData = SupplierData::fromArray($validated);
 
-            if ($this->isEditing && $this->supplier) {
+            if ($this->isEditing && $this->supplier?->exists) {
                 $supplier = $service->updateSupplier($this->supplier, $supplierData);
                 $message = 'Supplier updated successfully.';
             } else {

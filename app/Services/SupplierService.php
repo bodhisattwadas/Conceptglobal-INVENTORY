@@ -41,6 +41,10 @@ class SupplierService
      */
     public function updateSupplier(Supplier $supplier, SupplierData $data): Supplier
     {
+        if (! $supplier->exists) {
+            return $this->createSupplier($data);
+        }
+
         return DB::transaction(function () use ($supplier, $data) {
             try {
                 $supplier->update([
