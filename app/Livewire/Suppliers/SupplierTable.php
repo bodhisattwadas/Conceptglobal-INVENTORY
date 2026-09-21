@@ -66,6 +66,18 @@ final class SupplierTable extends PowerGridComponent
             })
             ->add('companies_export', fn (Supplier $supplier) => $supplier->companies->pluck('company_name')->join(', '))
             ->add('status')
+            ->add('status_badge', function (Supplier $supplier) {
+                $status = strtolower($supplier->status ?: 'active');
+                $isActive = $status === 'active';
+
+                return sprintf(
+                    '<span class="inline-flex min-w-20 items-center justify-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ring-1 ring-inset %s">%s</span>',
+                    $isActive
+                        ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                        : 'bg-rose-50 text-rose-700 ring-rose-200',
+                    e($isActive ? 'Active' : 'Inactive')
+                );
+            })
             ->add('address')
             ->add('created_at');
     }
@@ -104,7 +116,7 @@ final class SupplierTable extends PowerGridComponent
                 ->hidden()
                 ->visibleInExport(true),
 
-            Column::make('Status', 'status')
+            Column::make('Status', 'status_badge', 'status')
                 ->sortable()
                 ->searchable(),
 
