@@ -80,13 +80,13 @@ class PurchaseController extends Controller
 
     public function show(Purchase $purchase)
     {
-        $purchase->load(['supplier', 'company', 'creator', 'items.product.unit', 'items.product.company']);
+        $purchase->load(['supplier', 'company', 'creator', 'vendorInvoice', 'items.product.unit', 'items.product.company']);
         return view('purchases.show', compact('purchase'));
     }
 
     public function print(Purchase $purchase)
     {
-        $purchase->load(['supplier', 'company', 'creator', 'items.product.unit', 'items.product.company']);
+        $purchase->load(['supplier', 'company', 'creator', 'vendorInvoice', 'items.product.unit', 'items.product.company']);
 
         $reference = $purchase->invoice_number ?: 'PO-'.$purchase->id;
         $filename = Str::slug($reference).'-purchase-order.pdf';
@@ -193,6 +193,7 @@ class PurchaseController extends Controller
 
         $rules['vendor_invoice_number'] = ['nullable', 'string', 'max:255'];
         $rules['order_received_date'] = ['required', 'date'];
+        $rules['vendor_additional_discount'] = ['nullable', 'numeric'];
         $rules['proof_image'] = ['nullable', 'image', 'max:2048'];
         $rules['vendor_invoice_file'] = ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'];
 
@@ -239,7 +240,8 @@ class PurchaseController extends Controller
                 $purchase,
                 $request->filled('vendor_invoice_number') ? $request->vendor_invoice_number : null,
                 $vendorInvoicePath,
-                $validated['order_received_date']
+                $validated['order_received_date'],
+                (float) ($validated['vendor_additional_discount'] ?? 0)
             );
 
             return redirect()->route('purchases.show', $purchase)

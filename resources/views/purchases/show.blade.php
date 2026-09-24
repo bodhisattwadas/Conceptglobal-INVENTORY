@@ -6,6 +6,14 @@
         $storeEmail = \App\Models\Setting::get('store_email', '-');
         $isDraft = $purchase->status === \App\Enums\PurchaseStatus::DRAFT || $purchase->status === \App\Enums\PurchaseStatus::DRAFT->value;
         $isOrdered = $purchase->status === \App\Enums\PurchaseStatus::ORDERED || $purchase->status === \App\Enums\PurchaseStatus::ORDERED->value;
+        $vendorInvoice = $purchase->vendorInvoice;
+        $vendorDiscount = (float) ($vendorInvoice?->vendor_additional_discount ?? 0);
+        $hasVendorDiscount = $vendorDiscount != 0.0;
+        $vendorDiscountClass = $vendorDiscount > 0 ? 'text-emerald-700' : 'text-red-700';
+        $vendorDiscountLabel = ($vendorDiscount > 0 ? '+ ' : '') . format_money($vendorDiscount);
+        $receivedValue = $vendorInvoice
+            ? (float) $vendorInvoice->amount + $vendorDiscount
+            : $purchase->items->sum(fn ($item) => ((int) ($item->received_quantity ?? 0)) * ((float) $item->unit_price));
         $supplierAddress = collect([
             $purchase->supplier?->address_line_1,
             $purchase->supplier?->address_line_2,
@@ -158,6 +166,26 @@
                             <x-heroicon-o-banknotes class="w-4 h-4 text-gray-400" />
                         </x-detail-item>
 
+                        @if($vendorInvoice)
+                            <x-detail-item label="PO Received Value" :value="format_money($receivedValue)">
+                                <x-heroicon-o-inbox-arrow-down class="w-4 h-4 text-gray-400" />
+                            </x-detail-item>
+
+                            @if($hasVendorDiscount)
+                                <div class="flex flex-col space-y-1">
+                                    <dt class="text-sm font-medium text-gray-500 flex items-center gap-2">
+                                        <x-heroicon-o-receipt-percent class="w-4 h-4 text-gray-400" />
+                                        {{ __('Vendor Additional Discount') }}
+                                    </dt>
+                                    <dd class="text-base font-medium {{ $vendorDiscountClass }}">{{ $vendorDiscountLabel }}</dd>
+                                </div>
+                            @endif
+
+                            <x-detail-item label="Final Invoice Value" :value="format_money($vendorInvoice->amount)">
+                                <x-heroicon-o-banknotes class="w-4 h-4 text-gray-400" />
+                            </x-detail-item>
+                        @endif
+
                         <!-- Created By -->
                         <x-detail-item label="Created By" :value="$purchase->creator->name ?? 'Unknown'">
                             <x-heroicon-o-user class="w-4 h-4 text-gray-400" />
@@ -243,6 +271,28 @@
                                         @money($purchase->total)
                                     </td>
                                 </tr>
+                                @if($vendorInvoice)
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-right">PO Received Value</td>
+                                        <td class="px-6 py-4 text-right text-green-600 text-lg">
+                                            {{ format_money($receivedValue) }}
+                                        </td>
+                                    </tr>
+                                    @if($hasVendorDiscount)
+                                        <tr>
+                                            <td colspan="7" class="px-6 py-4 text-right">Vendor Additional Discount</td>
+                                            <td class="px-6 py-4 text-right {{ $vendorDiscountClass }} text-lg">
+                                                {{ $vendorDiscountLabel }}
+                                            </td>
+                                        </tr>
+                                    @endif
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-right">Final Invoice Value</td>
+                                        <td class="px-6 py-4 text-right text-blue-600 text-lg">
+                                            {{ format_money($vendorInvoice->amount) }}
+                                        </td>
+                                    </tr>
+                                @endif
                             </tfoot>
                         </table>
                     </div>

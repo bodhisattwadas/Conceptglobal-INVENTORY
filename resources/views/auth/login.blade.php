@@ -5,16 +5,16 @@
     <div class="space-y-6">
         <div class="space-y-2 text-center">
             <h1 class="text-2xl font-semibold tracking-tight">Login</h1>
-            <p class="text-sm text-muted-foreground">Enter your username below to login to your account</p>
+            <p class="text-sm text-muted-foreground">Enter your username or email below to login to your account</p>
         </div>
 
         <form method="POST" action="{{ route('login') }}" x-data="{ loading: false }" @submit="loading = true">
             @csrf
 
-            <!-- Username -->
+            <!-- Username / Email -->
             <x-form-input
                 name="username"
-                label="Username"
+                label="Username or Email"
                 type="text"
                 :value="old('username')"
                 required

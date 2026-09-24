@@ -59,6 +59,7 @@
                             },
                         @endforeach
                     ],
+                    vendorAdditionalDiscount: {{ Js::from(old('vendor_additional_discount', 0)) }},
                     openPriceModal(index) {
                         this.priceModal = {
                             index,
@@ -89,6 +90,12 @@
                     },
                     get total() {
                         return Number(this.items.reduce((sum, item) => sum + this.lineTotal(item), 0).toFixed(2));
+                    },
+                    get vendorAdditionalAdjustment() {
+                        return Number((parseFloat(this.vendorAdditionalDiscount) || 0).toFixed(2));
+                    },
+                    get finalInvoiceValue() {
+                        return Number(Math.max(0, this.total - this.vendorAdditionalAdjustment).toFixed(2));
                     }
                 }"
                 @submit="submitting = true"
@@ -250,6 +257,27 @@
                                 <tr>
                                     <td colspan="9" class="px-4 py-4 text-right font-bold">Total Received Value</td>
                                     <td class="px-4 py-4 text-right text-lg font-bold text-green-600" x-text="window.formatMoney(total)"></td>
+                                </tr>
+                                <tr>
+                                    <td colspan="9" class="px-4 py-4 text-right font-bold">Vendor Additional Discount</td>
+                                    <td class="px-4 py-4 text-right">
+                                        <div class="inline-flex w-48 items-center rounded-md border border-gray-300 bg-white focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
+                                            <span class="border-r border-gray-200 px-3 text-sm font-semibold text-gray-600">INR</span>
+                                            <input
+                                                type="number"
+                                                name="vendor_additional_discount"
+                                                x-model.number="vendorAdditionalDiscount"
+                                                step="0.01"
+                                                class="w-full border-0 bg-transparent text-right text-sm font-semibold focus:ring-0"
+                                                placeholder="0.00"
+                                            >
+                                        </div>
+                                        <x-input-error :messages="$errors->get('vendor_additional_discount')" class="mt-1" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan="9" class="px-4 py-4 text-right font-bold">Final Invoice Value</td>
+                                    <td class="px-4 py-4 text-right text-lg font-bold text-blue-600" x-text="window.formatMoney(finalInvoiceValue)"></td>
                                 </tr>
                             </tfoot>
                         </table>

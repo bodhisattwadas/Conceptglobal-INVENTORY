@@ -29,12 +29,12 @@
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div class="space-y-2">
                 <x-input-label for="purchase_date" :value="__('PO Date')" required hint="Date the purchase order is created. Example: 2026-08-14." />
-                <x-text-input id="purchase_date" type="date" name="purchase_date" x-model="purchase_date" @change="updatePoReference" />
+                <x-text-input id="purchase_date" type="date" name="purchase_date" x-model="purchase_date" @change="handlePurchaseDateChange" />
                 <x-input-error :messages="$errors->get('purchase_date')" />
             </div>
             <div class="space-y-2">
                 <x-input-label for="due_date" :value="__('Expected Delivery')" hint="Expected date for receiving goods. Example: 2026-08-20." />
-                <x-text-input id="due_date" type="date" name="due_date" :value="old('due_date', $purchase->due_date ? \Carbon\Carbon::parse($purchase->due_date)->format('Y-m-d') : '')" />
+                <x-text-input id="due_date" type="date" name="due_date" x-model="due_date" :min="minDueDate" />
                 <x-input-error :messages="$errors->get('due_date')" />
             </div>
         </div>
@@ -150,6 +150,7 @@
             money(value) {
                 return Number((parseFloat(value) || 0).toFixed(2));
             },
+            defaultDiscountPercent: 17,
             items: (initialData.items || []).map(i => ({
                 ...i,
                 key: i.key || Math.random().toString(36).slice(2),
@@ -163,6 +164,7 @@
             supplier_id: initialData.supplier_id || '',
             company_id: initialData.company_id || '',
             purchase_date: initialData.purchase_date || '{{ old('purchase_date', $purchase->purchase_date ? \Carbon\Carbon::parse($purchase->purchase_date)->format('Y-m-d') : date('Y-m-d')) }}',
+            due_date: initialData.due_date || '{{ old('due_date', $purchase->due_date ? \Carbon\Carbon::parse($purchase->due_date)->format('Y-m-d') : '') }}',
             po_reference: initialData.po_reference || '',
             is_editing: initialData.is_editing || false,
             loading: false,
@@ -187,6 +189,15 @@
 
             get total() {
                 return this.money(this.items.reduce((sum, item) => sum + (parseFloat(item.subtotal) || 0), 0));
+            },
+
+            get minDueDate() {
+                if (!this.purchase_date) return '';
+
+                const date = new Date(`${this.purchase_date}T00:00:00`);
+                date.setDate(date.getDate() + 1);
+
+                return date.toISOString().slice(0, 10);
             },
 
             waitForTomSelect(callback) {
@@ -275,6 +286,14 @@
                     });
             },
 
+            handlePurchaseDateChange() {
+                if (this.due_date && this.due_date <= this.purchase_date) {
+                    this.due_date = '';
+                }
+
+                this.updatePoReference();
+            },
+
             initRemoteSelect(el, url, onChange, placeholder) {
                 this.waitForTomSelect(() => {
                     new TomSelect(el, {
@@ -306,18 +325,21 @@
                     return;
                 }
 
-                const price = this.money(product.price || product.mrp || 0);
+                const mrp = this.money(product.mrp || product.price || 0);
+                const discount = this.defaultDiscountPercent;
+                const unitPrice = this.money(mrp * (1 - discount / 100));
+
                 this.items.push({
                     key: Math.random().toString(36).slice(2),
                     product_id: product.value,
                     product_name: product.text,
                     product_code: product.sku,
                     brand: product.brand,
-                    mrp: this.money(product.mrp || price || 0),
-                    discount_percent: 0,
+                    mrp,
+                    discount_percent: discount,
                     quantity: 1,
-                    unit_price: price,
-                    subtotal: price
+                    unit_price: unitPrice,
+                    subtotal: unitPrice
                 });
             },
 

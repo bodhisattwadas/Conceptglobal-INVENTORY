@@ -45,7 +45,7 @@ class UpdatePurchaseRequest extends FormRequest
                     ->where('supplier_id', $this->input('supplier_id')),
             ],
             'purchase_date' => ['required', 'date'],
-            'due_date' => ['nullable', 'date', 'after_or_equal:purchase_date'],
+            'due_date' => ['nullable', 'date', 'after:purchase_date'],
             'notes' => ['nullable', 'string'],
             // 'status' is preserved from existing record
             'items' => ['required', 'array', 'min:1'],
@@ -67,6 +67,7 @@ class UpdatePurchaseRequest extends FormRequest
             'items.*.product_id.required' => 'Product is required.',
             'items.*.quantity.min' => 'Quantity must be at least 1.',
             'items.*.discount_percent.between' => 'MRP discount must be between 0% and 100%.',
+            'due_date.after' => 'Expected delivery date must be after the PO date.',
             'company_id.exists' => 'The selected brand is not supplied by this vendor.',
             'items.*.product_id.exists' => 'Every product must exist in Product Master.',
         ];

@@ -1,6 +1,9 @@
 <x-app-layout title="Vendor Invoice Details">
     @php
         $dueAmount = max(0, (float) $vendorInvoice->amount - (float) $vendorInvoice->paid_amount);
+        $vendorDiscount = (float) $vendorInvoice->vendor_additional_discount;
+        $vendorDiscountClass = $vendorDiscount > 0 ? 'text-emerald-700' : 'text-red-700';
+        $vendorDiscountLabel = ($vendorDiscount > 0 ? '+ ' : '') . format_money($vendorDiscount);
     @endphp
 
     <x-slot name="header">
@@ -46,6 +49,12 @@
                             <x-detail-item label="Vendor Invoice Number" :value="$vendorInvoice->invoice_number ?: '-'" />
                             <x-detail-item label="Invoice Date" :value="$vendorInvoice->invoice_date?->format('d/m/Y') ?: '-'" />
                             <x-detail-item label="Order Received Date" :value="$vendorInvoice->order_received_date?->format('d/m/Y') ?: '-'" />
+                            @if($vendorDiscount != 0.0)
+                                <div class="flex flex-col space-y-1">
+                                    <dt class="text-sm font-medium text-gray-500">{{ __('Vendor Additional Discount') }}</dt>
+                                    <dd class="text-base font-medium {{ $vendorDiscountClass }}">{{ $vendorDiscountLabel }}</dd>
+                                </div>
+                            @endif
                         </div>
                         <div class="space-y-5">
                             <x-detail-item label="Supplier / Vendor" :value="$vendorInvoice->supplier?->name ?: '-'" />

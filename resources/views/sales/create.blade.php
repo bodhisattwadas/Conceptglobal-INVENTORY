@@ -30,8 +30,9 @@
                                     <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                                     <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
                                     <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Disc/Unit</th>
-                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Disc %</th>
+                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Net Total</th>
                                     <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                                 </tr>
                             </thead>
@@ -55,22 +56,25 @@
                                             </div>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500" x-text="item.unit"></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-gray-900" x-text="formatCurrency(lineGrossTotal(item))"></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right">
-                                            <div class="relative rounded-md shadow-sm w-32 ml-auto">
-                                        <div class="absolute inset-y-0 flex items-center pointer-events-none" :class="window.currencyPosition === 'left' ? 'left-0 pl-2' : 'right-0 pr-2'">
-                                            <span class="text-gray-500 sm:text-xs" x-text="window.currencySymbol"></span>
-                                        </div>
-                                        <input
-                                            type="text"
-                                            :value="formatNumber(item.discount)"
-                                            @input="setItemDiscount(index, unformatNumber($event.target.value))"
-                                            class="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                                            :class="window.currencyPosition === 'left' ? 'pl-8 pr-2 text-right' : 'pr-8 pl-2 text-left'"
-                                            placeholder="0"
-                                        >
+                                            <div class="relative rounded-md shadow-sm w-24 ml-auto">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.01"
+                                                    x-model="item.discountPercent"
+                                                    @input="setItemDiscountPercent(index, $event.target.value)"
+                                                    class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-7 text-right sm:text-sm border-gray-300 rounded-md"
+                                                    placeholder="10"
+                                                >
+                                                <div class="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
+                                                    <span class="text-gray-500 sm:text-xs">%</span>
+                                                </div>
                                             </div>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-900" x-text="formatCurrency((item.price - item.discount) * item.quantity)"></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-blue-700" x-text="formatCurrency(lineNetTotal(item))"></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <button @click="removeFromCart(index)" class="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 focus:outline-none transition-colors mx-auto">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -80,7 +84,7 @@
                                 </template>
                                 <template x-if="cart.length === 0">
                                     <tr>
-                                        <td colspan="7" class="px-6 py-20 text-center text-gray-500">
+                                        <td colspan="8" class="px-6 py-20 text-center text-gray-500">
                                             <div class="flex flex-col items-center justify-center">
                                                 <svg class="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                                                 <p class="text-base font-medium">Cart is empty</p>
@@ -299,9 +303,11 @@
                     lastSearchQuery: '',
 
                     init() {
-                         // Load from LocalStorage
+                        // Load from LocalStorage
                         const savedCart = localStorage.getItem('pos_cart');
-                        if (savedCart) this.cart = JSON.parse(savedCart);
+                        if (savedCart) {
+                            this.cart = JSON.parse(savedCart).map((item) => this.prepareCartItem(item));
+                        }
 
                         const savedCustomer = localStorage.getItem('pos_customer');
                         if (savedCustomer) this.selectedCustomer = JSON.parse(savedCustomer);
@@ -479,6 +485,23 @@
                         localStorage.removeItem('pos_globalDiscount');
                     },
 
+                    prepareCartItem(item) {
+                        const price = parseFloat(item.price) || 0;
+                        let discountPercent = item.discountPercent;
+
+                        if (discountPercent === undefined || discountPercent === null || discountPercent === '') {
+                            const discount = parseFloat(item.discount) || 0;
+                            discountPercent = price > 0 && discount > 0 ? (discount / price) * 100 : 10;
+                        }
+
+                        return {
+                            ...item,
+                            price,
+                            quantity: parseInt(item.quantity) || 1,
+                            discountPercent: this.clampDiscountPercent(discountPercent),
+                        };
+                    },
+
                     // Cart Management
                     addToCart(product) {
                         const existing = this.cart.find(item => item.id === product.id);
@@ -495,11 +518,11 @@
                                     id: product.id,
                                     name: product.name,
                                     sku: product.sku,
-                                    price: product.selling_price,
+                                    price: parseFloat(product.selling_price) || 0,
                                     quantity: 1,
                                     max_stock: product.quantity,
                                     unit: product.unit ? product.unit.symbol : '',
-                                    discount: 0
+                                    discountPercent: 10
                                 });
                                 this.$dispatch('toast', { message: 'Product "' + product.name + '" added to cart.', type: 'success' });
                             } else {
@@ -523,14 +546,16 @@
                         this.$dispatch('toast', { message: 'Product "' + removedItem.name + '" removed from cart.', type: 'info' });
                     },
 
-                    setItemDiscount(index, value) {
-                        if (value > 0 && this.globalDiscount > 0) {
+                    setItemDiscountPercent(index, value) {
+                        const percent = this.clampDiscountPercent(value);
+
+                        if (percent > 0 && this.globalDiscount > 0) {
                             this.$dispatch('toast', { message: 'Remove the global/coupon discount before adding item discounts.', type: 'warning' });
-                            this.cart[index].discount = 0;
+                            this.cart[index].discountPercent = 0;
                             return;
                         }
 
-                        this.cart[index].discount = value;
+                        this.cart[index].discountPercent = percent;
                     },
 
                     setGlobalDiscount(value) {
@@ -559,7 +584,7 @@
                     },
 
                     get totalDiscount() {
-                        return this.cart.reduce((sum, item) => sum + (item.discount * item.quantity), 0);
+                        return this.cart.reduce((sum, item) => sum + (this.lineDiscountAmount(item) * item.quantity), 0);
                     },
 
                     get total() {
@@ -572,6 +597,23 @@
                     },
 
                     // Helpers
+                    clampDiscountPercent(value) {
+                        const percent = parseFloat(value) || 0;
+                        return Math.min(100, Math.max(0, percent));
+                    },
+
+                    lineDiscountAmount(item) {
+                        return Math.round((parseFloat(item.price) || 0) * (this.clampDiscountPercent(item.discountPercent) / 100));
+                    },
+
+                    lineGrossTotal(item) {
+                        return (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 0);
+                    },
+
+                    lineNetTotal(item) {
+                        return Math.max(0, this.lineGrossTotal(item) - (this.lineDiscountAmount(item) * (parseInt(item.quantity) || 0)));
+                    },
+
                     formatCurrency(value) {
                         return window.formatMoney(value);
                     },
@@ -669,7 +711,7 @@
                                 product_id: item.id,
                                 quantity: item.quantity,
                                 unit_price: item.price,
-                                discount: item.discount
+                                discount: this.lineDiscountAmount(item)
                             }));
 
                             const payload = {

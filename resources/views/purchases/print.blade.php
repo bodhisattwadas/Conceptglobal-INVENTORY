@@ -25,6 +25,8 @@
         .right { text-align: right; }
         .center { text-align: center; }
         .total { font-size: 15px; font-weight: bold; }
+        .positive { color: #047857; }
+        .negative { color: #b91c1c; }
         .notes { margin-top: 18px; border: 1px solid #d1d5db; padding: 10px; background: #f9fafb; }
         .disclaimer { margin-top: 18px; text-align: center; font-size: 10px; color: #6b7280; }
     </style>
@@ -35,6 +37,14 @@
         $storeAddress = \App\Models\Setting::get('store_address', '-');
         $storePhone = \App\Models\Setting::get('store_phone', '-');
         $storeEmail = \App\Models\Setting::get('store_email', '-');
+        $vendorInvoice = $purchase->vendorInvoice;
+        $vendorDiscount = (float) ($vendorInvoice?->vendor_additional_discount ?? 0);
+        $hasVendorDiscount = $vendorDiscount != 0.0;
+        $vendorDiscountClass = $vendorDiscount > 0 ? 'positive' : 'negative';
+        $vendorDiscountLabel = ($vendorDiscount > 0 ? '+ ' : '') . format_money($vendorDiscount);
+        $receivedValue = $vendorInvoice
+            ? (float) $vendorInvoice->amount + $vendorDiscount
+            : $purchase->items->sum(fn ($item) => ((int) ($item->received_quantity ?? 0)) * ((float) $item->unit_price));
         $supplierAddress = collect([
             $purchase->supplier?->address_line_1,
             $purchase->supplier?->address_line_2,
@@ -135,6 +145,22 @@
                 <td colspan="6" class="right total">Total PO</td>
                 <td class="right total">{{ format_money($purchase->total) }}</td>
             </tr>
+            @if($vendorInvoice)
+                <tr>
+                    <td colspan="6" class="right total">PO Received Value</td>
+                    <td class="right total">{{ format_money($receivedValue) }}</td>
+                </tr>
+                @if($hasVendorDiscount)
+                    <tr>
+                        <td colspan="6" class="right total">Vendor Additional Discount</td>
+                        <td class="right total {{ $vendorDiscountClass }}">{{ $vendorDiscountLabel }}</td>
+                    </tr>
+                @endif
+                <tr>
+                    <td colspan="6" class="right total">Final Invoice Value</td>
+                    <td class="right total">{{ format_money($vendorInvoice->amount) }}</td>
+                </tr>
+            @endif
         </tfoot>
     </table>
 

@@ -18,6 +18,7 @@
                         supplier_id: {{ Js::from(old('supplier_id')) }},
                         company_id: {{ Js::from(old('company_id')) }},
                         purchase_date: {{ Js::from(old('purchase_date', date('Y-m-d'))) }},
+                        due_date: {{ Js::from(old('due_date')) }},
                         po_reference: {{ Js::from($previewPoReference) }},
                         is_editing: false,
                         status: {{ Js::from(old('status', 'draft')) }},

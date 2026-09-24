@@ -20,7 +20,7 @@ final class ProductTable extends PowerGridComponent
     use WithExport;
 
     public string $tableName = 'product-table';
-    public string $sortField = 'created_at';
+    public string $sortField = 'products.created_at';
     public string $sortDirection = 'desc';
 
     public function boot(): void
@@ -48,7 +48,17 @@ final class ProductTable extends PowerGridComponent
     public function datasource(): Builder
     {
         return Product::query()
-            ->with(['category', 'unit', 'company']);
+            ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
+            ->leftJoin('units', 'products.unit_id', '=', 'units.id')
+            ->leftJoin('companies', 'products.company_id', '=', 'companies.id')
+            ->select([
+                'products.*',
+                'categories.name as category_name',
+                'categories.slug as category_slug',
+                'units.symbol as unit_symbol',
+                'companies.company_name as company_name',
+                'companies.short_name as company_short_name',
+            ]);
     }
 
     public function fields(): PowerGridFields
@@ -69,10 +79,10 @@ final class ProductTable extends PowerGridComponent
                 return $model->is_active ? $model->name : '(DISCONTINUE) ' . $model->name;
             })
             ->add('description')
-            ->add('brand_name', fn(Product $model) => $model->company ? ($model->company->short_name ?: $model->company->company_name) : '-')
-            ->add('category_slug', fn(Product $model) => $model->category ? $model->category->slug : '-')
-            ->add('category_name', fn(Product $model) => $model->category ? $model->category->name : '-')
-            ->add('unit_symbol', fn(Product $model) => $model->unit ? $model->unit->symbol : '-')
+            ->add('brand_name', fn(Product $model) => $model->company_short_name ?: ($model->company_name ?: '-'))
+            ->add('category_slug', fn(Product $model) => $model->category_slug ?: '-')
+            ->add('category_name', fn(Product $model) => $model->category_name ?: '-')
+            ->add('unit_symbol', fn(Product $model) => $model->unit_symbol ?: '-')
             ->add('mrp_formatted', fn(Product $model) => format_money($model->mrp))
             ->add('min_stock')
             ->add('is_active_label', function(Product $model) {
@@ -113,7 +123,7 @@ final class ProductTable extends PowerGridComponent
                 ->hidden()
                 ->visibleInExport(true),
 
-            Column::make('Category', 'category_name', 'category_id')
+            Column::make('Category', 'category_name', 'categories.name')
                 ->sortable()
                 ->searchable()
                 ->visibleInExport(false),
@@ -122,11 +132,11 @@ final class ProductTable extends PowerGridComponent
                 ->hidden()
                 ->visibleInExport(true),
 
-            Column::make('Brand', 'brand_name', 'company_id')
+            Column::make('Brand', 'brand_name', 'companies.company_name')
                 ->sortable()
                 ->searchable(),
 
-            Column::make('Unit', 'unit_symbol', 'unit_id')
+            Column::make('Unit', 'unit_symbol', 'units.symbol')
                 ->sortable()
                 ->searchable(),
 
@@ -153,7 +163,7 @@ final class ProductTable extends PowerGridComponent
                 ->hidden()
                 ->visibleInExport(true),
 
-            Column::make('Created At', 'created_at_formatted', 'created_at')
+            Column::make('Created At', 'created_at_formatted', 'products.created_at')
                 ->hidden()
                 ->visibleInExport(true),
         ];

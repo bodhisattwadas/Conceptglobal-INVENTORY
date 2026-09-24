@@ -49,6 +49,7 @@ final class VendorInvoiceTable extends PowerGridComponent
             ->add('supplier_link', fn(VendorInvoice $model) => $this->supplierLink($model))
             ->add('company_name', fn(VendorInvoice $model) => $model->company?->short_name ?: $model->company?->company_name ?: '-')
             ->add('amount_formatted', fn(VendorInvoice $model) => format_money($model->amount))
+            ->add('vendor_additional_discount_formatted', fn(VendorInvoice $model) => $this->vendorDiscountLabel($model))
             ->add('paid_amount_badge', fn(VendorInvoice $model) => $this->amountBadge(format_money($model->paid_amount), 'paid'))
             ->add('due_amount_badge', fn(VendorInvoice $model) => $this->amountBadge(format_money(max(0, (int) $model->amount - (int) $model->paid_amount)), max(0, (int) $model->amount - (int) $model->paid_amount) > 0 ? 'due' : 'clear'))
             ->add('status_badge', fn(VendorInvoice $model) => view('components.status-badge', ['status' => $model->status])->render())
@@ -67,6 +68,7 @@ final class VendorInvoiceTable extends PowerGridComponent
             Column::make('Invoice Number', 'invoice_number')->searchable()->sortable(),
             Column::make('Supplier / Vendor', 'supplier_link', 'suppliers.name')->searchable()->sortable(),
             Column::make('Amount', 'amount_formatted', 'amount')->sortable()->headerAttribute('text-right')->bodyAttribute('text-right'),
+            Column::make('Vendor Discount', 'vendor_additional_discount_formatted', 'vendor_additional_discount')->sortable()->headerAttribute('text-right')->bodyAttribute('text-right'),
             Column::make('Paid', 'paid_amount_badge', 'paid_amount')->sortable()->headerAttribute('text-right')->bodyAttribute('text-right'),
             Column::make('Due', 'due_amount_badge')->headerAttribute('text-right')->bodyAttribute('text-right'),
             Column::make('Status', 'status_badge', 'vendor_invoices.status')->sortable()->headerAttribute('text-center')->bodyAttribute('text-center'),
@@ -151,5 +153,21 @@ final class VendorInvoiceTable extends PowerGridComponent
         };
 
         return '<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold '.$class.'">'.$label.'</span>';
+    }
+
+    private function vendorDiscountLabel(VendorInvoice $invoice): string
+    {
+        $discount = (float) $invoice->vendor_additional_discount;
+
+        if ($discount == 0.0) {
+            return '<span class="italic text-gray-400">-</span>';
+        }
+
+        $class = $discount > 0
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            : 'border-red-200 bg-red-50 text-red-700';
+        $label = ($discount > 0 ? '+ ' : '') . format_money($discount);
+
+        return '<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold '.$class.'">'.e($label).'</span>';
     }
 }
