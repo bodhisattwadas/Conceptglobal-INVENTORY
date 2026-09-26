@@ -51,42 +51,6 @@
         </div>
     </div>
 
-    <!-- Charts Section -->
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <!-- Sales Trend -->
-        <div class="md:col-span-2 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
-            <div class="p-4 flex flex-col space-y-1.5 pb-2">
-                <h3 class="font-semibold leading-none tracking-tight">Sales Trend</h3>
-                <p class="text-xs text-muted-foreground">Daily sales performance.</p>
-            </div>
-            <div class="p-4 pt-0" wire:ignore>
-                <div id="salesChart" class="w-full h-[250px]"></div>
-            </div>
-        </div>
-
-        <!-- Cash Flow -->
-        <div class="rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
-            <div class="p-4 flex flex-col space-y-1.5 pb-2">
-                <h3 class="font-semibold leading-none tracking-tight">Income vs Expense</h3>
-                <p class="text-xs text-muted-foreground">Financial overview.</p>
-            </div>
-            <div class="p-4 pt-0" wire:ignore>
-                <div id="cashFlowChart" class="w-full h-[250px]"></div>
-            </div>
-        </div>
-
-        <!-- Expense Breakdown -->
-        <div class="rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
-            <div class="p-4 flex flex-col space-y-1.5 pb-2">
-                <h3 class="font-semibold leading-none tracking-tight">Expense Breakdown</h3>
-                <p class="text-xs text-muted-foreground">Category distribution.</p>
-            </div>
-            <div class="p-4 pt-0" wire:ignore>
-                <div id="expenseChart" class="w-full h-[250px] flex items-center justify-center"></div>
-            </div>
-        </div>
-    </div>
-
     <!-- Stats Grid -->
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <!-- Total Sales -->
@@ -159,6 +123,42 @@
         </div>
     </div>
 
+    <!-- Charts Section -->
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <!-- Sales Trend -->
+        <div class="md:col-span-2 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+            <div class="p-4 flex flex-col space-y-1.5 pb-2">
+                <h3 class="font-semibold leading-none tracking-tight">Sales Trend</h3>
+                <p class="text-xs text-muted-foreground">Daily sales performance.</p>
+            </div>
+            <div class="p-4 pt-0" wire:ignore>
+                <div id="salesChart" class="w-full h-[250px]"></div>
+            </div>
+        </div>
+
+        <!-- Cash Flow -->
+        <div class="rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+            <div class="p-4 flex flex-col space-y-1.5 pb-2">
+                <h3 class="font-semibold leading-none tracking-tight">Income vs Expense</h3>
+                <p class="text-xs text-muted-foreground">Financial overview.</p>
+            </div>
+            <div class="p-4 pt-0" wire:ignore>
+                <div id="cashFlowChart" class="w-full h-[250px]"></div>
+            </div>
+        </div>
+
+        <!-- Expense Breakdown -->
+        <div class="rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+            <div class="p-4 flex flex-col space-y-1.5 pb-2">
+                <h3 class="font-semibold leading-none tracking-tight">Expense Breakdown</h3>
+                <p class="text-xs text-muted-foreground">Category distribution.</p>
+            </div>
+            <div class="p-4 pt-0" wire:ignore>
+                <div id="expenseChart" class="w-full h-[250px] flex items-center justify-center"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Data Tables Section -->
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <!-- Recent Sales -->
@@ -188,6 +188,43 @@
                             @empty
                                 <tr>
                                     <td colspan="2" class="p-4 text-center text-muted-foreground">No recent sales.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Low Stock Products -->
+        <div class="col-span-1 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+            <div class="p-4 flex flex-col space-y-1.5 border-b">
+                <h3 class="font-semibold leading-none tracking-tight">Low Stock Products</h3>
+                <p class="text-xs text-muted-foreground">All active products at or below minimum quantity.</p>
+            </div>
+            <div class="p-0">
+                <div class="relative w-full overflow-auto max-h-[300px]">
+                    <table class="w-full caption-bottom text-sm">
+                        <thead class="[&_tr]:border-b sticky top-0 bg-card z-10">
+                            <tr class="border-b transition-colors hover:bg-muted/50">
+                                <th class="h-10 px-4 text-left align-middle font-medium text-muted-foreground">Product</th>
+                                <th class="h-10 px-4 text-right align-middle font-medium text-muted-foreground">Qty</th>
+                                <th class="h-10 px-4 text-right align-middle font-medium text-muted-foreground">Min</th>
+                            </tr>
+                        </thead>
+                        <tbody class="[&_tr:last-child]:border-0 bg-transparent">
+                            @forelse($lowStockProducts as $product)
+                                <tr class="border-b transition-colors hover:bg-muted/50">
+                                    <td class="px-4 py-2 align-middle font-medium">
+                                        <div class="truncate max-w-[220px]" title="{{ $product['name'] }}">{{ $product['name'] }}</div>
+                                        <div class="text-[11px] text-muted-foreground font-normal">{{ $product['sku'] }}</div>
+                                    </td>
+                                    <td class="px-4 py-2 align-middle text-right font-semibold text-red-600">{{ number_format($product['quantity']) }}</td>
+                                    <td class="px-4 py-2 align-middle text-right text-muted-foreground">{{ number_format($product['min_stock']) }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="3" class="p-4 text-center text-muted-foreground">No low stock products.</td>
                                 </tr>
                             @endforelse
                         </tbody>

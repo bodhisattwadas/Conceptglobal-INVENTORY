@@ -77,15 +77,22 @@ class DashboardStatsService
     /**
      * Get Low Stock Products
      */
-    public function getLowStockProducts(int $limit = 5): array
+    public function getLowStockProducts(?int $limit = null): array
     {
         // Cache for 5 minutes as stock levels change frequently.
         return Cache::remember('dashboard_low_stock', now()->addSeconds(20), function () use ($limit) {
-            return Product::whereColumn('quantity', '<=', 'min_stock')
+            $query = Product::query()
+                ->select(['id', 'sku', 'name', 'quantity', 'min_stock'])
+                ->whereColumn('quantity', '<=', 'min_stock')
                 ->where('is_active', true)
                 ->orderBy('quantity', 'asc')
-                ->limit($limit)
-                ->get()
+                ->orderBy('name');
+
+            if ($limit) {
+                $query->limit($limit);
+            }
+
+            return $query->get()
                 ->toArray();
         });
     }

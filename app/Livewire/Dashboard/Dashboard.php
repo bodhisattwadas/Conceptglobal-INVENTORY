@@ -73,7 +73,7 @@ class Dashboard extends Component
         ];
 
         // 3. Lists
-        $this->lowStockProducts = $service->getLowStockProducts(5);
+        $this->lowStockProducts = $service->getLowStockProducts();
         $this->topProducts = $service->getTopProducts($startDate, $endDate, 5);
         $this->recentSales = $service->getRecentSales(5);
         $this->topCustomers = $service->getTopCustomers($startDate, $endDate, 5);
