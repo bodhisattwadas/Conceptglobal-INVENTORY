@@ -15,6 +15,7 @@ use PowerComponents\LivewirePowerGrid\Traits\WithExport;
 use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
 
+
 final class ProductTable extends PowerGridComponent
 {
     use WithExport;
