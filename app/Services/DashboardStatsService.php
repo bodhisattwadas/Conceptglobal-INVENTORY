@@ -97,6 +97,16 @@ class DashboardStatsService
         });
     }
 
+    public function getLowStockCount(): int
+    {
+        return Cache::remember('dashboard_low_stock_count', now()->addSeconds(20), function () {
+            return Product::query()
+                ->whereColumn('quantity', '<=', 'min_stock')
+                ->where('is_active', true)
+                ->count();
+        });
+    }
+
     /**
      * Get Top Selling Products
      */

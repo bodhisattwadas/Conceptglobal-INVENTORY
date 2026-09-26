@@ -2,19 +2,23 @@
 
 namespace App\Livewire\Dashboard;
 
+use App\Models\Product;
 use Carbon\Carbon;
 use Livewire\Component;
 use App\Enums\DatePeriod;
+use Livewire\WithPagination;
 use App\Services\DashboardStatsService;
 
 class Dashboard extends Component
 {
+    use WithPagination;
+
     public string $dateFilter = DatePeriod::TODAY->value;
     public ?string $customStartDate = null;
     public ?string $customEndDate = null;
 
     public array $stats = [];
-    public array $lowStockProducts = [];
+    public int $lowStockCount = 0;
     public array $recentSales = [];
     public array $topProducts = [];
     public array $topCustomers = [];
@@ -73,7 +77,7 @@ class Dashboard extends Component
         ];
 
         // 3. Lists
-        $this->lowStockProducts = $service->getLowStockProducts();
+        $this->lowStockCount = $service->getLowStockCount();
         $this->topProducts = $service->getTopProducts($startDate, $endDate, 5);
         $this->recentSales = $service->getRecentSales(5);
         $this->topCustomers = $service->getTopCustomers($startDate, $endDate, 5);
@@ -127,6 +131,16 @@ class Dashboard extends Component
 
     public function render()
     {
-        return view('livewire.dashboard.dashboard');
+        $lowStockProducts = Product::query()
+            ->select(['id', 'sku', 'name', 'quantity', 'min_stock'])
+            ->whereColumn('quantity', '<=', 'min_stock')
+            ->where('is_active', true)
+            ->orderBy('quantity')
+            ->orderBy('name')
+            ->paginate(5, pageName: 'lowStockPage');
+
+        return view('livewire.dashboard.dashboard', [
+            'lowStockProducts' => $lowStockProducts,
+        ]);
     }
 }

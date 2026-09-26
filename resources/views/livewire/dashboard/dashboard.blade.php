@@ -122,7 +122,7 @@
             </div>
             <div class="p-4 pt-0">
                 <div class="text-xl sm:text-2xl font-bold">
-                    {{ count($lowStockProducts) }}
+                    {{ number_format($lowStockCount) }}
                 </div>
                 <p class="text-xs mt-1" style="color: rgba(190, 18, 60, 0.8);">
                     Items below min stock
@@ -168,9 +168,9 @@
     </div>
 
     <!-- Data Tables Section -->
-    <div class="grid gap-4 md:grid-cols-2">
+    <div class="grid gap-4 md:grid-cols-5">
         <!-- Recent Sales -->
-        <div id="dashboard-low-stock-products" class="scroll-mt-24 col-span-1 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+        <div class="col-span-1 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
             <div class="p-4 flex flex-col space-y-1.5 border-b">
                 <h3 class="font-semibold leading-none tracking-tight">Recent Sales</h3>
                 <p class="text-xs text-muted-foreground">Latest transactions overview.</p>
@@ -205,13 +205,18 @@
         </div>
 
         <!-- Low Stock Products -->
-        <div class="col-span-1 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+        <div id="dashboard-low-stock-products" class="scroll-mt-24 col-span-4 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
             <div class="p-4 flex flex-col space-y-1.5 border-b">
                 <h3 class="font-semibold leading-none tracking-tight">Low Stock Products</h3>
                 <p class="text-xs text-muted-foreground">All active products at or below minimum quantity.</p>
             </div>
             <div class="p-0">
-                <div class="relative w-full overflow-auto max-h-[300px]">
+                <div class="relative w-full overflow-auto">
+                    <div wire:loading.flex wire:target="gotoPage,nextPage,previousPage" class="absolute inset-0 z-20 items-center justify-center bg-white/70 backdrop-blur-[1px]">
+                        <div class="rounded-md border bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm">
+                            Loading products...
+                        </div>
+                    </div>
                     <table class="w-full caption-bottom text-sm">
                         <thead class="[&_tr]:border-b sticky top-0 bg-card z-10">
                             <tr class="border-b transition-colors hover:bg-muted/50">
@@ -224,11 +229,18 @@
                             @forelse($lowStockProducts as $product)
                                 <tr class="border-b transition-colors hover:bg-muted/50">
                                     <td class="px-4 py-2 align-middle font-medium">
-                                        <div class="truncate max-w-[220px]" title="{{ $product['name'] }}">{{ $product['name'] }}</div>
-                                        <div class="text-[11px] text-muted-foreground font-normal">{{ $product['sku'] }}</div>
+                                        <button
+                                            type="button"
+                                            class="block max-w-[260px] text-left hover:text-blue-700 focus:outline-none focus:underline"
+                                            title="{{ $product->name }}"
+                                            wire:click="$dispatch('show-product', { product: {{ $product->id }} })"
+                                        >
+                                            <span class="block truncate font-semibold">{{ $product->name }}</span>
+                                            <span class="block text-[11px] text-muted-foreground font-normal">{{ $product->sku }}</span>
+                                        </button>
                                     </td>
-                                    <td class="px-4 py-2 align-middle text-right font-semibold text-red-600">{{ number_format($product['quantity']) }}</td>
-                                    <td class="px-4 py-2 align-middle text-right text-muted-foreground">{{ number_format($product['min_stock']) }}</td>
+                                    <td class="px-4 py-2 align-middle text-right font-semibold text-red-600">{{ number_format($product->quantity) }}</td>
+                                    <td class="px-4 py-2 align-middle text-right text-muted-foreground">{{ number_format($product->min_stock) }}</td>
                                 </tr>
                             @empty
                                 <tr>
@@ -238,10 +250,21 @@
                         </tbody>
                     </table>
                 </div>
+                @if($lowStockProducts->total() > 0)
+                    <div class="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground lg:flex-row lg:items-center lg:justify-between">
+                        @if($lowStockProducts->hasPages())
+                            <div class="w-full max-w-full overflow-x-auto pb-1">
+                                {{ $lowStockProducts->onEachSide(0)->links(data: ['scrollTo' => '#dashboard-low-stock-products']) }}
+                            </div>
+                        @endif
+                    </div>
+                @endif
             </div>
         </div>
 
     </div>
+
+    <livewire:products.product-detail />
 
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
         <!-- Top Selling Products -->
