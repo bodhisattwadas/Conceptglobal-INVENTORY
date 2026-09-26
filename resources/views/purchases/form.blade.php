@@ -178,6 +178,7 @@
 
             removeItem(index) {
                 this.items.splice(index, 1);
+                this.refreshProductSearchOptions();
             },
 
             calculateLine(index) {
@@ -261,6 +262,17 @@
                 if (this.company_id) search.load('');
             },
 
+            refreshProductSearchOptions() {
+                const search = document.getElementById('master_product_search')?.tomselect;
+                if (!search) return;
+
+                search.refreshOptions(false);
+            },
+
+            selectedProduct(productId) {
+                return this.items.find(item => item.product_id == productId);
+            },
+
             updatePoReference() {
                 if (this.is_editing) return;
 
@@ -341,6 +353,7 @@
                     unit_price: unitPrice,
                     subtotal: unitPrice
                 });
+                this.refreshProductSearchOptions();
             },
 
             initMasterSearch(el) {
@@ -364,6 +377,24 @@
                             if (data) this.addProduct(data);
                             el.tomselect.clear(true);
                             el.tomselect.focus();
+                        },
+                        render: {
+                            option: (data, escape) => {
+                                const selected = this.selectedProduct(data.value);
+                                const check = selected
+                                    ? '<span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">✓</span>'
+                                    : '<span class="h-5 w-5 shrink-0"></span>';
+                                const quantity = selected
+                                    ? `<span class="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Added x${escape(String(selected.quantity || 0))}</span>`
+                                    : '';
+
+                                return `
+                                    <div class="flex items-center justify-between gap-3 px-2 py-1.5">
+                                        <span class="min-w-0 truncate">${escape(data.text)}</span>
+                                        <span class="inline-flex shrink-0 items-center">${quantity}${check}</span>
+                                    </div>
+                                `;
+                            }
                         }
                     });
                     this.updateProductSearchState();
