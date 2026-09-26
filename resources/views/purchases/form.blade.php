@@ -71,7 +71,7 @@
         </div>
 
         <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow">
-            <div class="max-h-[520px] overflow-auto">
+            <div class="max-h-[600px] overflow-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
