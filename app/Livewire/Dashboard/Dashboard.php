@@ -37,6 +37,11 @@ class Dashboard extends Component
         }
     }
 
+    public function refreshDashboard(): void
+    {
+        $this->loadStats(app(DashboardStatsService::class));
+    }
+
     public function updateCustomRange($startDate, $endDate)
     {
         $this->customStartDate = $startDate;
@@ -113,8 +118,8 @@ class Dashboard extends Component
             DatePeriod::THIS_MONTH => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
             DatePeriod::LAST_MONTH => [$now->copy()->subMonth()->startOfMonth(), $now->copy()->subMonth()->endOfMonth()],
             DatePeriod::CUSTOM => [
-                Carbon::parse($this->customStartDate)->startOfDay(),
-                Carbon::parse($this->customEndDate)->endOfDay()
+                Carbon::parse($this->customStartDate ?: $now->copy()->startOfMonth())->startOfDay(),
+                Carbon::parse($this->customEndDate ?: $now)->endOfDay()
             ],
             default => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
         };

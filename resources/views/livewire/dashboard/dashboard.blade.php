@@ -1,5 +1,5 @@
 <div>
-    <div class="space-y-6">
+    <div class="space-y-6" wire:poll.60s="refreshDashboard">
         <!-- Filter Section -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-4 rounded-lg border border-border shadow-sm">
         <div>
@@ -39,8 +39,8 @@
             </div>
 
              <!-- Refresh Button -->
-             <button wire:click="$refresh" class="print:hidden inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9">
-                <x-heroicon-o-arrow-path wire:loading.class="animate-spin" class="h-4 w-4" />
+             <button wire:click="refreshDashboard" class="print:hidden inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9">
+                <x-heroicon-o-arrow-path wire:loading.class="animate-spin" wire:target="refreshDashboard, dateFilter, updateCustomRange" class="h-4 w-4" />
             </button>
             
             <!-- Print Button -->
@@ -48,6 +48,42 @@
                 <x-heroicon-o-printer class="h-4 w-4" />
                 <span class="hidden sm:inline">Print Report</span>
             </button>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <!-- Sales Trend -->
+        <div class="md:col-span-2 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+            <div class="p-4 flex flex-col space-y-1.5 pb-2">
+                <h3 class="font-semibold leading-none tracking-tight">Sales Trend</h3>
+                <p class="text-xs text-muted-foreground">Daily sales performance.</p>
+            </div>
+            <div class="p-4 pt-0" wire:ignore>
+                <div id="salesChart" class="w-full h-[250px]"></div>
+            </div>
+        </div>
+
+        <!-- Cash Flow -->
+        <div class="rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+            <div class="p-4 flex flex-col space-y-1.5 pb-2">
+                <h3 class="font-semibold leading-none tracking-tight">Income vs Expense</h3>
+                <p class="text-xs text-muted-foreground">Financial overview.</p>
+            </div>
+            <div class="p-4 pt-0" wire:ignore>
+                <div id="cashFlowChart" class="w-full h-[250px]"></div>
+            </div>
+        </div>
+
+        <!-- Expense Breakdown -->
+        <div class="rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+            <div class="p-4 flex flex-col space-y-1.5 pb-2">
+                <h3 class="font-semibold leading-none tracking-tight">Expense Breakdown</h3>
+                <p class="text-xs text-muted-foreground">Category distribution.</p>
+            </div>
+            <div class="p-4 pt-0" wire:ignore>
+                <div id="expenseChart" class="w-full h-[250px] flex items-center justify-center"></div>
+            </div>
         </div>
     </div>
 
@@ -123,31 +159,6 @@
         </div>
     </div>
 
-    <!-- Charts Section -->
-    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <!-- Sales Trend -->
-        <div class="col-span-1 lg:col-span-2 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
-            <div class="p-4 flex flex-col space-y-1.5 pb-2">
-                <h3 class="font-semibold leading-none tracking-tight">Sales Trend</h3>
-                <p class="text-xs text-muted-foreground">Daily sales performance.</p>
-            </div>
-            <div class="p-4 pt-0" wire:ignore>
-                <div id="salesChart" class="w-full h-[250px]"></div>
-            </div>
-        </div>
-
-        <!-- Cash Flow -->
-        <div class="col-span-1 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
-            <div class="p-4 flex flex-col space-y-1.5 pb-2">
-                <h3 class="font-semibold leading-none tracking-tight">Income vs Expense</h3>
-                <p class="text-xs text-muted-foreground">Financial overview.</p>
-            </div>
-            <div class="p-4 pt-0" wire:ignore>
-                <div id="cashFlowChart" class="w-full h-[250px]"></div>
-            </div>
-        </div>
-    </div>
-
     <!-- Data Tables Section -->
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <!-- Recent Sales -->
@@ -185,16 +196,6 @@
             </div>
         </div>
 
-        <!-- Expense Breakdown -->
-        <div class="col-span-1 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
-            <div class="p-4 flex flex-col space-y-1.5 pb-2">
-                <h3 class="font-semibold leading-none tracking-tight">Expense Breakdown</h3>
-                <p class="text-xs text-muted-foreground">Category distribution.</p>
-            </div>
-            <div class="p-4 pt-0" wire:ignore>
-                <div id="expenseChart" class="w-full h-[250px] flex items-center justify-center"></div>
-            </div>
-        </div>
     </div>
 
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
@@ -419,18 +420,26 @@
                 }
             };
 
-            if (salesChart) salesChart.destroy();
-            if (cashFlowChart) cashFlowChart.destroy();
-            if (window.expenseChartInst) window.expenseChartInst.destroy();
+            if (salesChart) {
+                salesChart.updateOptions(salesOptions, true, true);
+            } else {
+                salesChart = new ApexCharts(document.querySelector("#salesChart"), salesOptions);
+                salesChart.render();
+            }
 
-            salesChart = new ApexCharts(document.querySelector("#salesChart"), salesOptions);
-            salesChart.render();
+            if (cashFlowChart) {
+                cashFlowChart.updateOptions(cashFlowOptions, true, true);
+            } else {
+                cashFlowChart = new ApexCharts(document.querySelector("#cashFlowChart"), cashFlowOptions);
+                cashFlowChart.render();
+            }
 
-            cashFlowChart = new ApexCharts(document.querySelector("#cashFlowChart"), cashFlowOptions);
-            cashFlowChart.render();
-            
-            window.expenseChartInst = new ApexCharts(document.querySelector("#expenseChart"), expenseOptions);
-            window.expenseChartInst.render();
+            if (window.expenseChartInst) {
+                window.expenseChartInst.updateOptions(expenseOptions, true, true);
+            } else {
+                window.expenseChartInst = new ApexCharts(document.querySelector("#expenseChart"), expenseOptions);
+                window.expenseChartInst.render();
+            }
         };
 
         // Initial Load

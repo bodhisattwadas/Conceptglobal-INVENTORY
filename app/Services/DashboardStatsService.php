@@ -20,7 +20,7 @@ class DashboardStatsService
     {
         $cacheKey = "dashboard_sales_{$periodKey}_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-        return Cache::remember($cacheKey, now()->addMinutes(15), function () use ($startDate, $endDate) {
+        return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
             // Optimize: Use aggregate queries instead of loading all models into memory
             $salesData = Sale::whereBetween('sale_date', [$startDate, $endDate])
                 ->where('status', 'completed')
@@ -55,7 +55,7 @@ class DashboardStatsService
     {
         $cacheKey = "dashboard_cashflow_{$periodKey}_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-        return Cache::remember($cacheKey, now()->addMinutes(15), function () use ($startDate, $endDate) {
+        return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
             // Optimize: Calculate Income and Expense directly in the DB using joins
             $totals = FinanceTransaction::join('finance_categories', 'finance_transactions.finance_category_id', '=', 'finance_categories.id')
                 ->whereBetween('finance_transactions.transaction_date', [$startDate, $endDate])
@@ -80,7 +80,7 @@ class DashboardStatsService
     public function getLowStockProducts(int $limit = 5): array
     {
         // Cache for 5 minutes as stock levels change frequently.
-        return Cache::remember('dashboard_low_stock', now()->addMinutes(5), function () use ($limit) {
+        return Cache::remember('dashboard_low_stock', now()->addSeconds(20), function () use ($limit) {
             return Product::whereColumn('quantity', '<=', 'min_stock')
                 ->where('is_active', true)
                 ->orderBy('quantity', 'asc')
@@ -97,7 +97,7 @@ class DashboardStatsService
     {
          $cacheKey = "dashboard_top_products_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-         return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($startDate, $endDate, $limit) {
+         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate, $limit) {
             return SaleItem::select('product_id', DB::raw('SUM(quantity) as total_qty'))
                 ->whereHas('sale', function ($query) use ($startDate, $endDate) {
                     $query->whereBetween('sale_date', [$startDate, $endDate])
@@ -124,7 +124,7 @@ class DashboardStatsService
      */
     public function getRecentSales(int $limit = 5): array
     {
-        return Cache::remember('dashboard_recent_sales', now()->addMinutes(1), function () use ($limit) {
+        return Cache::remember('dashboard_recent_sales', now()->addSeconds(20), function () use ($limit) {
             return Sale::with('customer:id,name')
                 ->orderByDesc('sale_date')
                 ->limit($limit)
@@ -140,7 +140,7 @@ class DashboardStatsService
     {
          $cacheKey = "dashboard_sales_trend_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-         return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($startDate, $endDate) {
+         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
             $data = Sale::selectRaw('DATE(sale_date) as date, SUM(total) as total')
                 ->whereBetween('sale_date', [$startDate, $endDate])
                 ->where('status', 'completed')
@@ -170,7 +170,7 @@ class DashboardStatsService
     {
          $cacheKey = "dashboard_cashflow_trend_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-         return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($startDate, $endDate) {
+         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
             // Optimize: Group by date and type at the database level instead of memory
             $transactions = FinanceTransaction::join('finance_categories', 'finance_transactions.finance_category_id', '=', 'finance_categories.id')
                 ->whereBetween('finance_transactions.transaction_date', [$startDate, $endDate])
@@ -209,7 +209,7 @@ class DashboardStatsService
     {
          $cacheKey = "dashboard_top_customers_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-         return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($startDate, $endDate, $limit) {
+         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate, $limit) {
             return Sale::select('customer_id', DB::raw('SUM(total) as total_spent'))
                 ->whereBetween('sale_date', [$startDate, $endDate])
                 ->where('status', 'completed')
@@ -237,7 +237,7 @@ class DashboardStatsService
     {
          $cacheKey = "dashboard_expense_breakdown_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-         return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($startDate, $endDate) {
+         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
             return FinanceTransaction::select('finance_category_id', DB::raw('SUM(amount) as total_amount'))
                 ->whereBetween('transaction_date', [$startDate, $endDate])
                 ->whereHas('category', function ($query) {
