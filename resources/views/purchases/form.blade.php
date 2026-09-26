@@ -387,7 +387,7 @@
                                     ? '<span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">✓</span>'
                                     : '<span class="h-5 w-5 shrink-0"></span>';
                                 const quantity = selected
-                                    ? `<span class="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Added x${escape(String(selected.quantity || 0))}</span>`
+                                    ? `<span class="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Added x ${escape(String(selected.quantity || 0))}</span>`
                                     : '';
 
                                 return `
