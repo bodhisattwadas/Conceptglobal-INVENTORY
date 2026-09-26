@@ -318,7 +318,7 @@
         const currencyPosition = "{{ \App\Models\Setting::get('currency_position', 'left') }}";
 
         const formatMoney = (val) => {
-            let num = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(val);
+            let num = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0 }).format(val);
             return currencyPosition === 'left' ? currencySymbol + ' ' + num : num + ' ' + currencySymbol;
         };
 

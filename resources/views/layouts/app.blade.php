@@ -64,8 +64,8 @@
             window.currencySymbol = "{{ \App\Models\Setting::get('currency_symbol', 'Rp') }}";
             window.currencyPosition = "{{ \App\Models\Setting::get('currency_position', 'left') }}";
             window.currencyFraction = parseInt("{{ \App\Models\Setting::get('currency_fraction_digits', 2) }}");
-            window.thousandSeparator = "{{ \App\Models\Setting::get('currency_thousand_separator', '.') }}";
-            window.decimalSeparator = "{{ \App\Models\Setting::get('currency_decimal_separator', ',') }}";
+            window.thousandSeparator = ",";
+            window.decimalSeparator = ".";
 
             window.formatMoney = function(val) {
                 let amount = parseFloat(val) || 0;

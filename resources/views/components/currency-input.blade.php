@@ -15,7 +15,7 @@
     },
     format(value) {
         if (value === null || value === '') return '';
-        return new Intl.NumberFormat('id-ID').format(value);
+        return new Intl.NumberFormat('en-US').format(value);
     },
     unformat(value) {
         return value.replace(/[^0-9]/g, '');

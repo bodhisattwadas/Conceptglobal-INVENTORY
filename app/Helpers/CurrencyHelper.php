@@ -11,12 +11,12 @@ if (!function_exists('format_money')) {
      */
     function format_money($amount)
     {
-        // Get settings, defaulting to IDR format if not set
+        // Get settings, using comma thousands consistently across the app.
         $symbol = Setting::get('currency_symbol', 'Rp');
         $position = Setting::get('currency_position', 'left'); // 'left' or 'right'
         $fractions = (int) Setting::get('currency_fraction_digits', 2);
-        $thousand = Setting::get('currency_thousand_separator', '.');
-        $decimal = Setting::get('currency_decimal_separator', ',');
+        $thousand = ',';
+        $decimal = '.';
         
         $formattedAmount = number_format((float) $amount, $fractions, $decimal, $thousand);
 
