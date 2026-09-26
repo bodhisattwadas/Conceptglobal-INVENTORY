@@ -54,48 +54,54 @@
     <!-- Stats Grid -->
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <!-- Total Sales -->
-        <div class="rounded-xl border bg-card text-card-foreground shadow-sm">
+        <button type="button" class="rounded-xl border shadow-sm text-left transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" style="background-color: #eff6ff; border-color: #bfdbfe; color: #172554;" onclick="document.getElementById('dashboard-sales-trend')?.scrollIntoView({ behavior: 'smooth', block: 'start' })">
             <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
                 <h3 class="tracking-tight text-sm font-medium">Total Sales</h3>
-                <x-heroicon-o-banknotes class="h-4 w-4 text-muted-foreground" />
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg" style="background-color: #dbeafe; color: #1d4ed8;">
+                    <x-heroicon-o-banknotes class="h-4 w-4" />
+                </span>
             </div>
             <div class="p-4 pt-0">
                 <div class="text-xl sm:text-2xl font-bold">
                     @money($stats['total_sales'] ?? 0)
                 </div>
-                <p class="text-xs text-muted-foreground mt-1">
+                <p class="text-xs mt-1" style="color: rgba(29, 78, 216, 0.8);">
                     {{ $stats['sales_count'] ?? 0 }} transactions
                 </p>
             </div>
-        </div>
+        </button>
 
         <!-- Gross Profit -->
-        <div class="rounded-xl border bg-card text-card-foreground shadow-sm">
+        <button type="button" class="rounded-xl border shadow-sm text-left transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2" style="background-color: #ecfdf5; border-color: #a7f3d0; color: #064e3b;" onclick="document.getElementById('dashboard-sales-trend')?.scrollIntoView({ behavior: 'smooth', block: 'start' })">
             <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
                 <h3 class="tracking-tight text-sm font-medium">Gross Profit</h3>
-                <x-heroicon-o-arrow-trending-up class="h-4 w-4 text-muted-foreground" />
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg" style="background-color: #d1fae5; color: #047857;">
+                    <x-heroicon-o-arrow-trending-up class="h-4 w-4" />
+                </span>
             </div>
             <div class="p-4 pt-0">
                 <div class="text-xl sm:text-2xl font-bold">
                     @money($stats['gross_profit'] ?? 0)
                 </div>
-                <p class="text-xs text-muted-foreground mt-1">
+                <p class="text-xs mt-1" style="color: rgba(4, 120, 87, 0.8);">
                     Estimated based on COGS
                 </p>
             </div>
-        </div>
+        </button>
 
         <!-- Net Cash Flow -->
-        <div class="rounded-xl border bg-card text-card-foreground shadow-sm">
+        <button type="button" class="rounded-xl border shadow-sm text-left transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2" style="background-color: #f5f3ff; border-color: #ddd6fe; color: #2e1065;" onclick="document.getElementById('dashboard-cash-flow')?.scrollIntoView({ behavior: 'smooth', block: 'start' })">
             <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
                 <h3 class="tracking-tight text-sm font-medium">Net Cash Flow</h3>
-                 <x-heroicon-o-currency-dollar class="h-4 w-4 text-muted-foreground" />
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg" style="background-color: #ede9fe; color: #6d28d9;">
+                    <x-heroicon-o-currency-dollar class="h-4 w-4" />
+                </span>
             </div>
             <div class="p-4 pt-0">
                 <div class="text-xl sm:text-2xl font-bold {{ ($stats['net_cash_flow'] ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600' }}">
                     @money($stats['net_cash_flow'] ?? 0)
                 </div>
-                <div class="flex justify-between text-[11px] sm:text-xs text-muted-foreground mt-1">
+                <div class="flex justify-between text-[11px] sm:text-xs mt-1">
                     <span class="text-emerald-600 flex items-center gap-1" title="Total Income">
                         <x-heroicon-s-arrow-up class="w-3 h-3" /> @money($stats['income'] ?? 0)
                     </span>
@@ -104,29 +110,31 @@
                     </span>
                 </div>
             </div>
-        </div>
+        </button>
 
          <!-- Low Stock Alert -->
-         <div class="rounded-xl border bg-card text-card-foreground shadow-sm">
+         <button type="button" class="rounded-xl border shadow-sm text-left transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2" style="background-color: #fff1f2; border-color: #fecdd3; color: #4c0519;" onclick="document.getElementById('dashboard-low-stock-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' })">
             <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
                 <h3 class="tracking-tight text-sm font-medium">Low Stock Alert</h3>
-                <x-heroicon-o-exclamation-triangle class="h-4 w-4 text-orange-500" />
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg" style="background-color: #ffe4e6; color: #be123c;">
+                    <x-heroicon-o-exclamation-triangle class="h-4 w-4" />
+                </span>
             </div>
             <div class="p-4 pt-0">
                 <div class="text-xl sm:text-2xl font-bold">
                     {{ count($lowStockProducts) }}
                 </div>
-                <p class="text-xs text-muted-foreground mt-1">
+                <p class="text-xs mt-1" style="color: rgba(190, 18, 60, 0.8);">
                     Items below min stock
                 </p>
             </div>
-        </div>
+        </button>
     </div>
 
     <!-- Charts Section -->
     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <!-- Sales Trend -->
-        <div class="md:col-span-2 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+        <div id="dashboard-sales-trend" class="scroll-mt-24 md:col-span-2 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
             <div class="p-4 flex flex-col space-y-1.5 pb-2">
                 <h3 class="font-semibold leading-none tracking-tight">Sales Trend</h3>
                 <p class="text-xs text-muted-foreground">Daily sales performance.</p>
@@ -137,7 +145,7 @@
         </div>
 
         <!-- Cash Flow -->
-        <div class="rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+        <div id="dashboard-cash-flow" class="scroll-mt-24 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
             <div class="p-4 flex flex-col space-y-1.5 pb-2">
                 <h3 class="font-semibold leading-none tracking-tight">Income vs Expense</h3>
                 <p class="text-xs text-muted-foreground">Financial overview.</p>
@@ -160,9 +168,9 @@
     </div>
 
     <!-- Data Tables Section -->
-    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-2">
         <!-- Recent Sales -->
-        <div class="col-span-1 lg:col-span-2 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+        <div id="dashboard-low-stock-products" class="scroll-mt-24 col-span-1 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
             <div class="p-4 flex flex-col space-y-1.5 border-b">
                 <h3 class="font-semibold leading-none tracking-tight">Recent Sales</h3>
                 <p class="text-xs text-muted-foreground">Latest transactions overview.</p>
