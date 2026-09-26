@@ -266,6 +266,7 @@
                 const search = document.getElementById('master_product_search')?.tomselect;
                 if (!search) return;
 
+                search.clearCache('option');
                 search.refreshOptions(false);
             },
 
@@ -334,6 +335,7 @@
                 if (existingIndex !== -1) {
                     this.items[existingIndex].quantity += 1;
                     this.calculateLine(existingIndex);
+                    this.refreshProductSearchOptions();
                     return;
                 }
 
