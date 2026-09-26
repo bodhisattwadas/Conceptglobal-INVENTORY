@@ -34,7 +34,7 @@
             </div>
             <div class="space-y-2">
                 <x-input-label for="due_date" :value="__('Expected Delivery')" hint="Expected date for receiving goods. Example: 2026-08-20." />
-                <x-text-input id="due_date" type="date" name="due_date" x-model="due_date" :min="minDueDate" />
+                <x-text-input id="due_date" type="date" name="due_date" x-model="due_date" x-bind:min="minDueDate" />
                 <x-input-error :messages="$errors->get('due_date')" />
             </div>
         </div>
