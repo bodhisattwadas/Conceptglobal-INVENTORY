@@ -363,18 +363,28 @@
                             },
                             render: {
                                 option: (item, escape) => {
+                                    const selected = this.selectedCartProduct(item.id);
+                                    const check = selected
+                                        ? '<span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">✓</span>'
+                                        : '';
+                                    const quantity = selected
+                                        ? `<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Added x ${escape(String(selected.quantity || 0))}</span>`
+                                        : '';
+
                                     return `
                                         <div class="py-2 px-3 border-b border-gray-100">
-                                            <div class="flex justify-between items-center">
+                                            <div class="flex justify-between items-center gap-3">
                                                 <div>
                                                     <div class="font-medium text-gray-900">${escape(item.name)}</div>
                                                     <div class="text-xs text-gray-500">${escape(item.sku)}</div>
                                                 </div>
-                                                <div class="text-right">
+                                                <div class="flex shrink-0 items-center gap-2 text-right">
+                                                    ${quantity}
                                                     <div class="font-bold text-indigo-600">${this.formatCurrency(item.selling_price)}</div>
                                                     <div class="text-xs ${item.quantity > 0 ? 'text-green-600' : 'text-red-600'}">
                                                         Stock: ${escape(item.quantity)} ${escape(item.unit?.symbol || '')}
                                                     </div>
+                                                    ${check}
                                                 </div>
                                             </div>
                                         </div>
@@ -388,13 +398,20 @@
                                 if (value) {
                                     const item = this.productTs.options[value];
                                     if(item) {
-                                        this.addToCart(item);
+                                        this.preserveProductSelectPosition(() => {
+                                            this.addToCart(item);
+                                        });
 
                                         // Improved Logic: Prevent double input on Enter
                                         const cleanup = () => {
+                                            const scrollTop = this.productTs.dropdown_content?.scrollTop || 0;
                                             this.productTs.clear(true);
                                             this.productTs.setTextboxValue(this.lastSearchQuery);
+                                            this.productTs.clearCache('option');
                                             this.productTs.refreshOptions(false);
+                                            if (this.productTs.dropdown_content) {
+                                                this.productTs.dropdown_content.scrollTop = scrollTop;
+                                            }
                                         };
 
                                         // Small delay to ensure TS internal "Enter" handling is done
@@ -403,6 +420,38 @@
                                 }
                             }
                         });
+                    },
+
+                    selectedCartProduct(productId) {
+                        return this.cart.find(item => item.id == productId);
+                    },
+
+                    refreshProductSelectOptions() {
+                        if (!this.productTs) return;
+
+                        const scrollTop = this.productTs.dropdown_content?.scrollTop || 0;
+                        this.productTs.clearCache('option');
+                        this.productTs.refreshOptions(false);
+                        if (this.productTs.dropdown_content) {
+                            this.productTs.dropdown_content.scrollTop = scrollTop;
+                        }
+                    },
+
+                    preserveProductSelectPosition(callback) {
+                        const dropdown = this.productTs?.dropdown_content;
+                        const scrollTop = dropdown?.scrollTop || 0;
+
+                        callback();
+
+                        if (!this.productTs || !dropdown) return;
+
+                        const restore = () => {
+                            this.productTs.open();
+                            dropdown.scrollTop = scrollTop;
+                        };
+
+                        requestAnimationFrame(restore);
+                        setTimeout(restore, 0);
                     },
 
                     initCustomerSelect() {
@@ -508,6 +557,7 @@
                         if (existing) {
                             if (existing.quantity < product.quantity) {
                                 existing.quantity++;
+                                this.refreshProductSelectOptions();
                                 this.$dispatch('toast', { message: 'Product already exists. Quantity updated.', type: 'info' });
                             } else {
                                 this.$dispatch('toast', { message: 'Insufficient stock!', type: 'error' });
@@ -525,6 +575,7 @@
                                     discountPercent: 10
                                 });
                                 this.$dispatch('toast', { message: 'Product "' + product.name + '" added to cart.', type: 'success' });
+                                this.refreshProductSelectOptions();
                             } else {
                                 this.$dispatch('toast', { message: 'Out of Stock!', type: 'error' });
                             }
@@ -543,6 +594,7 @@
                     removeFromCart(index) {
                         const removedItem = this.cart[index];
                         this.cart.splice(index, 1);
+                        this.refreshProductSelectOptions();
                         this.$dispatch('toast', { message: 'Product "' + removedItem.name + '" removed from cart.', type: 'info' });
                     },
 

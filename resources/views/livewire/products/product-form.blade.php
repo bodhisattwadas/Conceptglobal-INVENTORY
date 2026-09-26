@@ -10,7 +10,7 @@
             </p>
         </div>
 
-        <form wire:submit="save" class="space-y-6">
+        <form method="POST" wire:submit.prevent="save" class="space-y-6">
 
             <div class="space-y-2">
                 <x-input-label for="image" value="Product Image" hint="Image shown in product lists and detail views. Example: front-pack.jpg." />

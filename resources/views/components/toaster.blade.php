@@ -16,10 +16,16 @@
                 { id: Date.now() + 3, message: @js(session('info')), type: 'info' },
             @endif
         ],
+        isPosPage: window.location.pathname.includes('/sales/create'),
+        width: window.innerWidth,
         init() {
             // Auto-dismiss valid initial notifications
             this.notifications.forEach(n => {
                 setTimeout(() => this.remove(n.id), 8000);
+            });
+
+            window.addEventListener('resize', () => {
+                this.width = window.innerWidth;
             });
         },
         add(message, type = 'success') {
@@ -30,16 +36,25 @@
         },
         remove(id) {
             this.notifications = this.notifications.filter(notification => notification.id !== id);
+        },
+        containerStyle() {
+            if (!this.isPosPage || this.width < 1024) {
+                return '';
+            }
+
+            return 'left: auto; right: 24px; top: 86px; width: calc(30vw - 32px); align-items: stretch;';
         }
     }"
     x-on:toast.window="add($event.detail.message, $event.detail.type)"
     class="fixed inset-x-0 top-0 p-4 flex flex-col items-center justify-start z-[100] pointer-events-none gap-2 sm:top-6 sm:p-6"
+    :style="containerStyle()"
 >
     <!--
         Stack Container: Top Center
     -->
     <div
         class="relative w-full max-w-lg h-auto flex flex-col items-center justify-start"
+        :class="{ 'max-w-none items-stretch': isPosPage && width >= 1024 }"
         x-data="{ expanded: false }"
         x-on:mouseenter="expanded = true"
         x-on:mouseleave="expanded = false"
