@@ -41,7 +41,7 @@ final class ProductTable extends PowerGridComponent
 
             PowerGrid::footer()
                 ->showPerPage(perPage: 10, perPageValues: [10, 25, 50, 100])
-                ->showRecordCount('min'),
+                ->showRecordCount(),
         ];
     }
 
