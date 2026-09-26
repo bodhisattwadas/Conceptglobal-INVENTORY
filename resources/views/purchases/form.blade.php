@@ -71,7 +71,7 @@
         </div>
 
         <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow">
-            <div class="max-h-[600px] overflow-auto">
+            <div class="overflow-auto" style="max-height: 600px;">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
@@ -266,12 +266,34 @@
                 const search = document.getElementById('master_product_search')?.tomselect;
                 if (!search) return;
 
+                const scrollTop = search.dropdown_content?.scrollTop || 0;
                 search.clearCache('option');
                 search.refreshOptions(false);
+                if (search.dropdown_content) {
+                    search.dropdown_content.scrollTop = scrollTop;
+                }
             },
 
             selectedProduct(productId) {
                 return this.items.find(item => item.product_id == productId);
+            },
+
+            preserveProductSearchPosition(callback) {
+                const search = document.getElementById('master_product_search')?.tomselect;
+                const dropdown = search?.dropdown_content;
+                const scrollTop = dropdown?.scrollTop || 0;
+
+                callback();
+
+                if (!search || !dropdown) return;
+
+                const restore = () => {
+                    search.open();
+                    dropdown.scrollTop = scrollTop;
+                };
+
+                requestAnimationFrame(restore);
+                setTimeout(restore, 0);
             },
 
             updatePoReference() {
@@ -374,11 +396,14 @@
                                 for_purchase: true
                             }, callback);
                         },
+                        closeAfterSelect: false,
                         onItemAdd: (value) => {
-                            const data = el.tomselect.options[value];
-                            if (data) this.addProduct(data);
-                            el.tomselect.clear(true);
-                            el.tomselect.focus();
+                            this.preserveProductSearchPosition(() => {
+                                const data = el.tomselect.options[value];
+                                if (data) this.addProduct(data);
+                                el.tomselect.clear(true);
+                                el.tomselect.focus();
+                            });
                         },
                         render: {
                             option: (data, escape) => {
