@@ -41,7 +41,7 @@ final class ProductTable extends PowerGridComponent
 
             PowerGrid::footer()
                 ->showPerPage(perPage: 10, perPageValues: [10, 25, 50, 100])
-                ->showRecordCount(),
+                ->showRecordCount('min'),
         ];
     }
 
@@ -52,7 +52,18 @@ final class ProductTable extends PowerGridComponent
             ->leftJoin('units', 'products.unit_id', '=', 'units.id')
             ->leftJoin('companies', 'products.company_id', '=', 'companies.id')
             ->select([
-                'products.*',
+                'products.id',
+                'products.category_id',
+                'products.unit_id',
+                'products.company_id',
+                'products.sku',
+                'products.name',
+                'products.mrp',
+                'products.min_stock',
+                'products.is_active',
+                'products.description',
+                'products.image_path',
+                'products.created_at',
                 'categories.name as category_name',
                 'categories.slug as category_slug',
                 'units.symbol as unit_symbol',
