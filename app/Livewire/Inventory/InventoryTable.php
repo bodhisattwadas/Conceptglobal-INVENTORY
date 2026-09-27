@@ -4,7 +4,6 @@ namespace App\Livewire\Inventory;
 
 use App\Models\InventoryStock;
 use Illuminate\Database\Eloquent\Builder;
-use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
 use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
@@ -18,7 +17,7 @@ final class InventoryTable extends PowerGridComponent
 
     public string $tableName = 'inventory-table';
 
-    public string $sortField = 'updated_at';
+    public string $sortField = 'inventory_stocks.updated_at';
 
     public string $sortDirection = 'desc';
 
@@ -28,7 +27,9 @@ final class InventoryTable extends PowerGridComponent
             PowerGrid::exportable('inventory_export_'.now()->format('Y_m_d'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
             PowerGrid::header()->showSearchInput(),
-            PowerGrid::footer()->showPerPage()->showRecordCount(),
+            PowerGrid::footer()
+                ->showPerPage(perPage: 10, perPageValues: [10, 25, 50, 100])
+                ->showRecordCount(),
         ];
     }
 
@@ -53,6 +54,7 @@ final class InventoryTable extends PowerGridComponent
     {
         return PowerGrid::fields()
             ->add('id')
+            ->add('action_buttons', fn (InventoryStock $model) => $this->actionButtons($model))
             ->add('sku', fn (InventoryStock $model) => $model->product?->sku ?: '-')
             ->add('product_name', fn (InventoryStock $model) => $model->product?->name ?: '-')
             ->add('brand_name', fn (InventoryStock $model) => $model->product?->company?->short_name ?: $model->product?->company?->company_name ?: '-')
@@ -73,7 +75,7 @@ final class InventoryTable extends PowerGridComponent
     public function columns(): array
     {
         return [
-            Column::action('')->visibleInExport(false),
+            Column::make('Action', 'action_buttons')->visibleInExport(false),
             Column::make('SKU', 'sku', 'products.sku')->searchable()->sortable()->headerAttribute('text-center'),
             Column::make('Product', 'product_name', 'products.name')->searchable()->sortable()->headerAttribute('text-center'),
             Column::make('Brand / Company', 'brand_name', 'companies.company_name')->searchable()->sortable()->headerAttribute('text-center'),
@@ -88,19 +90,17 @@ final class InventoryTable extends PowerGridComponent
         ];
     }
 
-    public function actions(InventoryStock $row): array
+    private function actionButtons(InventoryStock $row): string
     {
         if (! $row->product_id) {
-            return [];
+            return '';
         }
 
-        return [
-            Button::add('view-product')
-                ->slot('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>')
-                ->class('inline-flex h-8 w-8 items-center justify-center rounded-md bg-blue-500 text-white hover:bg-blue-600')
-                ->route('inventory.show', ['inventoryStock' => $row->id])
-                ->tooltip('View Product'),
-        ];
+        $url = route('inventory.show', ['inventoryStock' => $row->id]);
+
+        return '<a href="'.e($url).'" title="View Product" class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-blue-500 text-white hover:bg-blue-600">'
+            .'<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>'
+            .'</a>';
     }
 
     private function stockBadge(InventoryStock $stock): string
