@@ -35,6 +35,17 @@ final class InventoryTable extends PowerGridComponent
     public function datasource(): Builder
     {
         return InventoryStock::query()
+            ->leftJoin('products', 'inventory_stocks.product_id', '=', 'products.id')
+            ->leftJoin('companies', 'products.company_id', '=', 'companies.id')
+            ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
+            ->select([
+                'inventory_stocks.*',
+                'products.sku as sku',
+                'products.name as product_name',
+                'companies.company_name as company_name',
+                'companies.short_name as brand_short_name',
+                'categories.name as category_name',
+            ])
             ->with(['product.company', 'product.unit', 'product.category', 'product.purchaseItems.purchase']);
     }
 
@@ -47,12 +58,15 @@ final class InventoryTable extends PowerGridComponent
             ->add('brand_name', fn (InventoryStock $model) => $model->product?->company?->short_name ?: $model->product?->company?->company_name ?: '-')
             ->add('category_name', fn (InventoryStock $model) => $model->product?->category?->name ?: '-')
             ->add('quantity')
+            ->add('quantity_export', fn (InventoryStock $model) => (string) (int) $model->quantity)
             ->add('quantity_with_unit', fn (InventoryStock $model) => $this->numberWithUnit((int) $model->quantity, $model))
             ->add('batch_quantities', fn (InventoryStock $model) => $this->batchQuantities($model))
             ->add('unit', fn (InventoryStock $model) => $model->product?->unit?->symbol ?: $model->product?->unit?->name ?: '-')
             ->add('min_stock', fn (InventoryStock $model) => $model->product?->min_stock ?? 0)
+            ->add('min_stock_export', fn (InventoryStock $model) => (string) (int) ($model->product?->min_stock ?? 0))
             ->add('min_stock_with_unit', fn (InventoryStock $model) => $this->numberWithUnit((int) ($model->product?->min_stock ?? 0), $model))
             ->add('stock_badge', fn (InventoryStock $model) => $this->stockBadge($model))
+            ->add('stock_status_export', fn (InventoryStock $model) => $model->quantity <= (int) ($model->product?->min_stock ?? 0) ? 'Low Stock' : 'In Stock')
             ->add('updated_at');
     }
 
@@ -60,14 +74,17 @@ final class InventoryTable extends PowerGridComponent
     {
         return [
             Column::action('')->visibleInExport(false),
-            Column::make('SKU', 'sku')->searchable()->sortable()->headerAttribute('text-center'),
-            Column::make('Product', 'product_name')->searchable()->sortable()->headerAttribute('text-center'),
-            Column::make('Brand / Company', 'brand_name')->searchable()->sortable()->headerAttribute('text-center'),
-            Column::make('Category', 'category_name')->searchable()->sortable()->headerAttribute('text-center'),
-            Column::make('Quantity', 'quantity_with_unit', 'quantity')->sortable()->headerAttribute('text-center')->bodyAttribute('text-center'),
+            Column::make('SKU', 'sku', 'products.sku')->searchable()->sortable()->headerAttribute('text-center'),
+            Column::make('Product', 'product_name', 'products.name')->searchable()->sortable()->headerAttribute('text-center'),
+            Column::make('Brand / Company', 'brand_name', 'companies.company_name')->searchable()->sortable()->headerAttribute('text-center'),
+            Column::make('Category', 'category_name', 'categories.name')->searchable()->sortable()->headerAttribute('text-center'),
+            Column::make('Quantity', 'quantity_with_unit', 'quantity')->sortable()->headerAttribute('text-center')->bodyAttribute('text-center')->visibleInExport(false),
+            Column::make('Quantity', 'quantity_export', 'quantity')->hidden()->visibleInExport(true),
             Column::make('Batch Quantity', 'batch_quantities')->headerAttribute('text-center')->bodyAttribute('text-center')->visibleInExport(false),
-            Column::make('Min Quantity', 'min_stock_with_unit', 'min_stock')->headerAttribute('text-center')->bodyAttribute('text-center'),
-            Column::make('Status', 'stock_badge')->headerAttribute('text-center')->bodyAttribute('text-center'),
+            Column::make('Min Quantity', 'min_stock_with_unit', 'min_stock')->headerAttribute('text-center')->bodyAttribute('text-center')->visibleInExport(false),
+            Column::make('Min Quantity', 'min_stock_export', 'min_stock')->hidden()->visibleInExport(true),
+              Column::make('Status', 'stock_badge')->headerAttribute('text-center')->bodyAttribute('text-center')->visibleInExport(false),
+              Column::make('Status', 'stock_status_export')->hidden()->visibleInExport(true),
         ];
     }
 
