@@ -9,6 +9,8 @@ use App\Http\Controllers\Api\UnitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\ProductController as ProductReportController;
 use App\Http\Controllers\FinanceReportController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\SalesController;
@@ -42,6 +44,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('profile', 'profile.index')->name('profile.index');
     Route::view('companies', 'companies.index')->middleware('role:admin,manager')->name('companies.index');
     Route::view('inventory', 'inventory.index')->middleware('role:admin,manager')->name('inventory.index');
+    Route::get('inventory/print', [InventoryController::class, 'print'])->middleware('role:admin,manager')->name('inventory.print');
+    Route::get('products/print', [ProductReportController::class, 'print'])->middleware('role:admin,manager')->name('products.print');
     Route::get('inventory/{inventoryStock}', function (InventoryStock $inventoryStock) {
         $inventoryStock->load([
             'product.category',

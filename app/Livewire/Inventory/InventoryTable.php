@@ -24,7 +24,7 @@ final class InventoryTable extends PowerGridComponent
     public function setUp(): array
     {
         return [
-            PowerGrid::exportable('inventory_export_'.now()->format('Y_m_d'))
+            PowerGrid::exportable('inventory_export_'.now()->format('Y_m_d_His'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
             PowerGrid::header()->showSearchInput(),
             PowerGrid::footer()

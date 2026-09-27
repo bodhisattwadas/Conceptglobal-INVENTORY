@@ -33,7 +33,7 @@ final class ProductTable extends PowerGridComponent
         $this->showCheckBox();
 
         return [
-            PowerGrid::exportable('product_export_' . now()->format('Y_m_d'))
+            PowerGrid::exportable('product_export_' . now()->format('Y_m_d_His'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
 
             PowerGrid::header()
