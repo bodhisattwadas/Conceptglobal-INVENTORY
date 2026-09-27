@@ -85,32 +85,5 @@
             </div>
         @endif
 
-        @if (data_get($this, 'tableName') === 'inventory-table')
-            <div class="flex items-center px-4 py-1 text-pg-primary-400 dark:text-pg-primary-300">
-                <span class="w-12">PDF</span>
-                <a
-                    href="{{ route('inventory.print') }}"
-                    target="_blank"
-                    class="px-2 py-1 block text-pg-primary-800 hover:bg-pg-primary-100 hover:text-black-300 dark:text-pg-primary-200 dark:hover:bg-pg-primary-800 rounded"
-                    x-on:click="open = false"
-                >
-                    @lang('Download PDF')
-                </a>
-            </div>
-        @endif
-
-        @if (data_get($this, 'tableName') === 'product-table')
-            <div class="flex items-center px-4 py-1 text-pg-primary-400 dark:text-pg-primary-300">
-                <span class="w-12">PDF</span>
-                <a
-                    href="{{ route('products.print') }}"
-                    target="_blank"
-                    class="px-2 py-1 block text-pg-primary-800 hover:bg-pg-primary-100 hover:text-black-300 dark:text-pg-primary-200 dark:hover:bg-pg-primary-800 rounded"
-                    x-on:click="open = false"
-                >
-                    @lang('Download PDF')
-                </a>
-            </div>
-        @endif
     </div>
 </div>
