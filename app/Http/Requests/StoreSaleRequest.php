@@ -63,15 +63,15 @@ class StoreSaleRequest extends FormRequest
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
             'status' => ['nullable', Rule::in([SaleStatus::PENDING->value, SaleStatus::COMPLETED->value])],
             'notes' => ['nullable', 'string', 'max:2000'],
-            'cash_received' => ['nullable', 'integer', 'min:0'],
-            'change' => ['nullable', 'integer', 'min:0'],
-            'global_discount' => ['nullable', 'integer', 'min:0'],
+            'cash_received' => ['nullable', 'numeric', 'min:0'],
+            'change' => ['nullable', 'numeric', 'min:0'],
+            'global_discount' => ['nullable', 'numeric', 'min:0'],
 
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
-            'items.*.unit_price' => ['required', 'integer', 'min:0'],
-            'items.*.discount' => ['nullable', 'integer', 'min:0'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.discount' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 
@@ -89,9 +89,9 @@ class StoreSaleRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $hasItemDiscount = collect($this->input('items', []))
-                ->contains(fn (mixed $item): bool => is_array($item) && (int) ($item['discount'] ?? 0) > 0);
+                ->contains(fn (mixed $item): bool => is_array($item) && (float) ($item['discount'] ?? 0) > 0);
 
-            if ($hasItemDiscount && (int) $this->input('global_discount', 0) > 0) {
+            if ($hasItemDiscount && (float) $this->input('global_discount', 0) > 0) {
                 $validator->errors()->add(
                     'global_discount',
                     'Use either item discounts or one global/coupon discount, not both.'
@@ -107,7 +107,7 @@ class StoreSaleRequest extends FormRequest
         }
 
         if (is_numeric($value)) {
-            return (int) round((float) $value);
+            return round((float) $value, 2);
         }
 
         return $value;

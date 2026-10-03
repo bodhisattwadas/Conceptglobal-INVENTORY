@@ -20,7 +20,7 @@ class CompleteSaleRequest extends FormRequest
         $requiresCash = $sale instanceof Sale && $sale->payment_method === PaymentMethod::CASH;
 
         return [
-            'cash_received' => [Rule::requiredIf($requiresCash), 'nullable', 'integer', 'min:0'],
+            'cash_received' => [Rule::requiredIf($requiresCash), 'nullable', 'numeric', 'decimal:0,2', 'min:0'],
         ];
     }
 }

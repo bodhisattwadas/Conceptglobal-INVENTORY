@@ -10,7 +10,7 @@
         <div class="flex flex-col lg:flex-row h-[calc(100vh-100px)] space-y-4 lg:space-y-0 lg:space-x-4 relative">
 
             <!-- Left Side: Transaction Details (70%) -->
-            <div class="w-full lg:w-[70%] flex flex-col space-y-4 h-full">
+            <div class="w-full lg:w-[70%] min-w-0 flex flex-col space-y-4 h-full">
                 <!-- Search Bar (TomSelect) -->
                 <div class="relative z-20 mb-2">
                     <select
@@ -23,7 +23,17 @@
                 <!-- Cart Table -->
                 <div class="flex-1 bg-white rounded-lg shadow border border-gray-200 overflow-hidden flex flex-col">
                     <div class="overflow-x-auto flex-1">
-                        <table class="min-w-full divide-y divide-gray-200">
+                        <table class="w-full min-w-[850px] table-fixed divide-y divide-gray-200">
+                            <colgroup>
+                                <col class="w-[20%]">
+                                <col class="w-[12%]">
+                                <col class="w-[10%]">
+                                <col class="w-[6%]">
+                                <col class="w-[14%]">
+                                <col class="w-[15%]">
+                                <col class="w-[16%]">
+                                <col class="w-[7%]">
+                            </colgroup>
                             <thead class="bg-gray-50 sticky top-0 z-10">
                                 <tr>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
@@ -39,9 +49,9 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                                 <template x-for="(item, index) in cart" :key="item.id">
                                     <tr :class="index % 2 === 0 ? 'bg-white' : 'bg-gray-50'" class="hover:bg-indigo-50 transition-colors">
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm font-medium text-gray-900" x-text="item.name"></div>
-                                            <div class="text-xs text-gray-500" x-text="item.sku"></div>
+                                        <td class="px-2 py-4">
+                                            <div class="text-sm font-medium text-gray-900 break-words" x-text="item.name" :title="item.name"></div>
+                                            <div class="text-xs text-gray-500 break-words" x-text="item.sku"></div>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500" x-text="formatCurrency(item.price)"></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-center">
@@ -58,14 +68,16 @@
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500" x-text="item.unit"></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-gray-900" x-text="formatCurrency(lineGrossTotal(item))"></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right">
-                                            <div class="relative rounded-md shadow-sm w-24 ml-auto">
+                                            <div class="relative rounded-md shadow-sm w-full min-w-[110px] ml-auto">
                                                 <input
                                                     type="number"
                                                     min="0"
                                                     max="100"
                                                     step="0.01"
-                                                    x-model="item.discountPercent"
+                                                    :value="item.discountPercent"
                                                     @input="setItemDiscountPercent(index, $event.target.value)"
+                                                    @blur="item.discountPercent = clampDiscountPercent(item.discountPercent)"
+                                                    aria-label="Item discount percentage"
                                                     class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-7 text-right sm:text-sm border-gray-300 rounded-md"
                                                     placeholder="10"
                                                 >
@@ -607,7 +619,7 @@
                             return;
                         }
 
-                        this.cart[index].discountPercent = percent;
+                        this.cart[index].discountPercent = value !== '' && Number(value) === percent ? value : percent;
                     },
 
                     setGlobalDiscount(value) {
@@ -655,7 +667,7 @@
                     },
 
                     lineDiscountAmount(item) {
-                        return Math.round((parseFloat(item.price) || 0) * (this.clampDiscountPercent(item.discountPercent) / 100));
+                        return Math.round((parseFloat(item.price) || 0) * this.clampDiscountPercent(item.discountPercent)) / 100;
                     },
 
                     lineGrossTotal(item) {

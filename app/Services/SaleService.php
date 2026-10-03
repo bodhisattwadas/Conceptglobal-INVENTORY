@@ -77,8 +77,8 @@ class SaleService
                         throw SaleException::invalidDiscount('Item discount ('.format_money($discount).') cannot exceed unit price ('.format_money($unitPrice).") for product '{$product->name}'.");
                     }
 
-                    $finalPrice = $unitPrice - $discount;
-                    $subtotal = $finalPrice * $quantity;
+                    $finalPrice = round($unitPrice - $discount, 2);
+                    $subtotal = round($finalPrice * $quantity, 2);
 
                     $saleItem = SaleItem::create([
                         'sale_id' => $sale->id,
@@ -97,15 +97,15 @@ class SaleService
                     $this->inventoryService->adjustForSale($product->id, -$itemData->quantity, 'sale', $sale->invoice_number, 'Sold via sale.', $sale, $saleItem);
                     $this->inventoryService->deductFromBatches($product->id, $itemData->quantity, 'sale', $sale->invoice_number, 'Sold via sale.', $sale, $saleItem);
 
-                    $totalSubtotal += $subtotal;
-                    $totalDiscount += $discount * $quantity;
+                    $totalSubtotal = round($totalSubtotal + $subtotal, 2);
+                    $totalDiscount = round($totalDiscount + $discount * $quantity, 2);
                 }
 
                 if ($data->global_discount > $totalSubtotal) {
                     throw SaleException::invalidDiscount('Global discount ('.format_money($data->global_discount).') cannot exceed subtotal ('.format_money($totalSubtotal).').');
                 }
 
-                $total = $totalSubtotal - $data->global_discount;
+                $total = round($totalSubtotal - $data->global_discount, 2);
 
                 if ($data->status === SaleStatus::COMPLETED) {
                     if ($data->payment_method === PaymentMethod::CASH && $data->cash_received < $total) {
@@ -116,12 +116,12 @@ class SaleService
 
                 // Calculate change if payment method is cash
                 if ($data->payment_method === PaymentMethod::CASH && $sale->cash_received >= $total) {
-                    $change = $sale->cash_received - $total;
+                    $change = round($sale->cash_received - $total, 2);
                 }
 
                 $sale->update([
-                    'subtotal' => $totalSubtotal + $totalDiscount,
-                    'total_discount' => $totalDiscount + $data->global_discount,
+                    'subtotal' => round($totalSubtotal + $totalDiscount, 2),
+                    'total_discount' => round($totalDiscount + $data->global_discount, 2),
                     'global_discount' => $data->global_discount,
                     'total' => $total,
                     'change' => $change,
@@ -207,7 +207,7 @@ class SaleService
                 throw SaleException::invalidStatus('complete', $sale->status->label(), ['id' => $sale->id]);
             }
 
-            $cashReceived = (int) ($paymentData['cash_received'] ?? $sale->cash_received);
+            $cashReceived = round((float) ($paymentData['cash_received'] ?? $sale->cash_received), 2);
 
             if ($sale->payment_method === PaymentMethod::CASH && $cashReceived < $sale->total) {
                 throw SaleException::insufficientPayment($sale->total, $cashReceived);
@@ -216,7 +216,7 @@ class SaleService
             $updateData = [
                 'status' => SaleStatus::COMPLETED,
                 'cash_received' => $sale->payment_method === PaymentMethod::CASH ? $cashReceived : 0,
-                'change' => $sale->payment_method === PaymentMethod::CASH ? $cashReceived - $sale->total : 0,
+                'change' => $sale->payment_method === PaymentMethod::CASH ? round($cashReceived - $sale->total, 2) : 0,
             ];
 
             $sale->update($updateData);
