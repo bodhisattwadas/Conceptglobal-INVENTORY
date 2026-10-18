@@ -14,6 +14,8 @@
     RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
 
     # Serve static assets from Laravel's public directory.
+    RewriteCond %{DOCUMENT_ROOT}/public/$1 -f [OR]
+    RewriteCond %{DOCUMENT_ROOT}/public/$1 -d [OR]
     RewriteCond public/$1 -f [OR]
     RewriteCond public/$1 -d
     RewriteRule ^(.*)$ public/$1 [L]
