@@ -11,6 +11,37 @@ use Illuminate\Http\Request;
 class CouponController extends Controller
 {
     /**
+     * Get all currently available coupons for checkout.
+     */
+    public function available(Request $request, DiscountCouponService $service): JsonResponse
+    {
+        $subtotal = $request->filled('subtotal') ? (float) $request->subtotal : null;
+        $onlyApplicable = $request->boolean('only_applicable', false);
+
+        $coupons = $service->getAvailableCoupons($subtotal, $onlyApplicable);
+
+        return response()->json([
+            'coupons' => $coupons->map(function ($coupon) use ($subtotal) {
+                $isApplicable = $subtotal === null
+                    || $coupon->min_purchase_amount === null
+                    || $subtotal >= $coupon->min_purchase_amount;
+
+                return [
+                    'id' => $coupon->id,
+                    'code' => $coupon->code,
+                    'type' => $coupon->type->value,
+                    'value' => $coupon->value,
+                    'min_purchase_amount' => $coupon->min_purchase_amount,
+                    'max_discount_amount' => $coupon->max_discount_amount,
+                    'description' => $coupon->description,
+                    'label' => $coupon->formatted_label,
+                    'is_applicable' => $isApplicable,
+                ];
+            }),
+        ]);
+    }
+
+    /**
      * Validate and calculate coupon discount for checkout.
      */
     public function apply(Request $request, DiscountCouponService $service): JsonResponse

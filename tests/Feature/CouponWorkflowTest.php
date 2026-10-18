@@ -282,6 +282,143 @@ class CouponWorkflowTest extends TestCase
         $this->assertSame(1, $coupon->refresh()->used_count);
     }
 
+    public function test_service_retrieves_only_active_unexpired_available_coupons(): void
+    {
+        $service = app(DiscountCouponService::class);
+
+        // 1. Valid Active Percentage Coupon
+        $c1 = DiscountCoupon::create([
+            'code' => 'PCT15',
+            'type' => CouponType::Percentage,
+            'value' => 15,
+            'is_active' => true,
+        ]);
+
+        // 2. Valid Active Flat Coupon
+        $c2 = DiscountCoupon::create([
+            'code' => 'FLAT100',
+            'type' => CouponType::Fixed,
+            'value' => 100,
+            'min_purchase_amount' => 500,
+            'is_active' => true,
+        ]);
+
+        // 3. Inactive Coupon
+        DiscountCoupon::create([
+            'code' => 'INACTIVE',
+            'type' => CouponType::Percentage,
+            'value' => 10,
+            'is_active' => false,
+        ]);
+
+        // 4. Expired Coupon
+        DiscountCoupon::create([
+            'code' => 'EXPIRED',
+            'type' => CouponType::Percentage,
+            'value' => 20,
+            'expires_at' => now()->subDay(),
+            'is_active' => true,
+        ]);
+
+        // 5. Future Start Date Coupon
+        DiscountCoupon::create([
+            'code' => 'FUTURE',
+            'type' => CouponType::Percentage,
+            'value' => 25,
+            'starts_at' => now()->addDays(5),
+            'is_active' => true,
+        ]);
+
+        // 6. Max Limit Reached Coupon
+        DiscountCoupon::create([
+            'code' => 'MAXED',
+            'type' => CouponType::Percentage,
+            'value' => 30,
+            'usage_limit' => 3,
+            'used_count' => 3,
+            'is_active' => true,
+        ]);
+
+        $available = $service->getAvailableCoupons();
+
+        $this->assertCount(2, $available);
+        $codes = $available->pluck('code')->all();
+        $this->assertContains('PCT15', $codes);
+        $this->assertContains('FLAT100', $codes);
+        $this->assertNotContains('INACTIVE', $codes);
+        $this->assertNotContains('EXPIRED', $codes);
+        $this->assertNotContains('FUTURE', $codes);
+        $this->assertNotContains('MAXED', $codes);
+
+        // Formatted label check
+        $this->assertStringContainsString('FLAT100 — Flat', $c2->formatted_label);
+        $this->assertStringContainsString('PCT15 — 15% OFF', $c1->formatted_label);
+    }
+
+    public function test_available_coupons_api_returns_formatted_coupons_and_applicability(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+
+        DiscountCoupon::create([
+            'code' => 'MIN1000',
+            'type' => CouponType::Fixed,
+            'value' => 100,
+            'min_purchase_amount' => 1000,
+            'is_active' => true,
+        ]);
+
+        DiscountCoupon::create([
+            'code' => 'NO_MIN',
+            'type' => CouponType::Percentage,
+            'value' => 10,
+            'is_active' => true,
+        ]);
+
+        // GET /ajax/coupons/available without subtotal
+        $res = $this->actingAs($user)->getJson(route('ajax.coupons.available'));
+        $res->assertOk();
+        $res->assertJsonCount(2, 'coupons');
+
+        // GET /ajax/coupons/available with subtotal 500
+        $resSubtotal = $this->actingAs($user)->getJson(route('ajax.coupons.available', ['subtotal' => 500]));
+        $resSubtotal->assertOk();
+        $coupons = $resSubtotal->json('coupons');
+
+        $minCoupon = collect($coupons)->firstWhere('code', 'MIN1000');
+        $noMinCoupon = collect($coupons)->firstWhere('code', 'NO_MIN');
+
+        $this->assertFalse($minCoupon['is_applicable']);
+        $this->assertTrue($noMinCoupon['is_applicable']);
+
+        // GET /ajax/coupons/available with only_applicable=1 and subtotal 500
+        $resOnly = $this->actingAs($user)->getJson(route('ajax.coupons.available', [
+            'subtotal' => 500,
+            'only_applicable' => 1,
+        ]));
+        $resOnly->assertOk();
+        $resOnly->assertJsonCount(1, 'coupons');
+        $resOnly->assertJsonPath('coupons.0.code', 'NO_MIN');
+    }
+
+    public function test_pos_create_view_receives_and_renders_available_coupons_dropdown(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+
+        DiscountCoupon::create([
+            'code' => 'POSDROPDOWN',
+            'type' => CouponType::Percentage,
+            'value' => 15,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('sales.create'));
+        $response->assertOk();
+        $response->assertViewHas('availableCoupons');
+        $response->assertSee('POSDROPDOWN');
+        $response->assertSee('Select Coupon');
+        $response->assertSee('Enter promo code manually');
+    }
+
     private function productWithStock(int $quantity, float $price = 100, ?User $user = null): Product
     {
         $supplier = Supplier::create([

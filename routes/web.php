@@ -162,6 +162,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('customers', [CustomerController::class, 'search'])->middleware('role:admin,sales')->name('customers.search');
         Route::post('customers/by-phone', [CustomerController::class, 'byPhone'])->middleware('role:admin,sales')->name('customers.by-phone');
         Route::post('customers/store', [CustomerController::class, 'store'])->middleware('role:admin,sales')->name('customers.store');
+        Route::get('coupons/available', [CouponController::class, 'available'])->middleware('role:admin,sales')->name('coupons.available');
         Route::post('coupons/apply', [CouponController::class, 'apply'])->middleware('role:admin,sales')->name('coupons.apply');
         Route::post('categories', [CategoryController::class, 'search'])->middleware('role:admin,manager')->name('categories.search');
         Route::post('units', [UnitController::class, 'search'])->middleware('role:admin,manager')->name('units.search');

@@ -7,6 +7,7 @@ use App\Exceptions\SaleException;
 use App\Http\Requests\CompleteSaleRequest;
 use App\Http\Requests\StoreSaleRequest;
 use App\Models\Sale;
+use App\Services\DiscountCouponService;
 use App\Services\SaleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,9 +19,11 @@ class SalesController extends Controller
         return view('sales.index');
     }
 
-    public function create()
+    public function create(DiscountCouponService $discountCouponService)
     {
-        return view('sales.create');
+        $availableCoupons = $discountCouponService->getAvailableCoupons();
+
+        return view('sales.create', compact('availableCoupons'));
     }
 
     public function store(StoreSaleRequest $request, SaleService $saleService)

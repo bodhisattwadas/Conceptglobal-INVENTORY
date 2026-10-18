@@ -427,6 +427,18 @@ class SalesWorkflowTest extends TestCase
         $this->assertSame('2026-08-10', $sale->refresh()->sale_date->toDateString());
     }
 
+    public function test_pos_create_view_renders_exact_cash_button_and_cash_payment_controls(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+
+        $response = $this->actingAs($user)->get(route('sales.create'));
+        $response->assertOk();
+        $response->assertSee('selectPaymentMethod(\'cash\')', false);
+        $response->assertSee('selectExactCash()', false);
+        $response->assertSee('isExactCash', false);
+        $response->assertSee('EXACT');
+    }
+
     private function receiveStock(Product $product, User $user): void
     {
         $purchase = Purchase::create([

@@ -7,6 +7,7 @@ use App\Enums\CouponType;
 use App\Exceptions\DiscountCouponException;
 use App\Models\DiscountCoupon;
 use Exception;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class DiscountCouponService
@@ -169,6 +170,42 @@ class DiscountCouponService
         if ($coupon->used_count > 0) {
             $coupon->decrement('used_count');
         }
+    }
+
+    /**
+     * Retrieve all currently active and unexpired coupons available for checkout.
+     *
+     * @return Collection<int, DiscountCoupon>
+     */
+    public function getAvailableCoupons(?float $subtotal = null, bool $onlyApplicable = false): Collection
+    {
+        $today = now()->startOfDay();
+
+        $query = DiscountCoupon::query()
+            ->where('is_active', true)
+            ->where(function ($q) use ($today) {
+                $q->whereNull('starts_at')
+                    ->orWhere('starts_at', '<=', $today);
+            })
+            ->where(function ($q) use ($today) {
+                $q->whereNull('expires_at')
+                    ->orWhere('expires_at', '>=', $today);
+            })
+            ->where(function ($q) {
+                $q->whereNull('usage_limit')
+                    ->orWhereColumn('used_count', '<', 'usage_limit');
+            });
+
+        if ($onlyApplicable && $subtotal !== null) {
+            $query->where(function ($q) use ($subtotal) {
+                $q->whereNull('min_purchase_amount')
+                    ->orWhere('min_purchase_amount', '<=', $subtotal);
+            });
+        }
+
+        return $query->orderBy('type')
+            ->orderByDesc('value')
+            ->get();
     }
 
     /**

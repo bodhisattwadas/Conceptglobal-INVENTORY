@@ -1,3 +1,6 @@
+@php
+    $availableCoupons = $availableCoupons ?? collect();
+@endphp
 <x-app-layout title="POS">
     <div class="mx-auto sm:px-6 lg:px-8 py-4 space-y-4 max-w-7xl"
          x-data="pos()"
@@ -255,7 +258,7 @@
                             <!-- UPI -->
                             <button
                                 type="button"
-                                @click="payment.method = 'upi'"
+                                @click="selectPaymentMethod('upi')"
                                 class="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border-2 transition-all font-bold text-xs"
                                 :class="payment.method === 'upi' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
                             >
@@ -266,7 +269,7 @@
                             <!-- Cash -->
                             <button
                                 type="button"
-                                @click="payment.method = 'cash'; if(!payment.cash_received || payment.cash_received < total) payment.cash_received = total;"
+                                @click="selectPaymentMethod('cash')"
                                 class="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border-2 transition-all font-bold text-xs"
                                 :class="payment.method === 'cash' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
                             >
@@ -277,7 +280,7 @@
                             <!-- Card -->
                             <button
                                 type="button"
-                                @click="payment.method = 'card'"
+                                @click="selectPaymentMethod('card')"
                                 class="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border-2 transition-all font-bold text-xs"
                                 :class="payment.method === 'card' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
                             >
@@ -298,7 +301,7 @@
                                         <input
                                             type="text"
                                             :value="formatNumber(payment.cash_received)"
-                                            @input="payment.cash_received = unformatNumber($event.target.value)"
+                                            @input="onCashReceivedInput(unformatNumber($event.target.value))"
                                             class="block w-full py-1.5 text-sm font-bold text-gray-900 border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                                             :class="window.currencyPosition === 'left' ? 'pl-8 pr-2 text-left' : 'pr-8 pl-2 text-right'"
                                             placeholder="Received"
@@ -314,7 +317,12 @@
 
                                 <!-- Quick buttons -->
                                 <div class="grid grid-cols-7 gap-1" style="grid-template-columns: repeat(7, minmax(0, 1fr));">
-                                    <button type="button" @click="payment.cash_received = total" class="py-1 bg-white hover:bg-indigo-50 hover:text-indigo-600 border border-gray-300 rounded text-[11px] font-bold text-gray-700 transition-colors">
+                                    <button
+                                        type="button"
+                                        @click="selectExactCash()"
+                                        class="py-1 rounded text-[11px] font-bold transition-all border shadow-sm"
+                                        :class="isExactCash ? 'bg-indigo-600 text-white border-indigo-600 ring-1 ring-indigo-600 font-black' : 'bg-white hover:bg-indigo-50 hover:text-indigo-600 border-gray-300 text-gray-700'"
+                                    >
                                         EXACT
                                     </button>
                                     <button type="button" @click="addCash(50)" class="py-1 bg-white hover:bg-gray-100 border border-gray-300 rounded text-[11px] font-bold text-gray-700 transition-colors">
@@ -423,32 +431,77 @@
                             </div>
                         </template>
 
-                        <!-- If No Coupon: Coupon Input & Apply button -->
+                        <!-- If No Coupon: Available Coupons Dropdown & Manual Entry -->
                         <div x-show="!appliedCoupon && totalDiscount === 0" class="pt-0.5">
-                            <div class="flex items-center gap-1.5">
-                                <div class="relative flex-1">
+                            <!-- Dropdown View -->
+                            <div x-show="!manualCouponMode" class="flex items-center gap-1.5">
+                                <div class="relative flex-1 min-w-0">
+                                    <select
+                                        x-model="selectedCouponCode"
+                                        @change="handleCouponSelection($event.target.value)"
+                                        :disabled="isApplyingCoupon"
+                                        class="block w-full py-1 pl-2 pr-7 text-xs font-semibold border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-700 shadow-sm truncate disabled:opacity-50"
+                                    >
+                                        <option value="">🎟️ Select Coupon ({{ count($availableCoupons) }} available)...</option>
+                                        @forelse($availableCoupons as $coupon)
+                                            <option value="{{ $coupon->code }}">
+                                                {{ $coupon->formatted_label }}
+                                            </option>
+                                        @empty
+                                            <option value="" disabled>No active coupons found</option>
+                                        @endforelse
+                                        <option value="__manual__">✍️ Enter promo code manually...</option>
+                                    </select>
+                                    <template x-if="isApplyingCoupon">
+                                        <div class="absolute inset-y-0 right-7 flex items-center pointer-events-none">
+                                            <svg class="animate-spin h-3.5 w-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        </div>
+                                    </template>
+                                </div>
+                                <button
+                                    type="button"
+                                    @click="toggleManualCouponMode(true)"
+                                    class="p-1.5 text-gray-500 hover:text-indigo-600 border border-gray-300 rounded-md bg-white hover:bg-gray-50 transition-colors shrink-0 shadow-sm"
+                                    title="Type promo code manually"
+                                >
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                </button>
+                            </div>
+
+                            <!-- Manual Promo Code Input View -->
+                            <div x-show="manualCouponMode" class="flex items-center gap-1.5">
+                                <div class="relative flex-1 min-w-0">
                                     <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-gray-400">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
                                     </div>
                                     <input
                                         type="text"
+                                        x-ref="manualCouponInput"
                                         x-model="couponCode"
-                                        @keydown.enter.prevent="applyCoupon()"
-                                        placeholder="Coupon code..."
-                                        class="block w-full pl-6 pr-2 py-0.5 text-xs uppercase font-semibold border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                                        :disabled="isApplyingCoupon || cart.length === 0"
+                                        @keydown.enter.prevent="applyCoupon(couponCode)"
+                                        placeholder="PROMO CODE..."
+                                        class="block w-full pl-6 pr-2 py-0.5 text-xs uppercase font-semibold border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 bg-white shadow-sm"
+                                        :disabled="isApplyingCoupon"
                                     >
                                 </div>
                                 <button
                                     type="button"
-                                    @click="applyCoupon()"
-                                    :disabled="isApplyingCoupon || !couponCode.trim() || cart.length === 0"
-                                    class="px-2 py-0.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors flex items-center gap-1 shrink-0 shadow-sm"
+                                    @click="applyCoupon(couponCode)"
+                                    :disabled="isApplyingCoupon || !couponCode.trim()"
+                                    class="px-2 py-0.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors flex items-center gap-1 shrink-0 shadow-sm"
                                 >
                                     <template x-if="isApplyingCoupon">
                                         <svg class="animate-spin h-3 w-3 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                     </template>
                                     <span>Apply</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    @click="toggleManualCouponMode(false)"
+                                    class="p-1 text-gray-400 hover:text-gray-600 border border-gray-300 rounded-md bg-white hover:bg-gray-50 transition-colors shrink-0 shadow-sm"
+                                    title="Back to dropdown"
+                                >
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                 </button>
                             </div>
                         </div>
@@ -556,8 +609,11 @@
                         notes: '',
                         ref: ''
                     },
+                    cashIsExact: true,
                     globalDiscount: 0,
                     couponCode: '',
+                    selectedCouponCode: '',
+                    manualCouponMode: false,
                     appliedCoupon: null,
                     isApplyingCoupon: false,
                     saleStatus: 'completed',
@@ -618,19 +674,45 @@
                             }
                         }
 
+                        if (this.payment.method === 'cash') {
+                            this.selectExactCash();
+                        }
+
                         // Watchers to synchronize with LocalStorage
                         this.$watch('cart', (val) => {
                             localStorage.setItem('pos_cart', JSON.stringify(val));
                             this.recalculateCouponDiscount();
+                            if (this.payment.method === 'cash' && this.cashIsExact) {
+                                this.$nextTick(() => {
+                                    this.payment.cash_received = this.total;
+                                });
+                            }
+                        });
+                        this.$watch('total', (newTotal) => {
+                            if (this.payment.method === 'cash' && this.cashIsExact) {
+                                this.payment.cash_received = newTotal;
+                            }
                         });
                         this.$watch('customer', (val) => localStorage.setItem('pos_customer', JSON.stringify(val)));
                         this.$watch('payment', (val) => localStorage.setItem('pos_payment', JSON.stringify(val)));
-                        this.$watch('globalDiscount', (val) => localStorage.setItem('pos_globalDiscount', val));
+                        this.$watch('globalDiscount', (val) => {
+                            localStorage.setItem('pos_globalDiscount', val);
+                            if (this.payment.method === 'cash' && this.cashIsExact) {
+                                this.$nextTick(() => {
+                                    this.payment.cash_received = this.total;
+                                });
+                            }
+                        });
                         this.$watch('appliedCoupon', (val) => {
                             if (val) {
                                 localStorage.setItem('pos_applied_coupon', JSON.stringify(val));
                             } else {
                                 localStorage.removeItem('pos_applied_coupon');
+                            }
+                            if (this.payment.method === 'cash' && this.cashIsExact) {
+                                this.$nextTick(() => {
+                                    this.payment.cash_received = this.total;
+                                });
                             }
                         });
 
@@ -925,18 +1007,53 @@
                         this.globalDiscount = value;
                     },
 
-                    applyCoupon() {
-                        const code = (this.couponCode || '').trim();
+                    handleCouponSelection(code) {
+                        if (!code) return;
+
+                        if (code === '__manual__') {
+                            this.toggleManualCouponMode(true);
+                            this.selectedCouponCode = '';
+                            return;
+                        }
+
+                        if (this.cart.length === 0) {
+                            this.$dispatch('toast', { message: 'Add products to cart before applying coupon.', type: 'warning' });
+                            this.selectedCouponCode = '';
+                            return;
+                        }
+
+                        this.applyCoupon(code);
+                    },
+
+                    toggleManualCouponMode(enabled) {
+                        this.manualCouponMode = enabled;
+                        if (enabled) {
+                            this.selectedCouponCode = '';
+                            this.$nextTick(() => {
+                                if (this.$refs.manualCouponInput) {
+                                    this.$refs.manualCouponInput.focus();
+                                }
+                            });
+                        } else {
+                            this.couponCode = '';
+                            this.selectedCouponCode = '';
+                        }
+                    },
+
+                    applyCoupon(codeOverride = null) {
+                        const code = (codeOverride || this.couponCode || this.selectedCouponCode || '').trim();
                         if (!code) {
-                            this.$dispatch('toast', { message: 'Please enter a coupon code.', type: 'warning' });
+                            this.$dispatch('toast', { message: 'Please enter or select a coupon code.', type: 'warning' });
                             return;
                         }
                         if (this.cart.length === 0) {
                             this.$dispatch('toast', { message: 'Add products to cart before applying coupon.', type: 'warning' });
+                            this.selectedCouponCode = '';
                             return;
                         }
                         if (this.totalDiscount > 0) {
                             this.$dispatch('toast', { message: 'Cannot combine coupons with item-level discounts.', type: 'warning' });
+                            this.selectedCouponCode = '';
                             return;
                         }
 
@@ -967,13 +1084,17 @@
                                 };
                                 this.globalDiscount = data.discount_amount;
                                 this.couponCode = '';
+                                this.selectedCouponCode = '';
+                                this.manualCouponMode = false;
                                 this.$dispatch('toast', { message: data.message || 'Coupon applied successfully!', type: 'success' });
                             } else {
+                                this.selectedCouponCode = '';
                                 this.$dispatch('toast', { message: data.message || 'Invalid coupon code.', type: 'error' });
                             }
                         })
                         .catch(err => {
                             console.error('Coupon apply error:', err);
+                            this.selectedCouponCode = '';
                             this.$dispatch('toast', { message: 'Failed to apply coupon.', type: 'error' });
                         })
                         .finally(() => {
@@ -985,6 +1106,7 @@
                         this.appliedCoupon = null;
                         this.globalDiscount = 0;
                         this.couponCode = '';
+                        this.selectedCouponCode = '';
                         this.$dispatch('toast', { message: 'Coupon removed.', type: 'info' });
                     },
 
@@ -1024,9 +1146,28 @@
                         this.globalDiscount = discount;
                     },
 
+                    selectPaymentMethod(method) {
+                        this.payment.method = method;
+                        if (method === 'cash') {
+                            this.selectExactCash();
+                        }
+                    },
+
+                    selectExactCash() {
+                        this.cashIsExact = true;
+                        this.payment.cash_received = this.total;
+                    },
+
+                    onCashReceivedInput(value) {
+                        this.payment.cash_received = value;
+                        this.cashIsExact = (this.total > 0 && Math.abs(value - this.total) < 0.001);
+                    },
+
                     addCash(amount) {
                         const current = parseFloat(this.payment.cash_received) || 0;
-                        this.payment.cash_received = current + amount;
+                        const newAmount = current + amount;
+                        this.payment.cash_received = newAmount;
+                        this.cashIsExact = (this.total > 0 && Math.abs(newAmount - this.total) < 0.001);
                     },
 
                     // Computed properties
@@ -1044,7 +1185,13 @@
 
                     get change() {
                         if (this.payment.method !== 'cash') return 0;
-                        return this.payment.cash_received - this.total;
+                        return (parseFloat(this.payment.cash_received) || 0) - this.total;
+                    },
+
+                    get isExactCash() {
+                        if (this.payment.method !== 'cash') return false;
+                        if (this.cashIsExact) return true;
+                        return this.total > 0 && Math.abs((parseFloat(this.payment.cash_received) || 0) - this.total) < 0.001;
                     },
 
                     // Helpers
@@ -1262,6 +1409,9 @@
                         this.globalDiscount = 0;
                         this.appliedCoupon = null;
                         this.couponCode = '';
+                        this.selectedCouponCode = '';
+                        this.manualCouponMode = false;
+                        this.cashIsExact = true;
                         this.productTs && this.productTs.clear();
                     }
                 }
