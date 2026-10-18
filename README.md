@@ -44,7 +44,7 @@ A robust, enterprise-grade **Inventory Management System** built with **Laravel 
 - **Data Tables**: Livewire PowerGrid (with customized AJAX filters)
 - **Charts**: ApexCharts
 - **Icons**: Blade Heroicons
-- **Database**: MySQL
+- **Database**: PostgreSQL
 
 ## 🚀 Quick Start
 
@@ -54,7 +54,7 @@ Follow these steps to set up the project locally for development or testing.
 - PHP 8.2 or higher
 - Composer
 - Node.js & NPM
-- MySQL Database
+- PostgreSQL Database
 
 ### Installation Steps
 
@@ -84,13 +84,13 @@ Follow these steps to set up the project locally for development or testing.
     ```
 
 6. **Configure your Database:**
-    Open the `.env` file and set up your MySQL connection credentials:
+    Open the `.env` file and set up your PostgreSQL connection credentials:
     ```env
-    DB_CONNECTION=mysql
+    DB_CONNECTION=pgsql
     DB_HOST=127.0.0.1
-    DB_PORT=3306
-    DB_DATABASE=your_database_name
-    DB_USERNAME=root
+    DB_PORT=5432
+    DB_DATABASE=inventory_db
+    DB_USERNAME=postgres
     DB_PASSWORD=
     ```
 

@@ -33,8 +33,13 @@ class RefreshCosmeticsDemoPortal extends Command
 
         Schema::disableForeignKeyConstraints();
 
-        foreach ($this->tablesToClear() as $table) {
-            DB::table($table)->truncate();
+        if (DB::getDriverName() === 'pgsql') {
+            $tables = implode(', ', array_map(fn (string $table) => '"'.$table.'"', $this->tablesToClear()));
+            DB::statement("TRUNCATE TABLE {$tables} RESTART IDENTITY CASCADE");
+        } else {
+            foreach ($this->tablesToClear() as $table) {
+                DB::table($table)->truncate();
+            }
         }
 
         Schema::enableForeignKeyConstraints();
@@ -55,6 +60,10 @@ class RefreshCosmeticsDemoPortal extends Command
     {
         return [
             'finance_transactions',
+            'inventory_movements',
+            'inventory_stocks',
+            'vendor_invoices',
+            'product_price_histories',
             'sale_items',
             'sales',
             'purchase_items',
@@ -62,6 +71,7 @@ class RefreshCosmeticsDemoPortal extends Command
             'products',
             'finance_categories',
             'customers',
+            'supplier_companies',
             'suppliers',
             'categories',
             'units',

@@ -1,25 +1,39 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        if (DB::getDriverName() !== 'sqlite') {
-            DB::statement('ALTER TABLE products MODIFY mrp DECIMAL(15,2) NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE products MODIFY purchase_price DECIMAL(15,2) NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE products MODIFY selling_price DECIMAL(15,2) NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE purchases MODIFY total DECIMAL(15,2) NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE purchase_items MODIFY unit_price DECIMAL(15,2) NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE purchase_items MODIFY selling_price DECIMAL(15,2) NULL');
-            DB::statement('ALTER TABLE purchase_items MODIFY subtotal DECIMAL(15,2) NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE vendor_invoices MODIFY amount DECIMAL(15,2) NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE vendor_invoices MODIFY paid_amount DECIMAL(15,2) NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE product_price_histories MODIFY old_mrp DECIMAL(15,2) NULL');
-            DB::statement('ALTER TABLE product_price_histories MODIFY new_mrp DECIMAL(15,2) NULL');
-        }
+        Schema::table('products', function (Blueprint $table) {
+            $table->decimal('mrp', 15, 2)->default(0)->change();
+            $table->decimal('purchase_price', 15, 2)->default(0)->change();
+            $table->decimal('selling_price', 15, 2)->default(0)->change();
+        });
+
+        Schema::table('purchases', function (Blueprint $table) {
+            $table->decimal('total', 15, 2)->default(0)->change();
+        });
+
+        Schema::table('purchase_items', function (Blueprint $table) {
+            $table->decimal('unit_price', 15, 2)->default(0)->change();
+            $table->decimal('selling_price', 15, 2)->nullable()->change();
+            $table->decimal('subtotal', 15, 2)->default(0)->change();
+        });
+
+        Schema::table('vendor_invoices', function (Blueprint $table) {
+            $table->decimal('amount', 15, 2)->default(0)->change();
+            $table->decimal('paid_amount', 15, 2)->default(0)->change();
+        });
+
+        Schema::table('product_price_histories', function (Blueprint $table) {
+            $table->decimal('old_mrp', 15, 2)->nullable()->change();
+            $table->decimal('new_mrp', 15, 2)->nullable()->change();
+        });
 
         DB::table('settings')->updateOrInsert(
             ['key' => 'currency_fraction_digits'],
@@ -29,19 +43,31 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (DB::getDriverName() !== 'sqlite') {
-            DB::statement('ALTER TABLE product_price_histories MODIFY old_mrp INTEGER NULL');
-            DB::statement('ALTER TABLE product_price_histories MODIFY new_mrp INTEGER NULL');
-            DB::statement('ALTER TABLE vendor_invoices MODIFY paid_amount BIGINT NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE vendor_invoices MODIFY amount BIGINT NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE purchase_items MODIFY subtotal BIGINT NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE purchase_items MODIFY selling_price BIGINT NULL');
-            DB::statement('ALTER TABLE purchase_items MODIFY unit_price BIGINT NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE purchases MODIFY total BIGINT NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE products MODIFY selling_price BIGINT NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE products MODIFY purchase_price BIGINT NOT NULL DEFAULT 0');
-            DB::statement('ALTER TABLE products MODIFY mrp BIGINT NOT NULL DEFAULT 0');
-        }
+        Schema::table('product_price_histories', function (Blueprint $table) {
+            $table->integer('old_mrp')->nullable()->change();
+            $table->integer('new_mrp')->nullable()->change();
+        });
+
+        Schema::table('vendor_invoices', function (Blueprint $table) {
+            $table->bigInteger('paid_amount')->default(0)->change();
+            $table->bigInteger('amount')->default(0)->change();
+        });
+
+        Schema::table('purchase_items', function (Blueprint $table) {
+            $table->bigInteger('subtotal')->default(0)->change();
+            $table->bigInteger('selling_price')->nullable()->change();
+            $table->bigInteger('unit_price')->default(0)->change();
+        });
+
+        Schema::table('purchases', function (Blueprint $table) {
+            $table->bigInteger('total')->default(0)->change();
+        });
+
+        Schema::table('products', function (Blueprint $table) {
+            $table->bigInteger('selling_price')->default(0)->change();
+            $table->bigInteger('purchase_price')->default(0)->change();
+            $table->bigInteger('mrp')->default(0)->change();
+        });
 
         DB::table('settings')->where('key', 'currency_fraction_digits')->update(['value' => '0', 'updated_at' => now()]);
     }
