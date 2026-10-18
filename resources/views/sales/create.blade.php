@@ -131,113 +131,149 @@
             </div>
         </div>
 
-        <!-- Middle Section: Product Search & Cart Table (Full Width) -->
+        <!-- Middle Section: Products & Cart Table (Full Width) -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col space-y-4">
-            <!-- Search Bar (TomSelect) -->
-            <div class="relative z-20">
-                <select
-                    x-ref="productSelect"
-                    placeholder="Search Products (Name or SKU) [F1]..."
-                    autocomplete="off"
-                ></select>
-            </div>
-
             <!-- Cart Table -->
-            <div class="overflow-x-auto rounded-lg border border-gray-200">
-                <table class="w-full min-w-[850px] table-fixed divide-y divide-gray-200">
-                    <colgroup>
-                        <col class="w-[24%]">
-                        <col class="w-[12%]">
-                        <col class="w-[10%]">
-                        <col class="w-[7%]">
-                        <col class="w-[14%]">
-                        <col class="w-[13%]">
-                        <col class="w-[14%]">
-                        <col class="w-[6%]">
-                    </colgroup>
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Product</th>
-                            <th scope="col" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
-                            <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Qty</th>
-                            <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit</th>
-                            <th scope="col" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Amount</th>
-                            <th scope="col" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Disc %</th>
-                            <th scope="col" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Total</th>
-                            <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        <template x-for="(item, index) in cart" :key="item.id">
-                            <tr :class="index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'" class="hover:bg-indigo-50/60 transition-colors">
-                                <td class="px-4 py-3.5">
-                                    <div class="text-sm font-semibold text-gray-900 break-words" x-text="item.name" :title="item.name"></div>
-                                    <div class="text-xs text-gray-500 break-words" x-text="item.sku"></div>
-                                </td>
-                                <td class="px-4 py-3.5 whitespace-nowrap text-right text-sm text-gray-600" x-text="formatCurrency(item.price)"></td>
-                                <td class="px-4 py-3.5 whitespace-nowrap text-center">
-                                    <div class="flex items-center justify-center">
-                                        <input
-                                            type="number"
-                                            x-model="item.quantity"
-                                            min="1"
-                                            :max="item.max_stock"
-                                            @input="validateQty(index)"
-                                            class="w-20 text-center border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm shadow-sm font-semibold"
-                                            placeholder="1"
-                                        >
-                                    </div>
-                                    <div x-show="item.quantity > item.max_stock" class="text-xs text-red-600 mt-1">
-                                        Max: <span x-text="item.max_stock"></span>
-                                    </div>
-                                </td>
-                                <td class="px-4 py-3.5 whitespace-nowrap text-center text-sm text-gray-500" x-text="item.unit"></td>
-                                <td class="px-4 py-3.5 whitespace-nowrap text-right text-sm font-semibold text-gray-900" x-text="formatCurrency(lineGrossTotal(item))"></td>
-                                <td class="px-4 py-3.5 whitespace-nowrap text-right">
-                                    <div class="relative rounded-md shadow-sm w-full min-w-[100px] ml-auto">
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            max="100"
-                                            step="0.01"
-                                            :value="item.discountPercent"
-                                            @input="setItemDiscountPercent(index, $event.target.value)"
-                                            @blur="item.discountPercent = clampDiscountPercent(item.discountPercent)"
-                                            aria-label="Item discount percentage"
-                                            class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-7 text-right sm:text-sm border-gray-300 rounded-md"
-                                            placeholder="0"
-                                        >
-                                        <div class="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
-                                            <span class="text-gray-500 sm:text-xs font-semibold">%</span>
+            <div class="overflow-hidden rounded-lg border border-gray-200">
+                <div class="overflow-x-auto" style="min-height: 280px;">
+                    <table class="w-full min-w-[950px] table-fixed divide-y divide-gray-200">
+                        <colgroup>
+                            <col class="w-[32%]">
+                            <col class="w-[11%]">
+                            <col class="w-[10%]">
+                            <col class="w-[7%]">
+                            <col class="w-[13%]">
+                            <col class="w-[11%]">
+                            <col class="w-[11%]">
+                            <col class="w-[5%]">
+                        </colgroup>
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Product</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
+                                <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Qty</th>
+                                <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Amount</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Disc %</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Total</th>
+                                <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider"><span class="sr-only">Action</span></th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="(item, index) in cart" :key="item.key">
+                                <tr :class="index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'" class="hover:bg-indigo-50/40 transition-colors">
+                                    <td class="px-4 py-3 align-top min-w-[280px]">
+                                        <div class="w-full">
+                                            <select
+                                                :id="`product_search_${item.key}`"
+                                                x-init="initRowProductSelect($el, item)"
+                                                autocomplete="off"
+                                            ></select>
                                         </div>
-                                    </div>
-                                </td>
-                                <td class="px-4 py-3.5 whitespace-nowrap text-right text-sm font-bold text-blue-700" x-text="formatCurrency(lineNetTotal(item))"></td>
-                                <td class="px-4 py-3.5 whitespace-nowrap text-center text-sm font-medium">
+                                        <div x-show="item.sku" class="mt-1 flex items-center gap-2">
+                                            <span class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium font-mono text-gray-700 border border-gray-200" x-text="item.sku"></span>
+                                            <span class="text-xs text-gray-500 font-medium" x-show="item.max_stock !== undefined && item.max_stock !== null" x-text="'Stock: ' + item.max_stock + (item.unit ? ' ' + item.unit : '')"></span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-600 align-top pt-4">
+                                        <span x-show="item.id" x-text="formatCurrency(item.price)"></span>
+                                        <span x-show="!item.id" class="text-gray-300">—</span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-center align-top pt-3">
+                                        <template x-if="item.id">
+                                            <div>
+                                                <div class="flex items-center justify-center">
+                                                    <input
+                                                        type="number"
+                                                        x-model.number="item.quantity"
+                                                        min="1"
+                                                        :max="item.max_stock"
+                                                        @input="validateQty(index)"
+                                                        class="w-20 text-center border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm shadow-sm font-semibold"
+                                                        placeholder="1"
+                                                    >
+                                                </div>
+                                                <div x-show="item.quantity > item.max_stock" class="text-xs text-red-600 mt-1">
+                                                    Max: <span x-text="item.max_stock"></span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="!item.id">
+                                            <span class="text-gray-300 pt-1 block">—</span>
+                                        </template>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500 align-top pt-4">
+                                        <span x-show="item.id" x-text="item.unit || '—'"></span>
+                                        <span x-show="!item.id" class="text-gray-300">—</span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-semibold text-gray-900 align-top pt-4">
+                                        <span x-show="item.id" x-text="formatCurrency(lineGrossTotal(item))"></span>
+                                        <span x-show="!item.id" class="text-gray-300">—</span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-right align-top pt-3">
+                                        <template x-if="item.id">
+                                            <div class="relative rounded-md shadow-sm w-full min-w-[90px] ml-auto">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.01"
+                                                    :value="item.discountPercent"
+                                                    @input="setItemDiscountPercent(index, $event.target.value)"
+                                                    @blur="item.discountPercent = clampDiscountPercent(item.discountPercent)"
+                                                    aria-label="Item discount percentage"
+                                                    class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-7 text-right sm:text-sm border-gray-300 rounded-md"
+                                                    placeholder="0"
+                                                >
+                                                <div class="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
+                                                    <span class="text-gray-500 sm:text-xs font-semibold">%</span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="!item.id">
+                                            <span class="text-gray-300 pt-1 block">—</span>
+                                        </template>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-bold text-blue-700 align-top pt-4">
+                                        <span x-show="item.id" x-text="formatCurrency(lineNetTotal(item))"></span>
+                                        <span x-show="!item.id" class="text-gray-300">—</span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm font-medium align-top pt-3">
+                                        <button
+                                            type="button"
+                                            @click="removeItem(index)"
+                                            class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 focus:outline-none transition-colors mx-auto"
+                                            title="{{ __('Remove product') }}"
+                                        >
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr>
+                                <td colspan="8" class="px-4 py-3 bg-white border-t border-gray-200">
                                     <button
                                         type="button"
-                                        @click="removeFromCart(index)"
-                                        class="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 focus:outline-none transition-colors mx-auto"
-                                        title="Remove item"
+                                        @click="addRow()"
+                                        :disabled="hasBlankRow"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                                        :class="hasBlankRow
+                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200 shadow-none'
+                                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm focus-visible:outline-emerald-600'"
+                                        :title="hasBlankRow ? 'Select a product in the blank row first' : 'Add another product row'"
                                     >
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                        </svg>
+                                        <span>{{ __('Add Product') }}</span>
                                     </button>
                                 </td>
                             </tr>
-                        </template>
-                        <template x-if="cart.length === 0">
-                            <tr>
-                                <td colspan="8" class="px-6 py-16 text-center text-gray-500">
-                                    <div class="flex flex-col items-center justify-center">
-                                        <svg class="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                                        <p class="text-base font-semibold text-gray-700">Cart is empty</p>
-                                        <p class="text-xs text-gray-400 mt-0.5">Use product search above [F1] to add items to cart</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        </template>
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -571,7 +607,7 @@
                             <button
                                 type="button"
                                 @click="openConfirmation()"
-                                :disabled="isSubmitting || cart.length === 0 || (saleStatus === 'completed' && payment.method === 'cash' && payment.cash_received < total)"
+                                :disabled="isSubmitting || validCartItems.length === 0 || (saleStatus === 'completed' && payment.method === 'cash' && payment.cash_received < total)"
                                 class="w-2/3 flex justify-center items-center py-2 px-3 rounded-lg shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                             >
                                 <template x-if="isSubmitting">
@@ -619,19 +655,19 @@
                     saleStatus: 'completed',
                     isSubmitting: false,
 
-                    // TomSelect instance for product search
-                    productTs: null,
-                    lastSearchQuery: '',
-
                     init() {
                         // Load saved data from LocalStorage
                         const savedCart = localStorage.getItem('pos_cart');
                         if (savedCart) {
                             try {
-                                this.cart = JSON.parse(savedCart).map((item) => this.prepareCartItem(item));
+                                const parsed = JSON.parse(savedCart);
+                                const mapped = (Array.isArray(parsed) ? parsed : []).map((item) => this.prepareCartItem(item));
+                                this.cart = mapped.length ? mapped : [this.blankItem()];
                             } catch (e) {
-                                this.cart = [];
+                                this.cart = [this.blankItem()];
                             }
+                        } else {
+                            this.cart = [this.blankItem()];
                         }
 
                         const savedCustomer = localStorage.getItem('pos_customer');
@@ -679,14 +715,8 @@
                         }
 
                         // Watchers to synchronize with LocalStorage
-                        this.$watch('cart', (val) => {
-                            localStorage.setItem('pos_cart', JSON.stringify(val));
-                            this.recalculateCouponDiscount();
-                            if (this.payment.method === 'cash' && this.cashIsExact) {
-                                this.$nextTick(() => {
-                                    this.payment.cash_received = this.total;
-                                });
-                            }
+                        this.$watch('cart', () => {
+                            this.persistCart();
                         });
                         this.$watch('total', (newTotal) => {
                             if (this.payment.method === 'cash' && this.cashIsExact) {
@@ -715,13 +745,286 @@
                                 });
                             }
                         });
+                    },
 
-                        this.initProductSelect();
+                    waitForTomSelect(callback) {
+                        if (window.TomSelect) callback();
+                        else setTimeout(() => this.waitForTomSelect(callback), 50);
+                    },
+
+                    blankItem() {
+                        return {
+                            key: Math.random().toString(36).slice(2),
+                            id: null,
+                            name: '',
+                            sku: '',
+                            price: 0,
+                            quantity: 1,
+                            max_stock: 0,
+                            unit: '',
+                            discountPercent: 0
+                        };
+                    },
+
+                    addRow() {
+                        const existingBlank = this.cart.find(item => !item.id);
+                        if (existingBlank) {
+                            this.focusRowSelect(existingBlank);
+                            this.$dispatch('toast', { message: 'Please select a product for the existing blank row first.', type: 'warning' });
+                            return;
+                        }
+                        const newItem = this.blankItem();
+                        this.cart.push(newItem);
+                        this.focusRowSelect(newItem);
+                    },
+
+                    removeItem(index) {
+                        const item = this.cart[index];
+                        this.destroyRowSelect(item);
+                        this.cart.splice(index, 1);
+                        if (this.cart.length === 0) {
+                            const newItem = this.blankItem();
+                            this.cart.push(newItem);
+                            this.focusRowSelect(newItem);
+                        }
+                        this.persistCart();
+                        this.syncAllProductDropdowns();
+                        if (item && item.name) {
+                            this.$dispatch('toast', { message: 'Removed "' + item.name + '" from cart.', type: 'info' });
+                        }
+                    },
+
+                    removeFromCart(index) {
+                        this.removeItem(index);
+                    },
+
+                    destroyRowSelect(item) {
+                        if (!item) return;
+                        const selectEl = document.getElementById(`product_search_${item.key}`);
+                        if (selectEl?.tomselect) {
+                            selectEl.tomselect.destroy();
+                        }
+                    },
+
+                    focusRowSelect(item) {
+                        this.$nextTick(() => {
+                            const select = document.getElementById(`product_search_${item.key}`)?.tomselect;
+                            if (select) {
+                                select.focus();
+                            } else {
+                                setTimeout(() => {
+                                    document.getElementById(`product_search_${item.key}`)?.tomselect?.focus();
+                                }, 80);
+                            }
+                        });
                     },
 
                     focusProductSelect() {
-                        if (this.productTs) {
-                            this.productTs.focus();
+                        const emptyRow = this.cart.find(item => !item.id);
+                        if (emptyRow) {
+                            this.focusRowSelect(emptyRow);
+                        } else {
+                            this.addRow();
+                        }
+                    },
+
+                    selectedProductIds(exceptItem = null) {
+                        const exceptKey = exceptItem?.key;
+                        return this.cart
+                            .filter(row => row.key !== exceptKey)
+                            .map(row => String(row.id || ''))
+                            .filter(Boolean);
+                    },
+
+                    filterAvailableProducts(products, item) {
+                        const selectedIds = this.selectedProductIds(item);
+                        return (Array.isArray(products) ? products : []).filter(product => {
+                            const id = String(product.value ?? product.id ?? '');
+                            return id && !selectedIds.includes(id);
+                        });
+                    },
+
+                    syncAllProductDropdowns(exceptItem = null) {
+                        const exceptKey = exceptItem?.key;
+                        this.cart.forEach(row => {
+                            if (row.key === exceptKey) return;
+
+                            const select = document.getElementById(`product_search_${row.key}`)?.tomselect;
+                            if (!select) return;
+
+                            const forbiddenIds = this.selectedProductIds(row);
+                            let changed = false;
+
+                            forbiddenIds.forEach(id => {
+                                if (select.options[id] && String(select.getValue()) !== String(id)) {
+                                    select.removeOption(id);
+                                    changed = true;
+                                }
+                            });
+
+                            if (changed) {
+                                select.refreshOptions(false);
+                            }
+
+                            if (typeof select.clearCache === 'function') {
+                                select.clearCache();
+                            }
+                            select.loadedSearches = {};
+                        });
+                    },
+
+                    setRowProduct(item, product) {
+                        item.id = product.id || product.value;
+                        item.name = product.name || product.text;
+                        item.sku = product.sku || '';
+                        item.price = parseFloat(product.selling_price || product.price) || 0;
+                        item.quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
+                        item.max_stock = product.quantity !== undefined ? product.quantity : 9999;
+                        item.unit = product.unit ? (typeof product.unit === 'object' ? (product.unit.symbol || product.unit.name || '') : product.unit) : '';
+                        item.discountPercent = item.discountPercent || 0;
+
+                        if (item.quantity > item.max_stock) {
+                            item.quantity = item.max_stock;
+                        }
+
+                        this.persistCart();
+                        this.syncAllProductDropdowns(item);
+                        this.$dispatch('toast', { message: 'Selected "' + item.name + '"', type: 'success' });
+                    },
+
+                    clearRowProduct(item) {
+                        item.id = null;
+                        item.name = '';
+                        item.sku = '';
+                        item.price = 0;
+                        item.quantity = 1;
+                        item.max_stock = 0;
+                        item.unit = '';
+                        item.discountPercent = 0;
+                        this.persistCart();
+                        this.syncAllProductDropdowns(item);
+                    },
+
+                    initRowProductSelect(el, item) {
+                        this.waitForTomSelect(() => {
+                            if (el.tomselect) return;
+
+                            const select = new TomSelect(el, {
+                                placeholder: 'Search product (Name or SKU)...',
+                                preload: 'focus',
+                                valueField: 'value',
+                                labelField: 'text',
+                                searchField: ['text', 'name', 'sku'],
+                                plugins: ['dropdown_input', 'clear_button'],
+                                openOnFocus: true,
+                                load: (query, callback) => {
+                                    fetch('{{ route("ajax.products.search") }}', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Accept': 'application/json',
+                                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                        },
+                                        body: JSON.stringify({ q: query })
+                                    })
+                                    .then(r => r.json())
+                                    .then(products => callback(this.filterAvailableProducts(products, item)))
+                                    .catch(() => callback([]));
+                                },
+                                closeAfterSelect: true,
+                                onItemAdd: (value) => {
+                                    const forbiddenIds = this.selectedProductIds(item);
+                                    if (forbiddenIds.includes(String(value))) {
+                                        select.removeItem(value, true);
+                                        select.removeOption(value);
+                                        select.refreshOptions(false);
+                                        this.$dispatch('toast', { message: 'Product already added in another row.', type: 'warning' });
+                                        return;
+                                    }
+                                    const data = select.options[value];
+                                    if (data) {
+                                        this.setRowProduct(item, data);
+                                    }
+                                },
+                                onChange: (value) => {
+                                    if (!value) {
+                                        this.clearRowProduct(item);
+                                    }
+                                },
+                                render: {
+                                    option: (data, escape) => {
+                                        const name = escape(data.text || data.name || '');
+                                        const sku = escape(data.sku || '');
+                                        const price = this.formatCurrency(data.selling_price || data.price || 0);
+                                        const qty = escape(String(data.quantity || 0));
+                                        const unit = escape(data.unit?.symbol || '');
+
+                                        return `<div class="flex items-center justify-between gap-3 w-full py-2 px-2.5">
+                                            <div class="min-w-0 pr-2">
+                                                <div class="font-semibold text-gray-900 truncate">${name}</div>
+                                                <div class="text-xs text-gray-500 font-mono mt-0.5">${sku}</div>
+                                            </div>
+                                            <div class="text-right shrink-0">
+                                                <div class="font-bold text-indigo-600">${price}</div>
+                                                <div class="text-xs ${Number(data.quantity) > 0 ? 'text-green-600' : 'text-red-600'} font-semibold">Stock: ${qty} ${unit}</div>
+                                            </div>
+                                        </div>`;
+                                    },
+                                    item: (data, escape) => {
+                                        return `<div class="truncate font-semibold text-gray-900">${escape(data.text || data.name || '')}</div>`;
+                                    },
+                                    no_results: (data, escape) => {
+                                        return `<div class="no-results px-3 py-2 text-sm text-gray-500">No products found</div>`;
+                                    }
+                                }
+                            });
+
+                            if (select.control_input) {
+                                select.control_input.placeholder = 'Search product name or SKU...';
+                            }
+
+                            select.on('dropdown_open', () => {
+                                const forbiddenIds = this.selectedProductIds(item);
+                                let changed = false;
+                                forbiddenIds.forEach(id => {
+                                    if (select.options[id] && String(select.getValue()) !== String(id)) {
+                                        select.removeOption(id);
+                                        changed = true;
+                                    }
+                                });
+                                if (changed) {
+                                    select.refreshOptions(false);
+                                }
+                                if (Object.keys(select.options).length <= (item.id ? 1 : 0)) {
+                                    select.load('');
+                                }
+                            });
+
+                            if (item.id && item.name) {
+                                select.addOption({
+                                    value: item.id,
+                                    id: item.id,
+                                    text: item.name,
+                                    name: item.name,
+                                    sku: item.sku,
+                                    selling_price: item.price,
+                                    price: item.price,
+                                    quantity: item.max_stock,
+                                    unit: item.unit ? { symbol: item.unit, name: item.unit } : null
+                                });
+                                select.setValue(item.id, true);
+                            }
+                        });
+                    },
+
+                    persistCart() {
+                        const toSave = (this.cart || []).filter(item => !!item.id);
+                        localStorage.setItem('pos_cart', JSON.stringify(toSave));
+                        this.recalculateCouponDiscount();
+                        if (this.payment.method === 'cash' && this.cashIsExact) {
+                            this.$nextTick(() => {
+                                this.payment.cash_received = this.total;
+                            });
                         }
                     },
 
@@ -808,181 +1111,22 @@
 
                         return {
                             ...item,
+                            key: item.key || Math.random().toString(36).slice(2),
                             price,
                             quantity: parseInt(item.quantity) || 1,
                             discountPercent: this.clampDiscountPercent(discountPercent),
                         };
                     },
 
-                    initProductSelect() {
-                        if (!this.$refs.productSelect) return;
-
-                        if (this.productTs) {
-                            this.productTs.destroy();
-                            this.productTs = null;
-                        }
-
-                        this.productTs = new TomSelect(this.$refs.productSelect, {
-                            valueField: 'id',
-                            labelField: 'name',
-                            searchField: ['name', 'sku'],
-                            closeAfterSelect: false,
-                            openOnFocus: true,
-                            preload: 'focus',
-                            load: (query, callback) => {
-                                this.lastSearchQuery = query;
-
-                                fetch('{{ route("ajax.products.search") }}', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                                    },
-                                    body: JSON.stringify({ q: query })
-                                })
-                                    .then(response => response.json())
-                                    .then(json => {
-                                        callback(json);
-                                    }).catch(()=>{
-                                        callback();
-                                    });
-                            },
-                            render: {
-                                option: (item, escape) => {
-                                    const selected = this.selectedCartProduct(item.id);
-                                    const check = selected
-                                        ? '<span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs">✓</span>'
-                                        : '';
-                                    const quantity = selected
-                                        ? `<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Added x ${escape(String(selected.quantity || 0))}</span>`
-                                        : '';
-
-                                    return `
-                                        <div class="py-2.5 px-3 border-b border-gray-100">
-                                            <div class="flex justify-between items-center gap-3">
-                                                <div>
-                                                    <div class="font-semibold text-gray-900">${escape(item.name)}</div>
-                                                    <div class="text-xs text-gray-500">${escape(item.sku)}</div>
-                                                </div>
-                                                <div class="flex shrink-0 items-center gap-2 text-right">
-                                                    ${quantity}
-                                                    <div class="font-bold text-indigo-600">${this.formatCurrency(item.selling_price)}</div>
-                                                    <div class="text-xs ${item.quantity > 0 ? 'text-green-600' : 'text-red-600'}">
-                                                        Stock: ${escape(item.quantity)} ${escape(item.unit?.symbol || '')}
-                                                    </div>
-                                                    ${check}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;
-                                },
-                                item: (item, escape) => {
-                                    return `<div>${escape(item.name)}</div>`;
-                                }
-                            },
-                            onChange: (value) => {
-                                if (value) {
-                                    const item = this.productTs.options[value];
-                                    if(item) {
-                                        this.preserveProductSelectPosition(() => {
-                                            this.addToCart(item);
-                                        });
-
-                                        const cleanup = () => {
-                                            const scrollTop = this.productTs.dropdown_content?.scrollTop || 0;
-                                            this.productTs.clear(true);
-                                            this.productTs.setTextboxValue(this.lastSearchQuery);
-                                            this.productTs.clearCache('option');
-                                            this.productTs.refreshOptions(false);
-                                            if (this.productTs.dropdown_content) {
-                                                this.productTs.dropdown_content.scrollTop = scrollTop;
-                                            }
-                                        };
-
-                                        setTimeout(cleanup, 10);
-                                    }
-                                }
-                            }
-                        });
-                    },
-
-                    selectedCartProduct(productId) {
-                        return this.cart.find(item => item.id == productId);
-                    },
-
-                    refreshProductSelectOptions() {
-                        if (!this.productTs) return;
-
-                        const scrollTop = this.productTs.dropdown_content?.scrollTop || 0;
-                        this.productTs.clearCache('option');
-                        this.productTs.refreshOptions(false);
-                        if (this.productTs.dropdown_content) {
-                            this.productTs.dropdown_content.scrollTop = scrollTop;
-                        }
-                    },
-
-                    preserveProductSelectPosition(callback) {
-                        const dropdown = this.productTs?.dropdown_content;
-                        const scrollTop = dropdown?.scrollTop || 0;
-
-                        callback();
-
-                        if (!this.productTs || !dropdown) return;
-
-                        const restore = () => {
-                            this.productTs.open();
-                            dropdown.scrollTop = scrollTop;
-                        };
-
-                        requestAnimationFrame(restore);
-                        setTimeout(restore, 0);
-                    },
-
-                    // Cart Management
-                    addToCart(product) {
-                        const existing = this.cart.find(item => item.id === product.id);
-                        if (existing) {
-                            if (existing.quantity < product.quantity) {
-                                existing.quantity++;
-                                this.refreshProductSelectOptions();
-                                this.$dispatch('toast', { message: 'Updated quantity for ' + product.name, type: 'info' });
-                            } else {
-                                this.$dispatch('toast', { message: 'Insufficient stock!', type: 'error' });
-                            }
-                        } else {
-                            if (product.quantity > 0) {
-                                this.cart.push({
-                                    id: product.id,
-                                    name: product.name,
-                                    sku: product.sku,
-                                    price: parseFloat(product.selling_price) || 0,
-                                    quantity: 1,
-                                    max_stock: product.quantity,
-                                    unit: product.unit ? product.unit.symbol : '',
-                                    discountPercent: 0
-                                });
-                                this.$dispatch('toast', { message: 'Added "' + product.name + '" to cart.', type: 'success' });
-                                this.refreshProductSelectOptions();
-                            } else {
-                                this.$dispatch('toast', { message: 'Out of Stock!', type: 'error' });
-                            }
-                        }
-                    },
-
                     validateQty(index) {
                         const item = this.cart[index];
+                        if (!item || !item.id) return;
                         if (item.quantity > item.max_stock) {
                             item.quantity = item.max_stock;
                             this.$dispatch('toast', { message: 'Maximum available stock reached', type: 'warning' });
                         }
-                        if (item.quantity < 1) item.quantity = 1;
-                    },
-
-                    removeFromCart(index) {
-                        const removedItem = this.cart[index];
-                        this.cart.splice(index, 1);
-                        this.refreshProductSelectOptions();
-                        this.$dispatch('toast', { message: 'Removed "' + removedItem.name + '" from cart.', type: 'info' });
+                        if (item.quantity < 1 || isNaN(item.quantity)) item.quantity = 1;
+                        this.persistCart();
                     },
 
                     setItemDiscountPercent(index, value) {
@@ -995,6 +1139,7 @@
                         }
 
                         this.cart[index].discountPercent = value !== '' && Number(value) === percent ? value : percent;
+                        this.persistCart();
                     },
 
                     setGlobalDiscount(value) {
@@ -1016,7 +1161,7 @@
                             return;
                         }
 
-                        if (this.cart.length === 0) {
+                        if (this.validCartItems.length === 0) {
                             this.$dispatch('toast', { message: 'Add products to cart before applying coupon.', type: 'warning' });
                             this.selectedCouponCode = '';
                             return;
@@ -1046,7 +1191,7 @@
                             this.$dispatch('toast', { message: 'Please enter or select a coupon code.', type: 'warning' });
                             return;
                         }
-                        if (this.cart.length === 0) {
+                        if (this.validCartItems.length === 0) {
                             this.$dispatch('toast', { message: 'Add products to cart before applying coupon.', type: 'warning' });
                             this.selectedCouponCode = '';
                             return;
@@ -1113,7 +1258,7 @@
                     recalculateCouponDiscount() {
                         if (!this.appliedCoupon) return;
 
-                        if (this.cart.length === 0) {
+                        if (this.validCartItems.length === 0) {
                             this.appliedCoupon = null;
                             this.globalDiscount = 0;
                             return;
@@ -1171,12 +1316,20 @@
                     },
 
                     // Computed properties
+                    get validCartItems() {
+                        return this.cart.filter(item => !!item.id);
+                    },
+
+                    get hasBlankRow() {
+                        return this.cart.some(item => !item.id);
+                    },
+
                     get subtotal() {
-                        return this.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                        return this.cart.reduce((sum, item) => sum + (item.id ? (item.price * item.quantity) : 0), 0);
                     },
 
                     get totalDiscount() {
-                        return this.cart.reduce((sum, item) => sum + (this.lineDiscountAmount(item) * item.quantity), 0);
+                        return this.cart.reduce((sum, item) => sum + (item.id ? (this.lineDiscountAmount(item) * item.quantity) : 0), 0);
                     },
 
                     get total() {
@@ -1261,8 +1414,8 @@
 
                     // Confirmation & Submission
                     openConfirmation() {
-                        if (this.cart.length === 0) {
-                            this.$dispatch('toast', { message: 'Cart is empty. Add products first.', type: 'warning' });
+                        if (this.validCartItems.length === 0) {
+                            this.$dispatch('toast', { message: 'Cart is empty. Please select a product first.', type: 'warning' });
                             return;
                         }
                         if (this.total < 0) {
@@ -1322,8 +1475,8 @@
                                 }
                             }
 
-                            // Build items payload
-                            const items = this.cart.map(item => ({
+                            // Build items payload from valid selected products
+                            const items = this.validCartItems.map(item => ({
                                 product_id: item.id,
                                 quantity: item.quantity,
                                 unit_price: item.price,
@@ -1397,7 +1550,8 @@
                     },
 
                     resetForm() {
-                        this.cart = [];
+                        this.cart.forEach(item => this.destroyRowSelect(item));
+                        this.cart = [this.blankItem()];
                         this.resetCustomer();
                         this.saleDate = '{{ now()->format('Y-m-d') }}';
                         this.payment = {
@@ -1412,7 +1566,7 @@
                         this.selectedCouponCode = '';
                         this.manualCouponMode = false;
                         this.cashIsExact = true;
-                        this.productTs && this.productTs.clear();
+                        this.clearStorage();
                     }
                 }
             }
@@ -1463,7 +1617,7 @@
                     <!-- Total Items -->
                     <div class="flex items-center justify-between">
                         <span class="text-gray-500">Total Items</span>
-                        <span class="font-semibold text-gray-800" x-text="cart.reduce((sum, item) => sum + parseInt(item.quantity), 0)"></span>
+                        <span class="font-semibold text-gray-800" x-text="validCartItems.reduce((sum, item) => sum + parseInt(item.quantity), 0)"></span>
                     </div>
 
                     <!-- Subtotal -->

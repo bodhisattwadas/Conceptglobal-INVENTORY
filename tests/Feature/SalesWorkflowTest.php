@@ -439,6 +439,20 @@ class SalesWorkflowTest extends TestCase
         $response->assertSee('EXACT');
     }
 
+    public function test_pos_create_view_renders_row_level_product_dropdowns_and_add_product_button(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+
+        $response = $this->actingAs($user)->get(route('sales.create'));
+        $response->assertOk();
+        $response->assertSee('initRowProductSelect($el, item)', false);
+        $response->assertSee('addRow()', false);
+        $response->assertSee(':disabled="hasBlankRow"', false);
+        $response->assertSee('hasBlankRow', false);
+        $response->assertSee('Add Product');
+        $response->assertDontSee('x-ref="productSelect"', false);
+    }
+
     private function receiveStock(Product $product, User $user): void
     {
         $purchase = Purchase::create([
