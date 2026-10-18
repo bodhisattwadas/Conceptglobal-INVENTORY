@@ -2,24 +2,27 @@
 
 namespace App\Livewire\Suppliers;
 
+use App\Exceptions\SupplierException;
 use App\Models\Supplier;
 use App\Services\SupplierService;
-use App\Exceptions\SupplierException;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\On;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
-use PowerComponents\LivewirePowerGrid\PowerGridFields;
-use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
-use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
+use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
+use PowerComponents\LivewirePowerGrid\PowerGridComponent;
+use PowerComponents\LivewirePowerGrid\PowerGridFields;
+use PowerComponents\LivewirePowerGrid\Traits\WithExport;
 
 final class SupplierTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'supplier-table';
+
     public string $sortField = 'created_at';
+
     public string $sortDirection = 'desc';
 
     public function setUp(): array
@@ -27,7 +30,7 @@ final class SupplierTable extends PowerGridComponent
         $this->showCheckBox();
 
         return [
-            PowerGrid::exportable('supplier_export_' . now()->format('Y_m_d'))
+            PowerGrid::exportable('supplier_export_'.now()->format('Y_m_d'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
 
             PowerGrid::header()
@@ -52,7 +55,7 @@ final class SupplierTable extends PowerGridComponent
             ->add('contact_person')
             ->add('email')
             ->add('phone')
-            ->add('phone_formatted', fn(Supplier $supplier) => format_indian_phone($supplier->phone))
+            ->add('phone_formatted', fn (Supplier $supplier) => format_indian_phone($supplier->phone))
             ->add('companies_list', function (Supplier $supplier) {
                 $companies = $supplier->companies->pluck('company_name')->filter();
                 $count = $companies->count();
@@ -168,7 +171,7 @@ final class SupplierTable extends PowerGridComponent
         ];
     }
 
-    #[\Livewire\Attributes\On('delete')]
+    #[On('delete')]
     public function delete($rowId, SupplierService $supplierService): void
     {
         $supplier = Supplier::find($rowId);
@@ -180,7 +183,7 @@ final class SupplierTable extends PowerGridComponent
             } catch (\Exception $e) {
                 $message = $e instanceof SupplierException
                     ? $e->getMessage()
-                    : 'Failed to delete supplier: ' . $e->getMessage();
+                    : 'Failed to delete supplier: '.$e->getMessage();
 
                 $this->dispatch('toast', message: $message, type: 'error');
             }

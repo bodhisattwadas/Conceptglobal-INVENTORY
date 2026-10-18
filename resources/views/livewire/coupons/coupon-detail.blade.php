@@ -14,45 +14,53 @@
             <div class="space-y-6">
                 <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
                     <div class="space-y-1">
-                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Code') }}</label>
-                        <p class="text-sm text-foreground font-medium">{{ $coupon->code }}</p>
+                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Coupon Code') }}</label>
+                        <p class="text-base text-foreground font-mono font-bold">{{ $coupon->code }}</p>
                     </div>
 
                     <div class="space-y-1">
-                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Status') }}</label>
-                        <p class="text-sm text-foreground font-medium">{{ $coupon->is_active ? 'Active' : 'Inactive' }}</p>
+                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Discount Mode') }}</label>
+                        <div>
+                            {!! $coupon->type->badgeHtml() !!}
+                        </div>
                     </div>
 
                     <div class="space-y-1">
-                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Discount') }}</label>
-                        <p class="text-sm text-foreground font-medium">
-                            {{ $coupon->type->value === 'percentage' ? $coupon->value . '%' : format_money($coupon->value) }}
+                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Discount Value') }}</label>
+                        <p class="text-sm font-bold {{ $coupon->type->isPercentage() ? 'text-emerald-700' : 'text-blue-700' }}">
+                            {{ $coupon->type->isPercentage() ? $coupon->value . '% OFF' : format_money($coupon->value) . ' Flat OFF' }}
                         </p>
                     </div>
 
                     <div class="space-y-1">
-                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Max Discount') }}</label>
-                        <p class="text-sm text-foreground font-medium">{{ $coupon->max_discount_amount ? format_money($coupon->max_discount_amount) : '-' }}</p>
+                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Max Discount Cap') }}</label>
+                        <p class="text-sm text-foreground">
+                            @if($coupon->type->isPercentage())
+                                {{ $coupon->max_discount_amount ? format_money($coupon->max_discount_amount) : 'Unlimited (No cap)' }}
+                            @else
+                                <span class="text-gray-400 italic">Not applicable (Flat discount)</span>
+                            @endif
+                        </p>
                     </div>
 
                     <div class="space-y-1">
-                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Minimum Purchase') }}</label>
-                        <p class="text-sm text-foreground font-medium">{{ $coupon->min_purchase_amount ? format_money($coupon->min_purchase_amount) : '-' }}</p>
+                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Minimum Cart Purchase') }}</label>
+                        <p class="text-sm text-foreground font-medium">{{ $coupon->min_purchase_amount ? format_money($coupon->min_purchase_amount) : 'None (Any cart value)' }}</p>
                     </div>
 
                     <div class="space-y-1">
-                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Usage') }}</label>
-                        <p class="text-sm text-foreground font-medium">{{ $coupon->used_count }} / {{ $coupon->usage_limit ?? '∞' }}</p>
+                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Usage Limit') }}</label>
+                        <p class="text-sm text-foreground font-medium">{{ $coupon->used_count }} / {{ $coupon->usage_limit ?? '∞ (Unlimited)' }}</p>
                     </div>
 
                     <div class="space-y-1">
-                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Starts On') }}</label>
-                        <p class="text-sm text-foreground font-medium">{{ $coupon->starts_at?->format('d M Y') ?? '-' }}</p>
+                        <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Valid From') }}</label>
+                        <p class="text-sm text-foreground font-medium">{{ $coupon->starts_at?->format('d M Y') ?? 'Immediate' }}</p>
                     </div>
 
                     <div class="space-y-1">
                         <label class="text-sm font-medium leading-none text-muted-foreground">{{ __('Expires On') }}</label>
-                        <p class="text-sm text-foreground font-medium">{{ $coupon->expires_at?->format('d M Y') ?? '-' }}</p>
+                        <p class="text-sm text-foreground font-medium">{{ $coupon->expires_at?->format('d M Y') ?? 'No expiration' }}</p>
                     </div>
                 </div>
 

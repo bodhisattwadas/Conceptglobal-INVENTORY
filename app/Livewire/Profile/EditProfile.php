@@ -4,19 +4,23 @@ namespace App\Livewire\Profile;
 
 use App\Models\User;
 use App\Services\ProfileService;
-use Livewire\Component;
-use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class EditProfile extends Component
 {
     use WithFileUploads;
 
     public string $name = '';
+
     public string $username = '';
+
     public string $email = '';
+
     public $profile_photo = null;
+
     public ?string $currentProfilePhotoPath = null;
 
     public function mount(): void
@@ -32,8 +36,8 @@ class EditProfile extends Component
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'max:255', 'unique:users,username,' . Auth::id()],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . Auth::id()],
+            'username' => ['required', 'string', 'max:255', 'unique:users,username,'.Auth::id()],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,'.Auth::id()],
             'profile_photo' => ['nullable', 'image', 'max:2048'],
         ];
     }

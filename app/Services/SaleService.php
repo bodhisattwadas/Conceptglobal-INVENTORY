@@ -5,7 +5,9 @@ namespace App\Services;
 use App\DTOs\SaleData;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
+use App\Exceptions\DiscountCouponException;
 use App\Exceptions\SaleException;
+use App\Models\DiscountCoupon;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Sale;
@@ -17,7 +19,8 @@ class SaleService
 {
     public function __construct(
         protected FinanceTransactionService $financeService,
-        protected InventoryService $inventoryService
+        protected InventoryService $inventoryService,
+        protected DiscountCouponService $couponService
     ) {}
 
     /**
@@ -35,6 +38,17 @@ class SaleService
                     ->get()
                     ->keyBy('id');
 
+                $appliedCoupon = null;
+                if ($data->coupon_id || $data->coupon_code) {
+                    $couponQuery = DiscountCoupon::query();
+                    if ($data->coupon_id) {
+                        $couponQuery->where('id', $data->coupon_id);
+                    } else {
+                        $couponQuery->where('code', $data->coupon_code);
+                    }
+                    $appliedCoupon = $couponQuery->lockForUpdate()->first();
+                }
+
                 $sale = Sale::create([
                     'invoice_number' => $this->generateInvoiceNumber(),
                     'customer_id' => $data->customer_id,
@@ -49,6 +63,8 @@ class SaleService
                     'global_discount' => $data->global_discount,
                     'total_discount' => 0,
                     'total' => 0,
+                    'discount_coupon_id' => $appliedCoupon?->id,
+                    'coupon_code' => $appliedCoupon?->code ?? $data->coupon_code,
                 ]);
 
                 $totalSubtotal = 0;
@@ -101,11 +117,23 @@ class SaleService
                     $totalDiscount = round($totalDiscount + $discount * $quantity, 2);
                 }
 
-                if ($data->global_discount > $totalSubtotal) {
-                    throw SaleException::invalidDiscount('Global discount ('.format_money($data->global_discount).') cannot exceed subtotal ('.format_money($totalSubtotal).').');
+                $globalDiscount = $data->global_discount;
+
+                if ($appliedCoupon) {
+                    try {
+                        $couponResult = $this->couponService->validateAndCalculate($appliedCoupon, $totalSubtotal);
+                        $globalDiscount = (float) $couponResult['discount_amount'];
+                        $this->couponService->incrementUsage($appliedCoupon);
+                    } catch (DiscountCouponException $e) {
+                        throw SaleException::invalidDiscount($e->getMessage());
+                    }
                 }
 
-                $total = round($totalSubtotal - $data->global_discount, 2);
+                if ($globalDiscount > $totalSubtotal) {
+                    throw SaleException::invalidDiscount('Discount ('.format_money($globalDiscount).') cannot exceed subtotal ('.format_money($totalSubtotal).').');
+                }
+
+                $total = round($totalSubtotal - $globalDiscount, 2);
 
                 if ($data->status === SaleStatus::COMPLETED) {
                     if ($data->payment_method === PaymentMethod::CASH && $data->cash_received < $total) {
@@ -121,10 +149,13 @@ class SaleService
 
                 $sale->update([
                     'subtotal' => round($totalSubtotal + $totalDiscount, 2),
-                    'total_discount' => round($totalDiscount + $data->global_discount, 2),
-                    'global_discount' => $data->global_discount,
+                    'total_discount' => round($totalDiscount + $globalDiscount, 2),
+                    'global_discount' => $globalDiscount,
                     'total' => $total,
+                    'cash_received' => $data->payment_method === PaymentMethod::CASH ? $data->cash_received : $total,
                     'change' => $change,
+                    'discount_coupon_id' => $appliedCoupon?->id,
+                    'coupon_code' => $appliedCoupon?->code ?? $data->coupon_code,
                 ]);
 
                 if ($sale->status === SaleStatus::COMPLETED) {
@@ -183,6 +214,13 @@ class SaleService
 
                 $sale->update($updateData);
 
+                if ($sale->discount_coupon_id) {
+                    $coupon = DiscountCoupon::find($sale->discount_coupon_id);
+                    if ($coupon) {
+                        $this->couponService->decrementUsage($coupon);
+                    }
+                }
+
                 // Void Finance
                 $this->financeService->voidTransaction($sale);
 
@@ -215,7 +253,7 @@ class SaleService
 
             $updateData = [
                 'status' => SaleStatus::COMPLETED,
-                'cash_received' => $sale->payment_method === PaymentMethod::CASH ? $cashReceived : 0,
+                'cash_received' => $sale->payment_method === PaymentMethod::CASH ? $cashReceived : $sale->total,
                 'change' => $sale->payment_method === PaymentMethod::CASH ? round($cashReceived - $sale->total, 2) : 0,
             ];
 
@@ -263,6 +301,13 @@ class SaleService
 
             // Restore to PENDING
             $sale->update(['status' => SaleStatus::PENDING]);
+
+            if ($sale->discount_coupon_id) {
+                $coupon = DiscountCoupon::find($sale->discount_coupon_id);
+                if ($coupon) {
+                    $this->couponService->incrementUsage($coupon);
+                }
+            }
 
             // No Finance Sync needed as it goes to PENDING
 

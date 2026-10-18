@@ -2,14 +2,14 @@
 
 namespace App\Services;
 
-use App\Models\User;
 use App\DTOs\UserData;
-use App\Models\Purchase;
 use App\Models\FinanceTransaction;
-use Illuminate\Support\Facades\DB;
+use App\Models\Purchase;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 

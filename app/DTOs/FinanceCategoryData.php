@@ -11,8 +11,7 @@ class FinanceCategoryData
         public readonly string $slug,
         public readonly FinanceCategoryType $type,
         public readonly ?string $description = null,
-    ) {
-    }
+    ) {}
 
     public static function fromArray(array $data): self
     {

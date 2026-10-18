@@ -2,12 +2,12 @@
 
 namespace App\Services;
 
-use Exception;
-use App\Models\Supplier;
 use App\DTOs\SupplierData;
-use Illuminate\Support\Facades\DB;
 use App\Exceptions\SupplierException;
+use App\Models\Supplier;
+use Exception;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class SupplierService
 {
@@ -30,7 +30,7 @@ class SupplierService
             } catch (Exception $e) {
                 throw SupplierException::creationFailed($e->getMessage(), [
                     'data' => (array) $data,
-                    'trace' => $e->getTraceAsString()
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
         });
@@ -58,8 +58,8 @@ class SupplierService
 
             } catch (Exception $e) {
                 throw SupplierException::updateFailed($e->getMessage(), [
-                    'id'   => $supplier->id,
-                    'data' => (array) $data
+                    'id' => $supplier->id,
+                    'data' => (array) $data,
                 ]);
             }
         });
@@ -125,7 +125,7 @@ class SupplierService
         ];
 
         if ($data->account_number) {
-            $workingSupplier = $supplier ?? new Supplier();
+            $workingSupplier = $supplier ?? new Supplier;
             $workingSupplier->account_number = $data->account_number;
             $attributes['account_number_encrypted'] = $workingSupplier->account_number_encrypted;
             $attributes['account_number_last4'] = $workingSupplier->account_number_last4;

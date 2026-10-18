@@ -3,8 +3,8 @@
 namespace App\Livewire\Products;
 
 use App\Models\Product;
-use Livewire\Component;
 use Livewire\Attributes\On;
+use Livewire\Component;
 
 class ProductDetail extends Component
 {

@@ -85,8 +85,8 @@ final class InventoryTable extends PowerGridComponent
             Column::make('Batch Quantity', 'batch_quantities')->headerAttribute('text-center')->bodyAttribute('text-center')->visibleInExport(false),
             Column::make('Min Quantity', 'min_stock_with_unit', 'min_stock')->headerAttribute('text-center')->bodyAttribute('text-center')->visibleInExport(false),
             Column::make('Min Quantity', 'min_stock_export', 'min_stock')->hidden()->visibleInExport(true),
-              Column::make('Status', 'stock_badge')->headerAttribute('text-center')->bodyAttribute('text-center')->visibleInExport(false),
-              Column::make('Status', 'stock_status_export')->hidden()->visibleInExport(true),
+            Column::make('Status', 'stock_badge')->headerAttribute('text-center')->bodyAttribute('text-center')->visibleInExport(false),
+            Column::make('Status', 'stock_status_export')->hidden()->visibleInExport(true),
         ];
     }
 

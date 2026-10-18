@@ -2,23 +2,26 @@
 
 namespace App\Livewire\FinanceCategories;
 
-use Livewire\Component;
-use Illuminate\Support\Str;
-use Livewire\Attributes\On;
-use App\Models\FinanceCategory;
-use Illuminate\Validation\Rule;
 use App\DTOs\FinanceCategoryData;
 use App\Enums\FinanceCategoryType;
-use App\Services\FinanceCategoryService;
 use App\Exceptions\FinanceCategoryException;
+use App\Models\FinanceCategory;
+use App\Services\FinanceCategoryService;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\On;
+use Livewire\Component;
 
 class FinanceCategoryForm extends Component
 {
     public bool $isEditing = false;
+
     public ?FinanceCategory $category = null;
 
     public string $name = '';
+
     public string $type = 'expense';
+
     public string $description = '';
 
     public function rules(): array
@@ -65,6 +68,7 @@ class FinanceCategoryForm extends Component
 
         if ($this->isEditing && $this->category && in_array($this->category->name, ['Product Sales', 'Product Purchases'])) {
             $this->dispatch('toast', ['message' => 'System categories cannot be edited.', 'type' => 'error']);
+
             return;
         }
 

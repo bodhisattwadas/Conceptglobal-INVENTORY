@@ -3,6 +3,7 @@
 namespace App\DTOs;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 readonly class FinanceTransactionData
 {
@@ -35,7 +36,7 @@ readonly class FinanceTransactionData
             amount: (int) $data['amount'],
             description: $data['description'] ?? null,
             external_reference: $data['external_reference'] ?? null,
-            created_by: (int) ($data['created_by'] ?? \Illuminate\Support\Facades\Auth::id()),
+            created_by: (int) ($data['created_by'] ?? Auth::id()),
         );
     }
 }

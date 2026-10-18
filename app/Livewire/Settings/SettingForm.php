@@ -2,15 +2,17 @@
 
 namespace App\Livewire\Settings;
 
-use Livewire\Component;
 use App\Models\Setting;
 use Illuminate\Support\Str;
 use Livewire\Attributes\On;
+use Livewire\Component;
 
 class SettingForm extends Component
 {
     public ?string $key = null;
+
     public ?string $value = null;
+
     public string $label = '';
 
     public function rules()
@@ -51,7 +53,7 @@ class SettingForm extends Component
             $this->dispatch('pg:eventRefresh-setting-table');
             $this->dispatch('toast', message: 'Setting updated successfully.', type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('toast', message: 'Failed to update setting: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('toast', message: 'Failed to update setting: '.$e->getMessage(), type: 'error');
         }
     }
 

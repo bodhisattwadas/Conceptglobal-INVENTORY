@@ -2,25 +2,27 @@
 
 namespace App\Livewire\Units;
 
-use App\Models\Unit;
-use Illuminate\Support\Str;
-use App\Services\UnitService;
 use App\Exceptions\UnitException;
+use App\Models\Unit;
+use App\Services\UnitService;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\On;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
-use PowerComponents\LivewirePowerGrid\PowerGridFields;
-use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
-use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
+use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
+use PowerComponents\LivewirePowerGrid\PowerGridComponent;
+use PowerComponents\LivewirePowerGrid\PowerGridFields;
+use PowerComponents\LivewirePowerGrid\Traits\WithExport;
 
 final class UnitTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'unit-table';
+
     public string $sortField = 'created_at';
+
     public string $sortDirection = 'desc';
 
     public function setUp(): array
@@ -28,7 +30,7 @@ final class UnitTable extends PowerGridComponent
         $this->showCheckBox();
 
         return [
-            PowerGrid::exportable('units_export_' . now()->format('Y_m_d'))
+            PowerGrid::exportable('units_export_'.now()->format('Y_m_d'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
 
             PowerGrid::header()
@@ -102,7 +104,7 @@ final class UnitTable extends PowerGridComponent
         ];
     }
 
-    #[\Livewire\Attributes\On('delete')]
+    #[On('delete')]
     public function delete($rowId, UnitService $service): void
     {
         $unit = Unit::find($rowId);
@@ -114,7 +116,7 @@ final class UnitTable extends PowerGridComponent
             } catch (\Exception $e) {
                 $message = $e instanceof UnitException
                     ? $e->getMessage()
-                    : 'Failed to delete unit: ' . $e->getMessage();
+                    : 'Failed to delete unit: '.$e->getMessage();
 
                 $this->dispatch('toast', message: $message, type: 'error');
             }

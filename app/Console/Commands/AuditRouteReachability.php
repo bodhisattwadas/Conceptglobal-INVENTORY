@@ -2,11 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\PurchaseStatus;
 use App\Models\FinanceTransaction;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\User;
-use App\Enums\PurchaseStatus;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
@@ -44,6 +44,7 @@ class AuditRouteReachability extends Command
             $url = $this->makeUrl($route);
             if (! $url) {
                 $rows[] = [$route->getName() ?? '-', $route->uri(), 'SKIPPED', 'Missing sample model/data'];
+
                 continue;
             }
 

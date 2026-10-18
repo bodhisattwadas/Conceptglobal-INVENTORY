@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Units;
 
-use Livewire\Component;
 use App\Models\Unit;
 use Livewire\Attributes\On;
+use Livewire\Component;
 
 class UnitDetail extends Component
 {

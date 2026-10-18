@@ -3,8 +3,8 @@
 namespace App\Livewire\Suppliers;
 
 use App\Models\Supplier;
-use Livewire\Component;
 use Livewire\Attributes\On;
+use Livewire\Component;
 
 class SupplierDetail extends Component
 {

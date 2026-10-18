@@ -2,20 +2,22 @@
 
 namespace App\Livewire\Units;
 
-use Livewire\Component;
-use App\Models\Unit;
 use App\DTOs\UnitData;
-use Livewire\Attributes\On;
-use Illuminate\Validation\Rule;
-use App\Services\UnitService;
 use App\Exceptions\UnitException;
+use App\Models\Unit;
+use App\Services\UnitService;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\On;
+use Livewire\Component;
 
 class UnitForm extends Component
 {
     public bool $isEditing = false;
+
     public ?Unit $unit = null;
 
     public string $name = '';
+
     public string $symbol = '';
 
     public function rules(): array

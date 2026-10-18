@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\Category;
-use Illuminate\Support\Str;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class CategorySeeder extends Seeder
 {
@@ -13,35 +13,35 @@ class CategorySeeder extends Seeder
         $categories = [
             [
                 'name' => 'Face Makeup',
-                'description' => 'Foundations, concealers, primers, powders, blush, and contour products.'
+                'description' => 'Foundations, concealers, primers, powders, blush, and contour products.',
             ],
             [
                 'name' => 'Eye Makeup',
-                'description' => 'Mascara, eyeliner, eyebrow products, eyeshadow palettes, and eye primers.'
+                'description' => 'Mascara, eyeliner, eyebrow products, eyeshadow palettes, and eye primers.',
             ],
             [
                 'name' => 'Lip Makeup',
-                'description' => 'Lipstick, gloss, liner, balm, tint, and lip care products.'
+                'description' => 'Lipstick, gloss, liner, balm, tint, and lip care products.',
             ],
             [
                 'name' => 'Skin Care',
-                'description' => 'Cleansers, toners, serums, moisturizers, sunscreen, masks, and treatments.'
+                'description' => 'Cleansers, toners, serums, moisturizers, sunscreen, masks, and treatments.',
             ],
             [
                 'name' => 'Hair Care',
-                'description' => 'Shampoo, conditioner, oils, masks, styling cream, and scalp care.'
+                'description' => 'Shampoo, conditioner, oils, masks, styling cream, and scalp care.',
             ],
             [
                 'name' => 'Fragrance',
-                'description' => 'Perfume, body mist, roll-ons, and travel fragrance.'
+                'description' => 'Perfume, body mist, roll-ons, and travel fragrance.',
             ],
             [
                 'name' => 'Tools & Accessories',
-                'description' => 'Brushes, sponges, applicators, mirrors, pouches, and cosmetic tools.'
+                'description' => 'Brushes, sponges, applicators, mirrors, pouches, and cosmetic tools.',
             ],
             [
                 'name' => 'Body Care',
-                'description' => 'Body lotion, scrubs, shower gel, hand cream, and deodorant.'
+                'description' => 'Body lotion, scrubs, shower gel, hand cream, and deodorant.',
             ],
         ];
 

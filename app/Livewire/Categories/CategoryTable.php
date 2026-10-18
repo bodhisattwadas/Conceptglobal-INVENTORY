@@ -2,25 +2,28 @@
 
 namespace App\Livewire\Categories;
 
-use App\Models\Category;
-use Illuminate\Support\Str;
-use App\Services\CategoryService;
 use App\Exceptions\CategoryException;
+use App\Models\Category;
+use App\Services\CategoryService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
+use Livewire\Attributes\On;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
-use PowerComponents\LivewirePowerGrid\PowerGridFields;
-use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
-use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
+use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
+use PowerComponents\LivewirePowerGrid\PowerGridComponent;
+use PowerComponents\LivewirePowerGrid\PowerGridFields;
+use PowerComponents\LivewirePowerGrid\Traits\WithExport;
 
 final class CategoryTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'category-table';
+
     public string $sortField = 'created_at';
+
     public string $sortDirection = 'desc';
 
     public function setUp(): array
@@ -28,7 +31,7 @@ final class CategoryTable extends PowerGridComponent
         $this->showCheckBox();
 
         return [
-            PowerGrid::exportable('category_export_' . now()->format('Y_m_d'))
+            PowerGrid::exportable('category_export_'.now()->format('Y_m_d'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
 
             PowerGrid::header()
@@ -51,7 +54,7 @@ final class CategoryTable extends PowerGridComponent
             ->add('id')
             ->add('name')
             ->add('slug')
-            ->add('description', fn(Category $model) => Str::limit($model->description, 50))
+            ->add('description', fn (Category $model) => Str::limit($model->description, 50))
             ->add('created_at');
     }
 
@@ -107,7 +110,7 @@ final class CategoryTable extends PowerGridComponent
         ];
     }
 
-    #[\Livewire\Attributes\On('delete')]
+    #[On('delete')]
     public function delete($rowId, CategoryService $service): void
     {
         $category = Category::find($rowId);
@@ -119,7 +122,7 @@ final class CategoryTable extends PowerGridComponent
             } catch (\Exception $e) {
                 $message = $e instanceof CategoryException
                     ? $e->getMessage()
-                    : 'Failed to delete category: ' . $e->getMessage();
+                    : 'Failed to delete category: '.$e->getMessage();
 
                 $this->dispatch('toast', message: $message, type: 'error');
             }

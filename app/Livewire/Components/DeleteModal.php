@@ -2,18 +2,25 @@
 
 namespace App\Livewire\Components;
 
-use Livewire\Component;
 use Livewire\Attributes\On;
+use Livewire\Component;
 
 class DeleteModal extends Component
 {
     public bool $open = false;
+
     public string $title = 'Are you absolutely sure?';
+
     public string $description = 'This action cannot be undone. This will permanently delete your data.';
+
     public string $confirmButtonText = 'Continue';
+
     public string $confirmButtonClass = '';
+
     public string $component = '';
+
     public string $method = '';
+
     public array $params = [];
 
     #[On('open-delete-modal')]
@@ -30,8 +37,12 @@ class DeleteModal extends Component
         $this->method = $method;
         $this->params = $params;
 
-        if ($title) $this->title = $title;
-        if ($description) $this->description = $description;
+        if ($title) {
+            $this->title = $title;
+        }
+        if ($description) {
+            $this->description = $description;
+        }
         $this->confirmButtonText = $confirmButtonText;
         $this->confirmButtonClass = $confirmButtonClass ?: 'bg-red-600 text-white hover:bg-red-500';
 

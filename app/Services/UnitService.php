@@ -2,12 +2,12 @@
 
 namespace App\Services;
 
-use Exception;
-use App\Models\Unit;
 use App\DTOs\UnitData;
 use App\Exceptions\UnitException;
-use Illuminate\Support\Facades\DB;
+use App\Models\Unit;
+use Exception;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class UnitService
 {
@@ -30,7 +30,7 @@ class UnitService
             } catch (Exception $e) {
                 throw UnitException::creationFailed($e->getMessage(), [
                     'data' => (array) $data,
-                    'trace' => $e->getTraceAsString()
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
         });
@@ -54,8 +54,8 @@ class UnitService
 
             } catch (Exception $e) {
                 throw UnitException::updateFailed($e->getMessage(), [
-                    'id'   => $unit->id,
-                    'data' => (array) $data
+                    'id' => $unit->id,
+                    'data' => (array) $data,
                 ]);
             }
         });

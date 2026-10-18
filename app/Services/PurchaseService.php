@@ -2,24 +2,23 @@
 
 namespace App\Services;
 
-use Exception;
+use App\DTOs\PurchaseData;
+use App\Enums\PurchaseStatus;
+use App\Exceptions\PurchaseException;
 use App\Models\Product;
 use App\Models\Purchase;
-use App\DTOs\PurchaseData;
 use App\Models\PurchaseItem;
-use App\Enums\PurchaseStatus;
+use Exception;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use App\Exceptions\PurchaseException;
+use Illuminate\Support\Facades\DB;
 
 class PurchaseService
 {
     public function __construct(
         protected FinanceTransactionService $financeService,
         protected InventoryService $inventoryService
-    ) {
-    }
+    ) {}
 
     public function createPurchase(PurchaseData $data, int $userId): Purchase
     {
@@ -34,8 +33,8 @@ class PurchaseService
                     'status' => $data->status,
                     'notes' => $data->notes,
                     'proof_image' => $data->proof_image,
-                    'created_by'     => $userId,
-                    'total'          => 0,
+                    'created_by' => $userId,
+                    'total' => 0,
                 ]);
 
                 $this->syncItems($purchase, $data->items);
@@ -52,7 +51,7 @@ class PurchaseService
     {
         return DB::transaction(function () use ($purchase, $data) {
             try {
-                if (!in_array($purchase->status, [PurchaseStatus::DRAFT, PurchaseStatus::ORDERED])) {
+                if (! in_array($purchase->status, [PurchaseStatus::DRAFT, PurchaseStatus::ORDERED])) {
                     throw PurchaseException::invalidStatus('update', $purchase->status->label(), ['id' => $purchase->id]);
                 }
 
@@ -72,8 +71,9 @@ class PurchaseService
                 return $purchase->refresh();
 
             } catch (Exception $e) {
-                if ($e instanceof PurchaseException)
+                if ($e instanceof PurchaseException) {
                     throw $e;
+                }
                 throw PurchaseException::updateFailed($e->getMessage(), ['id' => $purchase->id]);
             }
         });
@@ -83,7 +83,7 @@ class PurchaseService
     {
         DB::transaction(function () use ($purchase) {
             try {
-                if (!in_array($purchase->status, [PurchaseStatus::DRAFT, PurchaseStatus::CANCELLED])) {
+                if (! in_array($purchase->status, [PurchaseStatus::DRAFT, PurchaseStatus::CANCELLED])) {
                     throw PurchaseException::deletionFailed(
                         "Cannot delete purchase with status [{$purchase->status->label()}]. Only Draft or Cancelled purchases can be deleted.",
                         ['id' => $purchase->id, 'status' => $purchase->status->value]
@@ -96,8 +96,9 @@ class PurchaseService
                 $purchase->delete();
 
             } catch (Exception $e) {
-                if ($e instanceof PurchaseException)
+                if ($e instanceof PurchaseException) {
                     throw $e;
+                }
                 throw PurchaseException::deletionFailed($e->getMessage(), ['id' => $purchase->id]);
             }
         });
@@ -111,7 +112,7 @@ class PurchaseService
             }
 
             if ($purchase->items()->count() === 0) {
-                throw PurchaseException::updateFailed("Cannot order a purchase with no items.", ['id' => $purchase->id]);
+                throw PurchaseException::updateFailed('Cannot order a purchase with no items.', ['id' => $purchase->id]);
             }
 
             $purchase->update(['status' => PurchaseStatus::ORDERED]);
@@ -121,7 +122,7 @@ class PurchaseService
     public function markAsReceived(Purchase $purchase, array $receivedQuantities = [], array $itemReceiptDates = []): void
     {
         DB::transaction(function () use ($purchase, $receivedQuantities, $itemReceiptDates) {
-            if (!in_array($purchase->status, [PurchaseStatus::ORDERED, PurchaseStatus::DRAFT])) {
+            if (! in_array($purchase->status, [PurchaseStatus::ORDERED, PurchaseStatus::DRAFT])) {
                 throw PurchaseException::invalidStatus('receive', $purchase->status->label(), ['id' => $purchase->id]);
             }
 
@@ -136,7 +137,7 @@ class PurchaseService
                     : (int) $item->quantity;
 
                 if ($receivedQuantity < 0) {
-                    throw PurchaseException::updateFailed("Received quantity cannot be negative.", ['item_id' => $item->id]);
+                    throw PurchaseException::updateFailed('Received quantity cannot be negative.', ['item_id' => $item->id]);
                 }
 
                 $receiptDate = $itemReceiptDates[$item->id]['order_received_date'] ?? now()->toDateString();
@@ -170,7 +171,7 @@ class PurchaseService
 
                     // Update latest purchase price and selling price
                     $updateData = ['purchase_price' => $item->unit_price];
-                    $priceChangeLog = "";
+                    $priceChangeLog = '';
                     $hasPriceChange = false;
                     $ref = $purchase->invoice_number ? "PO #{$purchase->invoice_number}" : "Purchase #{$purchase->id}";
                     $newProductMrp = isset($itemReceiptDates[$item->id]['product_mrp'])
@@ -213,7 +214,7 @@ class PurchaseService
                     if ($hasPriceChange) {
                         $timestamp = now()->format('Y-m-d H:i');
                         $logHeader = "\n\n[System Log - {$timestamp}] Price update via {$ref}:";
-                        $updateData['notes'] = TRIM(($product->notes ?? '') . $logHeader . $priceChangeLog);
+                        $updateData['notes'] = trim(($product->notes ?? '').$logHeader.$priceChangeLog);
 
                     }
 
@@ -231,7 +232,7 @@ class PurchaseService
     public function markAsPaid(Purchase $purchase): void
     {
         DB::transaction(function () use ($purchase) {
-            if (!in_array($purchase->status, [PurchaseStatus::ORDERED, PurchaseStatus::RECEIVED])) {
+            if (! in_array($purchase->status, [PurchaseStatus::ORDERED, PurchaseStatus::RECEIVED])) {
                 throw PurchaseException::invalidStatus('pay', $purchase->status->label(), ['id' => $purchase->id]);
             }
 
@@ -282,7 +283,7 @@ class PurchaseService
                 'product_id' => $itemData->product_id,
                 'quantity' => $itemData->quantity,
                 'unit_price' => $itemData->unit_price,
-                'subtotal'    => $subtotal,
+                'subtotal' => $subtotal,
                 'selling_price' => $itemData->selling_price,
             ]);
 

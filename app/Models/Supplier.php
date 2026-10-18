@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Facades\Crypt;
 
 class Supplier extends Model
@@ -79,7 +79,7 @@ class Supplier extends Model
 
     public function getMaskedAccountNumberAttribute(): ?string
     {
-        return $this->account_number_last4 ? 'XXXXXXXX' . $this->account_number_last4 : null;
+        return $this->account_number_last4 ? 'XXXXXXXX'.$this->account_number_last4 : null;
     }
 
     public function getFullAccountNumberAttribute(): ?string

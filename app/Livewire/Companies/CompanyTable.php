@@ -8,11 +8,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\On;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
+use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
 use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
 use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\PowerGridFields;
 use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
 
 final class CompanyTable extends PowerGridComponent
 {
@@ -25,7 +25,7 @@ final class CompanyTable extends PowerGridComponent
     public function setUp(): array
     {
         return [
-            PowerGrid::exportable('company_export_' . now()->format('Y_m_d'))->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
+            PowerGrid::exportable('company_export_'.now()->format('Y_m_d'))->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
             PowerGrid::header()->showSearchInput(),
             PowerGrid::footer()->showPerPage(perPage: 10, perPageValues: [10, 25, 50, 100])->showRecordCount(),
         ];
@@ -77,7 +77,7 @@ final class CompanyTable extends PowerGridComponent
                     'method' => 'delete',
                     'params' => ['rowId' => $row->id],
                     'title' => 'Delete Brand / Company?',
-                    'description' => "Are you sure you want to delete '" . ($row->short_name ?: $row->company_name) . "'? This action cannot be undone.",
+                    'description' => "Are you sure you want to delete '".($row->short_name ?: $row->company_name)."'? This action cannot be undone.",
                 ])
                 ->tooltip('Delete Brand / Company'),
         ];

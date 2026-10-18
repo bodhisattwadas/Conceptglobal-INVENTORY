@@ -66,6 +66,8 @@ class StoreSaleRequest extends FormRequest
             'cash_received' => ['nullable', 'numeric', 'min:0'],
             'change' => ['nullable', 'numeric', 'min:0'],
             'global_discount' => ['nullable', 'numeric', 'min:0'],
+            'coupon_id' => ['nullable', 'integer', 'exists:discount_coupons,id'],
+            'coupon_code' => ['nullable', 'string', 'max:50'],
 
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],

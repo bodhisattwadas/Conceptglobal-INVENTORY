@@ -2,19 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Purchase;
 use App\DTOs\PurchaseData;
-use Illuminate\Http\Request;
 use App\Enums\PurchaseStatus;
-use App\Services\PurchaseService;
-use App\Services\VendorInvoiceService;
-use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 use App\Exceptions\PurchaseException;
 use App\Http\Requests\StorePurchaseRequest;
 use App\Http\Requests\UpdatePurchaseRequest;
+use App\Models\Purchase;
+use App\Services\PurchaseService;
+use App\Services\VendorInvoiceService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class PurchaseController extends Controller
 {
@@ -35,7 +35,7 @@ class PurchaseController extends Controller
         $purchaseDate = old('purchase_date') ? Carbon::parse(old('purchase_date')) : now();
 
         return view('purchases.create', [
-            'purchase' => new Purchase(),
+            'purchase' => new Purchase,
             'statuses' => PurchaseStatus::cases(),
             'previewPoReference' => $this->service->previewPurchaseOrderReference($purchaseDate),
         ]);
@@ -74,13 +74,14 @@ class PurchaseController extends Controller
         } catch (PurchaseException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', 'Error creating purchase: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Error creating purchase: '.$e->getMessage());
         }
     }
 
     public function show(Purchase $purchase)
     {
         $purchase->load(['supplier', 'company', 'creator', 'vendorInvoice', 'items.product.unit', 'items.product.company']);
+
         return view('purchases.show', compact('purchase'));
     }
 
@@ -109,7 +110,7 @@ class PurchaseController extends Controller
 
     public function edit(Purchase $purchase)
     {
-        if (!in_array($purchase->status, [PurchaseStatus::DRAFT, PurchaseStatus::ORDERED])) {
+        if (! in_array($purchase->status, [PurchaseStatus::DRAFT, PurchaseStatus::ORDERED])) {
             abort(403, 'Only draft or ordered purchases can be edited.');
         }
 
@@ -144,7 +145,7 @@ class PurchaseController extends Controller
         } catch (PurchaseException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', 'Error updating purchase: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Error updating purchase: '.$e->getMessage());
         }
     }
 
@@ -152,11 +153,12 @@ class PurchaseController extends Controller
     {
         try {
             $this->service->deletePurchase($purchase);
+
             return redirect()->route('purchases.index')->with('success', 'Purchase deleted successfully.');
         } catch (PurchaseException $e) {
             return back()->with('error', $e->getMessage());
         } catch (\Exception $e) {
-            return back()->with('error', 'Error deleting purchase: ' . $e->getMessage());
+            return back()->with('error', 'Error deleting purchase: '.$e->getMessage());
         }
     }
 
@@ -164,11 +166,12 @@ class PurchaseController extends Controller
     {
         try {
             $this->service->markAsOrdered($purchase);
+
             return back()->with('success', 'Purchase marked as ordered.');
         } catch (PurchaseException $e) {
             return back()->with('error', $e->getMessage());
         } catch (\Exception $e) {
-            return back()->with('error', 'Error marking as ordered: ' . $e->getMessage());
+            return back()->with('error', 'Error marking as ordered: '.$e->getMessage());
         }
     }
 
@@ -215,16 +218,16 @@ class PurchaseController extends Controller
                 $vendorInvoicePath = $request->file('vendor_invoice_file')->store('vendor-invoices', 'public');
             }
 
-            if (!empty($updateData)) {
+            if (! empty($updateData)) {
                 $purchase->update($updateData);
             }
 
             $receivedQuantities = collect($validated['items'] ?? [])
-                ->mapWithKeys(fn(array $item, int|string $itemId) => [$itemId => $item['received_quantity']])
+                ->mapWithKeys(fn (array $item, int|string $itemId) => [$itemId => $item['received_quantity']])
                 ->all();
 
             $itemReceiptDates = collect($validated['items'] ?? [])
-                ->mapWithKeys(fn(array $item, int|string $itemId) => [$itemId => [
+                ->mapWithKeys(fn (array $item, int|string $itemId) => [$itemId => [
                     'order_received_date' => $validated['order_received_date'],
                     'manufacturing_date' => $item['manufacturing_date'] ?? null,
                     'expiry_date' => $item['expiry_date'] ?? null,
@@ -250,7 +253,7 @@ class PurchaseController extends Controller
         } catch (PurchaseException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', 'Error receiving purchase: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Error receiving purchase: '.$e->getMessage());
         }
     }
 
@@ -258,11 +261,12 @@ class PurchaseController extends Controller
     {
         try {
             $this->service->cancelPurchase($purchase);
+
             return back()->with('success', 'Purchase order cancelled.');
         } catch (PurchaseException $e) {
             return back()->with('error', $e->getMessage());
         } catch (\Exception $e) {
-            return back()->with('error', 'Error cancelling purchase: ' . $e->getMessage());
+            return back()->with('error', 'Error cancelling purchase: '.$e->getMessage());
         }
     }
 
@@ -270,11 +274,12 @@ class PurchaseController extends Controller
     {
         try {
             $this->service->markAsPaid($purchase);
+
             return back()->with('success', 'Purchase marked as paid.');
         } catch (PurchaseException $e) {
             return back()->with('error', $e->getMessage());
         } catch (\Exception $e) {
-            return back()->with('error', 'Error marking as paid: ' . $e->getMessage());
+            return back()->with('error', 'Error marking as paid: '.$e->getMessage());
         }
     }
 
@@ -282,11 +287,12 @@ class PurchaseController extends Controller
     {
         try {
             $this->service->restoreToDraft($purchase);
+
             return back()->with('success', 'Purchase restored to draft.');
         } catch (PurchaseException $e) {
             return back()->with('error', $e->getMessage());
         } catch (\Exception $e) {
-            return back()->with('error', 'Error restoring purchase: ' . $e->getMessage());
+            return back()->with('error', 'Error restoring purchase: '.$e->getMessage());
         }
     }
 }

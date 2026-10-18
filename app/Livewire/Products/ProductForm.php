@@ -3,42 +3,57 @@
 namespace App\Livewire\Products;
 
 use App\DTOs\ProductData;
-use App\Models\Product;
-use Livewire\Component;
-use App\Models\Company;
-use Livewire\Attributes\On;
-use Livewire\WithFileUploads;
-use Illuminate\Validation\Rule;
-use App\Services\ProductService;
 use App\Exceptions\ProductException;
+use App\Models\Product;
+use App\Services\ProductService;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\On;
+use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class ProductForm extends Component
 {
     use WithFileUploads;
 
     public bool $isEditing = false;
+
     public ?Product $product = null;
 
     // Form Fields
     public ?string $sku = null;
+
     public string $name = '';
+
     public ?int $category_id = null;
+
     public ?int $unit_id = null;
+
     public ?int $company_id = null;
+
     public int $mrp = 0;
+
     public int $purchase_price = 0;
+
     public int $selling_price = 0;
+
     public int $min_stock = 0;
+
     public bool $is_active = true;
+
     public string $description = '';
+
     public string $notes = '';
+
     public $image = null;
+
     public ?string $currentImagePath = null;
 
     // Select Options (Removed for AJAX)
     public ?string $categoryName = null;
+
     public ?string $unitName = null;
+
     public ?string $brandName = null;
 
     public function mount()
@@ -97,7 +112,7 @@ class ProductForm extends Component
                 'nullable',
                 'string',
                 'max:50',
-                Rule::unique('products', 'sku')->ignore($this->product?->id)
+                Rule::unique('products', 'sku')->ignore($this->product?->id),
             ],
             'category_id' => ['required', 'exists:categories,id'],
             'unit_id' => ['required', 'exists:units,id'],

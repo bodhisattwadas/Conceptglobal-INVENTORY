@@ -3,8 +3,8 @@
 namespace App\Livewire\Users;
 
 use App\Models\User;
-use Livewire\Component;
 use Livewire\Attributes\On;
+use Livewire\Component;
 
 class UserDetail extends Component
 {

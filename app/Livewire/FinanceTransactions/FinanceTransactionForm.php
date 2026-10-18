@@ -2,26 +2,33 @@
 
 namespace App\Livewire\FinanceTransactions;
 
-use Livewire\Component;
-use Livewire\Attributes\On;
-use Illuminate\Support\Carbon;
+use App\DTOs\FinanceTransactionData;
+use App\Exceptions\FinanceTransactionException;
 use App\Models\FinanceCategory;
 use App\Models\FinanceTransaction;
-use App\DTOs\FinanceTransactionData;
-use Illuminate\Support\Facades\Auth;
 use App\Services\FinanceTransactionService;
-use App\Exceptions\FinanceTransactionException;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\On;
+use Livewire\Component;
 
 class FinanceTransactionForm extends Component
 {
     public ?FinanceTransaction $transaction = null;
+
     public bool $isEditing = false;
 
     public $transaction_date;
+
     public $type = 'expense'; // Default to expense
+
     public $finance_category_id;
+
     public $amount;
+
     public $description;
+
     public $external_reference;
 
     public array $categoryOptions = [];
@@ -78,6 +85,7 @@ class FinanceTransactionForm extends Component
     {
         if ($transaction->reference_type) {
             $this->dispatch('toast', message: 'System transactions (Sales/Purchases) cannot be edited.', type: 'error');
+
             return;
         }
 
@@ -124,8 +132,8 @@ class FinanceTransactionForm extends Component
         } catch (FinanceTransactionException $e) {
             $this->dispatch('toast', message: $e->getMessage(), type: 'error');
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error($e);
-            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+            Log::error($e);
+            $this->dispatch('toast', message: 'Error: '.$e->getMessage(), type: 'error');
         }
     }
 

@@ -2,12 +2,12 @@
 
 namespace App\Services;
 
-use Exception;
-use App\Models\Category;
 use App\DTOs\CategoryData;
-use Illuminate\Support\Facades\DB;
 use App\Exceptions\CategoryException;
+use App\Models\Category;
+use Exception;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class CategoryService
 {
@@ -31,7 +31,7 @@ class CategoryService
             } catch (Exception $e) {
                 throw CategoryException::creationFailed($e->getMessage(), [
                     'data' => (array) $data,
-                    'trace' => $e->getTraceAsString()
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
         });
@@ -56,8 +56,8 @@ class CategoryService
 
             } catch (Exception $e) {
                 throw CategoryException::updateFailed($e->getMessage(), [
-                    'id'   => $category->id,
-                    'data' => (array) $data
+                    'id' => $category->id,
+                    'data' => (array) $data,
                 ]);
             }
         });
@@ -71,7 +71,7 @@ class CategoryService
         DB::transaction(function () use ($category) {
             try {
                 if ($category->products()->exists()) {
-                    throw new Exception("Cannot delete category because it is associated with products.");
+                    throw new Exception('Cannot delete category because it is associated with products.');
                 }
 
                 $category->delete();

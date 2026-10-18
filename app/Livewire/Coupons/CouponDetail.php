@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Coupons;
 
-use Livewire\Component;
 use App\Models\DiscountCoupon;
 use Livewire\Attributes\On;
+use Livewire\Component;
 
 class CouponDetail extends Component
 {

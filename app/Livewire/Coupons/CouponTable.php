@@ -2,24 +2,28 @@
 
 namespace App\Livewire\Coupons;
 
+use App\Exceptions\DiscountCouponException;
 use App\Models\DiscountCoupon;
 use App\Services\DiscountCouponService;
-use App\Exceptions\DiscountCouponException;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\On;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
-use PowerComponents\LivewirePowerGrid\PowerGridFields;
-use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
-use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
+use PowerComponents\LivewirePowerGrid\Facades\Filter;
+use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
+use PowerComponents\LivewirePowerGrid\PowerGridComponent;
+use PowerComponents\LivewirePowerGrid\PowerGridFields;
+use PowerComponents\LivewirePowerGrid\Traits\WithExport;
 
 final class CouponTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'coupon-table';
+
     public string $sortField = 'created_at';
+
     public string $sortDirection = 'desc';
 
     public function setUp(): array
@@ -27,7 +31,7 @@ final class CouponTable extends PowerGridComponent
         $this->showCheckBox();
 
         return [
-            PowerGrid::exportable('coupon_export_' . now()->format('Y_m_d'))
+            PowerGrid::exportable('coupon_export_'.now()->format('Y_m_d'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
 
             PowerGrid::header()
@@ -48,13 +52,22 @@ final class CouponTable extends PowerGridComponent
     {
         return PowerGrid::fields()
             ->add('id')
-            ->add('code')
-            ->add('type', fn(DiscountCoupon $model) => $model->type->label())
-            ->add('value', fn(DiscountCoupon $model) => $model->type->value === 'percentage'
-                ? $model->value . '%'
-                : format_money($model->value))
-            ->add('usage', fn(DiscountCoupon $model) => $model->used_count . ' / ' . ($model->usage_limit ?? '∞'))
-            ->add('expires_at_formatted', fn(DiscountCoupon $model) => $model->expires_at?->format('d M Y') ?? '-')
+            ->add('code', fn (DiscountCoupon $model) => '<span class="font-mono font-bold tracking-wide text-gray-900 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">'.e($model->code).'</span>')
+            ->add('type_badge', fn (DiscountCoupon $model) => $model->type->badgeHtml())
+            ->add('value_display', function (DiscountCoupon $model) {
+                if ($model->type->isPercentage()) {
+                    $capHtml = $model->max_discount_amount
+                        ? '<div class="text-[11px] text-gray-500 font-normal">Cap: '.format_money($model->max_discount_amount).'</div>'
+                        : '<div class="text-[11px] text-emerald-600 font-normal">No cap</div>';
+
+                    return '<div><span class="font-bold text-emerald-700">'.$model->value.'% OFF</span>'.$capHtml.'</div>';
+                }
+
+                return '<div><span class="font-bold text-blue-700">'.format_money($model->value).' Flat OFF</span><div class="text-[11px] text-gray-400 font-normal">Fixed amount</div></div>';
+            })
+            ->add('min_purchase_display', fn (DiscountCoupon $model) => $model->min_purchase_amount ? format_money($model->min_purchase_amount) : '<span class="text-gray-400">-</span>')
+            ->add('usage', fn (DiscountCoupon $model) => $model->used_count.' / '.($model->usage_limit ?? '∞'))
+            ->add('expires_at_formatted', fn (DiscountCoupon $model) => $model->expires_at?->format('d M Y') ?? '<span class="text-gray-400 font-medium">Never</span>')
             ->add('is_active_label', function (DiscountCoupon $model) {
                 return $model->is_active
                     ? '<div class="flex items-center justify-center text-green-500"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></div>'
@@ -74,13 +87,18 @@ final class CouponTable extends PowerGridComponent
                 ->sortable()
                 ->searchable(),
 
-            Column::make('Type', 'type'),
+            Column::make('Discount Mode', 'type_badge', 'type')
+                ->sortable(),
 
-            Column::make('Value', 'value'),
+            Column::make('Discount Value', 'value_display', 'value')
+                ->sortable(),
+
+            Column::make('Min Purchase', 'min_purchase_display', 'min_purchase_amount')
+                ->sortable(),
 
             Column::make('Usage', 'usage'),
 
-            Column::make('Expires', 'expires_at_formatted')
+            Column::make('Expires', 'expires_at_formatted', 'expires_at')
                 ->sortable(),
 
             Column::make('Active', 'is_active_label', 'is_active')
@@ -89,6 +107,19 @@ final class CouponTable extends PowerGridComponent
                 ->bodyAttribute('text-center'),
 
             Column::action('Action'),
+        ];
+    }
+
+    public function filters(): array
+    {
+        return [
+            Filter::select('type')
+                ->dataSource([
+                    ['name' => 'Percentage Discount (%)', 'value' => 'percentage'],
+                    ['name' => 'Flat / Fixed Amount', 'value' => 'fixed'],
+                ])
+                ->optionLabel('name')
+                ->optionValue('value'),
         ];
     }
 
@@ -121,7 +152,7 @@ final class CouponTable extends PowerGridComponent
         ];
     }
 
-    #[\Livewire\Attributes\On('delete')]
+    #[On('delete')]
     public function delete($rowId, DiscountCouponService $service): void
     {
         $coupon = DiscountCoupon::find($rowId);

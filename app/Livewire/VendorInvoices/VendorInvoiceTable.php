@@ -7,25 +7,27 @@ use App\Models\VendorInvoice;
 use Illuminate\Database\Eloquent\Builder;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
+use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
 use PowerComponents\LivewirePowerGrid\Facades\Filter;
 use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
 use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\PowerGridFields;
 use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
 
 final class VendorInvoiceTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'vendor-invoice-table';
+
     public string $sortField = 'created_at';
+
     public string $sortDirection = 'desc';
 
     public function setUp(): array
     {
         return [
-            PowerGrid::exportable('vendor_invoice_export_' . now()->format('Y_m_d'))
+            PowerGrid::exportable('vendor_invoice_export_'.now()->format('Y_m_d'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
             PowerGrid::header()->showSearchInput(),
             PowerGrid::footer()->showPerPage()->showRecordCount(),
@@ -44,19 +46,19 @@ final class VendorInvoiceTable extends PowerGridComponent
     {
         return PowerGrid::fields()
             ->add('id')
-            ->add('po_reference_link', fn(VendorInvoice $model) => $this->poReferenceLink($model))
-            ->add('invoice_number', fn(VendorInvoice $model) => $model->invoice_number ?: '<span class="italic text-gray-400">-</span>')
-            ->add('supplier_link', fn(VendorInvoice $model) => $this->supplierLink($model))
-            ->add('company_name', fn(VendorInvoice $model) => $model->company?->short_name ?: $model->company?->company_name ?: '-')
-            ->add('amount_formatted', fn(VendorInvoice $model) => format_money($model->amount))
-            ->add('vendor_additional_discount_formatted', fn(VendorInvoice $model) => $this->vendorDiscountLabel($model))
-            ->add('paid_amount_badge', fn(VendorInvoice $model) => $this->amountBadge(format_money($model->paid_amount), 'paid'))
-            ->add('due_amount_badge', fn(VendorInvoice $model) => $this->amountBadge(format_money(max(0, (int) $model->amount - (int) $model->paid_amount)), max(0, (int) $model->amount - (int) $model->paid_amount) > 0 ? 'due' : 'clear'))
-            ->add('status_badge', fn(VendorInvoice $model) => view('components.status-badge', ['status' => $model->status])->render())
-            ->add('document_link', fn(VendorInvoice $model) => $this->documentLink($model))
-            ->add('payment_method_formatted', fn(VendorInvoice $model) => $model->payment_method ? str($model->payment_method)->replace('_', ' ')->title() : '-')
-            ->add('payment_reference', fn(VendorInvoice $model) => $model->payment_reference ?: '-')
-            ->add('paid_at_formatted', fn(VendorInvoice $model) => $model->paid_at?->format('d/m/Y h:i a') ?: '-')
+            ->add('po_reference_link', fn (VendorInvoice $model) => $this->poReferenceLink($model))
+            ->add('invoice_number', fn (VendorInvoice $model) => $model->invoice_number ?: '<span class="italic text-gray-400">-</span>')
+            ->add('supplier_link', fn (VendorInvoice $model) => $this->supplierLink($model))
+            ->add('company_name', fn (VendorInvoice $model) => $model->company?->short_name ?: $model->company?->company_name ?: '-')
+            ->add('amount_formatted', fn (VendorInvoice $model) => format_money($model->amount))
+            ->add('vendor_additional_discount_formatted', fn (VendorInvoice $model) => $this->vendorDiscountLabel($model))
+            ->add('paid_amount_badge', fn (VendorInvoice $model) => $this->amountBadge(format_money($model->paid_amount), 'paid'))
+            ->add('due_amount_badge', fn (VendorInvoice $model) => $this->amountBadge(format_money(max(0, (int) $model->amount - (int) $model->paid_amount)), max(0, (int) $model->amount - (int) $model->paid_amount) > 0 ? 'due' : 'clear'))
+            ->add('status_badge', fn (VendorInvoice $model) => view('components.status-badge', ['status' => $model->status])->render())
+            ->add('document_link', fn (VendorInvoice $model) => $this->documentLink($model))
+            ->add('payment_method_formatted', fn (VendorInvoice $model) => $model->payment_method ? str($model->payment_method)->replace('_', ' ')->title() : '-')
+            ->add('payment_reference', fn (VendorInvoice $model) => $model->payment_reference ?: '-')
+            ->add('paid_at_formatted', fn (VendorInvoice $model) => $model->paid_at?->format('d/m/Y h:i a') ?: '-')
             ->add('created_at');
     }
 
@@ -80,7 +82,7 @@ final class VendorInvoiceTable extends PowerGridComponent
     {
         return [
             Filter::select('status', 'vendor_invoices.status')
-                ->dataSource(collect(VendorInvoiceStatus::cases())->map(fn($status) => [
+                ->dataSource(collect(VendorInvoiceStatus::cases())->map(fn ($status) => [
                     'value' => $status->value,
                     'label' => $status->label(),
                 ]))
@@ -166,7 +168,7 @@ final class VendorInvoiceTable extends PowerGridComponent
         $class = $discount > 0
             ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
             : 'border-red-200 bg-red-50 text-red-700';
-        $label = ($discount > 0 ? '+ ' : '') . format_money($discount);
+        $label = ($discount > 0 ? '+ ' : '').format_money($discount);
 
         return '<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold '.$class.'">'.e($label).'</span>';
     }

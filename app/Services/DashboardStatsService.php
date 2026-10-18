@@ -2,14 +2,14 @@
 
 namespace App\Services;
 
-use Carbon\Carbon;
-use App\Models\Sale;
-use App\Models\Product;
-use App\Models\SaleItem;
-use App\Enums\DatePeriod;
-use Illuminate\Support\Facades\DB;
 use App\Models\FinanceTransaction;
+use App\Models\Product;
+use App\Models\Sale;
+use App\Models\SaleItem;
+use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class DashboardStatsService
 {
@@ -33,9 +33,9 @@ class DashboardStatsService
             // COGS = Sum of (Sales Item Quantity * Recorded Cost Price)
             // Using `cost_price` from sale_items ensures we use the HPP at the time of sale.
             $cogs = SaleItem::whereHas('sale', function ($query) use ($startDate, $endDate) {
-                    $query->whereBetween('sale_date', [$startDate, $endDate])
-                          ->where('status', 'completed');
-                })
+                $query->whereBetween('sale_date', [$startDate, $endDate])
+                    ->where('status', 'completed');
+            })
                 ->sum(DB::raw('quantity * cost_price'));
 
             $grossProfit = $totalRevenue - $cogs;
@@ -112,13 +112,13 @@ class DashboardStatsService
      */
     public function getTopProducts(Carbon $startDate, Carbon $endDate, int $limit = 5): array
     {
-         $cacheKey = "dashboard_top_products_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
+        $cacheKey = "dashboard_top_products_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate, $limit) {
+        return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate, $limit) {
             return SaleItem::select('product_id', DB::raw('SUM(quantity) as total_qty'))
                 ->whereHas('sale', function ($query) use ($startDate, $endDate) {
                     $query->whereBetween('sale_date', [$startDate, $endDate])
-                          ->where('status', 'completed');
+                        ->where('status', 'completed');
                 })
                 ->with('product:id,name,sku')
                 ->groupBy('product_id')
@@ -126,14 +126,14 @@ class DashboardStatsService
                 ->limit($limit)
                 ->get()
                 ->map(function ($item) {
-                     return [
-                         'product_name' => $item->product->name,
-                         'sku' => $item->product->sku,
-                         'total_sold' => $item->total_qty
-                     ];
+                    return [
+                        'product_name' => $item->product->name,
+                        'sku' => $item->product->sku,
+                        'total_sold' => $item->total_qty,
+                    ];
                 })
                 ->toArray();
-         });
+        });
     }
 
     /**
@@ -155,9 +155,9 @@ class DashboardStatsService
      */
     public function getSalesTrend(Carbon $startDate, Carbon $endDate): array
     {
-         $cacheKey = "dashboard_sales_trend_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
+        $cacheKey = "dashboard_sales_trend_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
+        return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
             $data = Sale::selectRaw('DATE(sale_date) as date, SUM(total) as total')
                 ->whereBetween('sale_date', [$startDate, $endDate])
                 ->where('status', 'completed')
@@ -168,7 +168,7 @@ class DashboardStatsService
                 ->toArray();
 
             // Fill missing dates with 0
-            $period = \Carbon\CarbonPeriod::create($startDate, $endDate);
+            $period = CarbonPeriod::create($startDate, $endDate);
             $chartData = [];
 
             foreach ($period as $date) {
@@ -177,7 +177,7 @@ class DashboardStatsService
             }
 
             return $chartData;
-         });
+        });
     }
 
     /**
@@ -185,9 +185,9 @@ class DashboardStatsService
      */
     public function getCashFlowTrend(Carbon $startDate, Carbon $endDate): array
     {
-         $cacheKey = "dashboard_cashflow_trend_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
+        $cacheKey = "dashboard_cashflow_trend_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
+        return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
             // Optimize: Group by date and type at the database level instead of memory
             $transactions = FinanceTransaction::join('finance_categories', 'finance_transactions.finance_category_id', '=', 'finance_categories.id')
                 ->whereBetween('finance_transactions.transaction_date', [$startDate, $endDate])
@@ -202,7 +202,7 @@ class DashboardStatsService
             }
 
             // Fill missing dates
-            $period = \Carbon\CarbonPeriod::create($startDate, $endDate);
+            $period = CarbonPeriod::create($startDate, $endDate);
             $incomeData = [];
             $expenseData = [];
 
@@ -216,7 +216,7 @@ class DashboardStatsService
                 'income' => $incomeData,
                 'expense' => $expenseData,
             ];
-         });
+        });
     }
 
     /**
@@ -224,9 +224,9 @@ class DashboardStatsService
      */
     public function getTopCustomers(Carbon $startDate, Carbon $endDate, int $limit = 5): array
     {
-         $cacheKey = "dashboard_top_customers_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
+        $cacheKey = "dashboard_top_customers_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate, $limit) {
+        return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate, $limit) {
             return Sale::select('customer_id', DB::raw('SUM(total) as total_spent'))
                 ->whereBetween('sale_date', [$startDate, $endDate])
                 ->where('status', 'completed')
@@ -237,14 +237,14 @@ class DashboardStatsService
                 ->limit($limit)
                 ->get()
                 ->map(function ($item) {
-                     return [
-                         'customer_name' => $item->customer->name ?? 'Unknown',
-                         'phone' => format_indian_phone($item->customer->phone),
-                         'total_spent' => $item->total_spent
-                     ];
+                    return [
+                        'customer_name' => $item->customer->name ?? 'Unknown',
+                        'phone' => format_indian_phone($item->customer->phone),
+                        'total_spent' => $item->total_spent,
+                    ];
                 })
                 ->toArray();
-         });
+        });
     }
 
     /**
@@ -252,9 +252,9 @@ class DashboardStatsService
      */
     public function getExpenseBreakdown(Carbon $startDate, Carbon $endDate): array
     {
-         $cacheKey = "dashboard_expense_breakdown_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
+        $cacheKey = "dashboard_expense_breakdown_{$startDate->format('Ymd')}_{$endDate->format('Ymd')}";
 
-         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
+        return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
             return FinanceTransaction::select('finance_category_id', DB::raw('SUM(amount) as total_amount'))
                 ->whereBetween('transaction_date', [$startDate, $endDate])
                 ->whereHas('category', function ($query) {
@@ -265,12 +265,12 @@ class DashboardStatsService
                 ->orderByDesc('total_amount')
                 ->get()
                 ->map(function ($item) {
-                     return [
-                         'category_name' => $item->category->name ?? 'Uncategorized',
-                         'total_amount' => $item->total_amount
-                     ];
+                    return [
+                        'category_name' => $item->category->name ?? 'Uncategorized',
+                        'total_amount' => $item->total_amount,
+                    ];
                 })
                 ->toArray();
-         });
+        });
     }
 }

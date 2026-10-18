@@ -25,8 +25,8 @@ class ProductData
         return new self(
             category_id: (int) $data['category_id'],
             unit_id: (int) $data['unit_id'],
-            company_id: !empty($data['company_id']) ? (int) $data['company_id'] : null,
-            sku: !empty($data['sku']) ? $data['sku'] : null,
+            company_id: ! empty($data['company_id']) ? (int) $data['company_id'] : null,
+            sku: ! empty($data['sku']) ? $data['sku'] : null,
             name: $data['name'],
             mrp: (int) ($data['mrp'] ?? 0),
             purchase_price: (int) ($data['purchase_price'] ?? $data['mrp'] ?? 0),

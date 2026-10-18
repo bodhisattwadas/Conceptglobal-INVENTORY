@@ -2,14 +2,14 @@
 
 namespace App\Services;
 
-use Exception;
-use App\Models\Product;
-use Illuminate\Support\Str;
 use App\DTOs\ProductData;
 use App\Exceptions\ProductException;
-use Illuminate\Support\Facades\DB;
+use App\Models\Product;
+use Exception;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ProductService
 {
@@ -52,7 +52,7 @@ class ProductService
             } catch (Exception $e) {
                 throw ProductException::creationFailed($e->getMessage(), [
                     'data' => (array) $data,
-                    'trace' => $e->getTraceAsString()
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
         });
@@ -106,8 +106,8 @@ class ProductService
 
             } catch (Exception $e) {
                 throw ProductException::updateFailed($e->getMessage(), [
-                    'id'   => $product->id,
-                    'data' => (array) $data
+                    'id' => $product->id,
+                    'data' => (array) $data,
                 ]);
             }
         });
@@ -143,10 +143,10 @@ class ProductService
      */
     private function generateUniqueSku(): string
     {
-        $prefix = 'P.' . date('ymd') . '.';
+        $prefix = 'P.'.date('ymd').'.';
 
         do {
-            $sku = $prefix . strtoupper(Str::random(4));
+            $sku = $prefix.strtoupper(Str::random(4));
         } while (Product::where('sku', $sku)->exists());
 
         return $sku;

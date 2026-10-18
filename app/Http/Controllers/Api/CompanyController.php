@@ -34,7 +34,7 @@ class CompanyController extends Controller
         return response()->json($companies->map(fn (Company $company) => [
             'value' => $company->id,
             'id' => $company->id,
-            'text' => "{$company->company_code} : " . ($company->short_name ?: $company->company_name),
+            'text' => "{$company->company_code} : ".($company->short_name ?: $company->company_name),
         ]));
     }
 }

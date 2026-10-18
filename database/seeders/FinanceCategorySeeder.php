@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Enums\FinanceCategoryType;
+use App\Models\FinanceCategory;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
-use App\Models\FinanceCategory;
-use App\Enums\FinanceCategoryType;
 
 class FinanceCategorySeeder extends Seeder
 {

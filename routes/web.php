@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\FinanceCategoryController;
 use App\Http\Controllers\Api\ProductController;
@@ -9,9 +10,9 @@ use App\Http\Controllers\Api\UnitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FinanceReportController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ProductController as ProductReportController;
-use App\Http\Controllers\FinanceReportController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\SalesController;
 use App\Http\Controllers\SupplierProfileController;
@@ -158,7 +159,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('suppliers', [SupplierController::class, 'search'])->middleware('role:admin,manager')->name('suppliers.search');
         Route::post('companies', [App\Http\Controllers\Api\CompanyController::class, 'search'])->middleware('role:admin,manager')->name('companies.search');
         Route::post('customers', [CustomerController::class, 'search'])->middleware('role:admin,sales')->name('customers.search');
+        Route::post('customers/by-phone', [CustomerController::class, 'byPhone'])->middleware('role:admin,sales')->name('customers.by-phone');
         Route::post('customers/store', [CustomerController::class, 'store'])->middleware('role:admin,sales')->name('customers.store');
+        Route::post('coupons/apply', [CouponController::class, 'apply'])->middleware('role:admin,sales')->name('coupons.apply');
         Route::post('categories', [CategoryController::class, 'search'])->middleware('role:admin,manager')->name('categories.search');
         Route::post('units', [UnitController::class, 'search'])->middleware('role:admin,manager')->name('units.search');
         Route::post('users', [UserController::class, 'search'])->middleware('role:admin,manager')->name('users.search');

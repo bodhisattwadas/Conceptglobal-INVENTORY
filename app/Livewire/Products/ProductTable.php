@@ -2,25 +2,27 @@
 
 namespace App\Livewire\Products;
 
+use App\Exceptions\ProductException;
 use App\Models\Product;
 use App\Services\ProductService;
-use App\Exceptions\ProductException;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\On;
 use PowerComponents\LivewirePowerGrid\Column;
-use PowerComponents\LivewirePowerGrid\Facades\Filter;
-use PowerComponents\LivewirePowerGrid\PowerGridFields;
-use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
-use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
-
+use PowerComponents\LivewirePowerGrid\Facades\Filter;
+use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
+use PowerComponents\LivewirePowerGrid\PowerGridComponent;
+use PowerComponents\LivewirePowerGrid\PowerGridFields;
+use PowerComponents\LivewirePowerGrid\Traits\WithExport;
 
 final class ProductTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'product-table';
+
     public string $sortField = 'products.created_at';
+
     public string $sortDirection = 'desc';
 
     public function boot(): void
@@ -33,7 +35,7 @@ final class ProductTable extends PowerGridComponent
         $this->showCheckBox();
 
         return [
-            PowerGrid::exportable('product_export_' . now()->format('Y_m_d_His'))
+            PowerGrid::exportable('product_export_'.now()->format('Y_m_d_His'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
 
             PowerGrid::header()
@@ -76,7 +78,7 @@ final class ProductTable extends PowerGridComponent
     {
         return PowerGrid::fields()
             ->add('id')
-            ->add('action_buttons', fn(Product $model) => $this->actionButtons($model))
+            ->add('action_buttons', fn (Product $model) => $this->actionButtons($model))
             ->add('sku')
             ->add('image_path')
             ->add('image_preview', function (Product $model) {
@@ -84,27 +86,27 @@ final class ProductTable extends PowerGridComponent
                     return '<div class="h-10 w-10 rounded-md border border-gray-200 bg-gray-50 flex items-center justify-center text-xs text-gray-400">-</div>';
                 }
 
-                return '<img src="' . e($model->image_url) . '" alt="' . e($model->name) . '" class="h-10 w-10 rounded-md border border-gray-200 object-cover">';
+                return '<img src="'.e($model->image_url).'" alt="'.e($model->name).'" class="h-10 w-10 rounded-md border border-gray-200 object-cover">';
             })
             ->add('name')
             ->add('name_formatted', function (Product $model) {
-                return $model->is_active ? $model->name : '(DISCONTINUE) ' . $model->name;
+                return $model->is_active ? $model->name : '(DISCONTINUE) '.$model->name;
             })
             ->add('description')
-            ->add('brand_name', fn(Product $model) => $model->company_short_name ?: ($model->company_name ?: '-'))
-            ->add('category_slug', fn(Product $model) => $model->category_slug ?: '-')
-            ->add('category_name', fn(Product $model) => $model->category_name ?: '-')
-            ->add('unit_symbol', fn(Product $model) => $model->unit_symbol ?: '-')
-            ->add('mrp_formatted', fn(Product $model) => format_money($model->mrp))
+            ->add('brand_name', fn (Product $model) => $model->company_short_name ?: ($model->company_name ?: '-'))
+            ->add('category_slug', fn (Product $model) => $model->category_slug ?: '-')
+            ->add('category_name', fn (Product $model) => $model->category_name ?: '-')
+            ->add('unit_symbol', fn (Product $model) => $model->unit_symbol ?: '-')
+            ->add('mrp_formatted', fn (Product $model) => format_money($model->mrp))
             ->add('min_stock')
-            ->add('is_active_label', function(Product $model) {
+            ->add('is_active_label', function (Product $model) {
                 return $model->is_active
                     ? '<div class="flex items-center justify-center text-green-500"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></div>'
                     : '<div class="flex items-center justify-center text-red-500"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></div>';
             })
-            ->add('is_active_export', fn(Product $model) => $model->is_active ? 'true' : 'false')
+            ->add('is_active_export', fn (Product $model) => $model->is_active ? 'true' : 'false')
             ->add('created_at')
-            ->add('created_at_formatted', fn(Product $model) => $model->created_at->format('d/m/Y H:i'));
+            ->add('created_at_formatted', fn (Product $model) => $model->created_at->format('d/m/Y H:i'));
     }
 
     public function columns(): array
@@ -233,7 +235,7 @@ final class ProductTable extends PowerGridComponent
         HTML;
     }
 
-    #[\Livewire\Attributes\On('delete')]
+    #[On('delete')]
     public function delete($rowId, ProductService $service): void
     {
         $product = Product::find($rowId);
@@ -245,7 +247,7 @@ final class ProductTable extends PowerGridComponent
             } catch (\Exception $e) {
                 $message = $e instanceof ProductException
                     ? $e->getMessage()
-                    : 'Failed to delete product: ' . $e->getMessage();
+                    : 'Failed to delete product: '.$e->getMessage();
 
                 $this->dispatch('toast', message: $message, type: 'error');
             }

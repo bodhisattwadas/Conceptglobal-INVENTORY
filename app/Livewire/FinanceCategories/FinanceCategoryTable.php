@@ -2,27 +2,30 @@
 
 namespace App\Livewire\FinanceCategories;
 
-use Illuminate\Support\Str;
-use App\Models\FinanceCategory;
 use App\Enums\FinanceCategoryType;
+use App\Exceptions\FinanceCategoryException;
+use App\Models\FinanceCategory;
 use App\Services\FinanceCategoryService;
 use Illuminate\Database\Eloquent\Builder;
-use App\Exceptions\FinanceCategoryException;
+use Illuminate\Support\Str;
+use Livewire\Attributes\On;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
-use PowerComponents\LivewirePowerGrid\Facades\Filter;
-use PowerComponents\LivewirePowerGrid\PowerGridFields;
-use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
-use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
+use PowerComponents\LivewirePowerGrid\Facades\Filter;
+use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
+use PowerComponents\LivewirePowerGrid\PowerGridComponent;
+use PowerComponents\LivewirePowerGrid\PowerGridFields;
+use PowerComponents\LivewirePowerGrid\Traits\WithExport;
 
 final class FinanceCategoryTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'finance-category-table';
+
     public string $sortField = 'created_at';
+
     public string $sortDirection = 'desc';
 
     public function boot(): void
@@ -35,7 +38,7 @@ final class FinanceCategoryTable extends PowerGridComponent
         $this->showCheckBox();
 
         return [
-            PowerGrid::exportable('finance_category_export_' . now()->format('Y_m_d'))
+            PowerGrid::exportable('finance_category_export_'.now()->format('Y_m_d'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
 
             PowerGrid::header()
@@ -58,11 +61,11 @@ final class FinanceCategoryTable extends PowerGridComponent
             ->add('id')
             ->add('name')
             ->add('slug')
-            ->add('type', fn(FinanceCategory $model) => $model->type->value)
+            ->add('type', fn (FinanceCategory $model) => $model->type->value)
             ->add('type_badge', function (FinanceCategory $model) {
                 return view('components.status-badge', ['status' => $model->type])->render();
             })
-            ->add('description', fn(FinanceCategory $model) => Str::limit($model->description, 50))
+            ->add('description', fn (FinanceCategory $model) => Str::limit($model->description, 50))
             ->add('created_at');
     }
 
@@ -97,7 +100,7 @@ final class FinanceCategoryTable extends PowerGridComponent
     {
         return [
             Filter::select('type', 'type')
-                ->dataSource(collect(FinanceCategoryType::cases())->map(fn($type) => [
+                ->dataSource(collect(FinanceCategoryType::cases())->map(fn ($type) => [
                     'value' => $type->value,
                     'label' => $type->label(),
                 ])->toArray())
@@ -119,7 +122,7 @@ final class FinanceCategoryTable extends PowerGridComponent
         // Protect System Categories
         $systemCategories = ['Product Sales', 'Product Purchases'];
 
-        if (!in_array($row->name, $systemCategories)) {
+        if (! in_array($row->name, $systemCategories)) {
             $actions[] = Button::add('edit')
                 ->slot('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>')
                 ->class('bg-amber-500 hover:bg-amber-600 text-white p-2 rounded-md flex items-center justify-center')
@@ -142,7 +145,7 @@ final class FinanceCategoryTable extends PowerGridComponent
         return $actions;
     }
 
-    #[\Livewire\Attributes\On('delete')]
+    #[On('delete')]
     public function delete($rowId, FinanceCategoryService $service): void
     {
         $category = FinanceCategory::find($rowId);
@@ -151,6 +154,7 @@ final class FinanceCategoryTable extends PowerGridComponent
             // Protect System Categories
             if (in_array($category->name, ['Product Sales', 'Product Purchases'])) {
                 $this->dispatch('toast', ['message' => 'System categories cannot be deleted.', 'type' => 'error']);
+
                 return;
             }
 
@@ -160,7 +164,7 @@ final class FinanceCategoryTable extends PowerGridComponent
             } catch (\Exception $e) {
                 $message = $e instanceof FinanceCategoryException
                     ? $e->getMessage()
-                    : 'Failed to delete category: ' . $e->getMessage();
+                    : 'Failed to delete category: '.$e->getMessage();
 
                 $this->dispatch('toast', ['message' => $message, 'type' => 'error']);
             }

@@ -2,20 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Enums\FinanceCategoryType;
 use App\Models\FinanceTransaction;
 use App\Models\Setting;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use App\Enums\FinanceCategoryType;
+use Illuminate\Support\Facades\Cache;
 
 class FinanceReportController extends Controller
 {
     public function print(Request $request, string $printId)
     {
         // Retrieve selected IDs from Cache
-        $selectedIds = \Illuminate\Support\Facades\Cache::get("finance_print_{$printId}");
+        $selectedIds = Cache::get("finance_print_{$printId}");
 
-        if (!$selectedIds) {
+        if (! $selectedIds) {
             abort(404, 'Print session expired or invalid. Please select transactions and try again.');
         }
 
@@ -27,7 +28,7 @@ class FinanceReportController extends Controller
             ->get();
 
         if ($cashFlows->isEmpty()) {
-             abort(404, 'No transactions found');
+            abort(404, 'No transactions found');
         }
 
         // Calculate Totals within the selection
@@ -55,11 +56,11 @@ class FinanceReportController extends Controller
         }
 
         $prevIncome = (clone $prevQuery)
-            ->whereHas('category', fn($q) => $q->where('type', FinanceCategoryType::Income))
+            ->whereHas('category', fn ($q) => $q->where('type', FinanceCategoryType::Income))
             ->sum('amount');
 
         $prevExpense = (clone $prevQuery)
-            ->whereHas('category', fn($q) => $q->where('type', FinanceCategoryType::Expense))
+            ->whereHas('category', fn ($q) => $q->where('type', FinanceCategoryType::Expense))
             ->sum('amount');
 
         $openingBalanceAmount = $settingOpeningBalance + $prevIncome - $prevExpense;
@@ -81,22 +82,22 @@ class FinanceReportController extends Controller
             $now = Carbon::now();
             switch ($periodKey) {
                 case 'today':
-                    $periodText = 'Today (' . $now->format('d F Y') . ')';
+                    $periodText = 'Today ('.$now->format('d F Y').')';
                     break;
                 case 'yesterday':
-                    $periodText = 'Yesterday (' . $now->subDay()->format('d F Y') . ')';
+                    $periodText = 'Yesterday ('.$now->subDay()->format('d F Y').')';
                     break;
                 case 'this_week':
-                    $periodText = 'This Week (' . $now->startOfWeek()->format('d M') . ' - ' . $now->endOfWeek()->format('d M Y') . ')';
+                    $periodText = 'This Week ('.$now->startOfWeek()->format('d M').' - '.$now->endOfWeek()->format('d M Y').')';
                     break;
                 case 'last_week':
-                    $periodText = 'Last Week (' . $now->subWeek()->startOfWeek()->format('d M') . ' - ' . $now->subWeek()->endOfWeek()->format('d M Y') . ')';
+                    $periodText = 'Last Week ('.$now->subWeek()->startOfWeek()->format('d M').' - '.$now->subWeek()->endOfWeek()->format('d M Y').')';
                     break;
                 case 'this_month':
-                    $periodText = 'This Month (' . $now->format('F Y') . ')';
+                    $periodText = 'This Month ('.$now->format('F Y').')';
                     break;
                 case 'last_month':
-                    $periodText = 'Last Month (' . $now->subMonth()->format('F Y') . ')';
+                    $periodText = 'Last Month ('.$now->subMonth()->format('F Y').')';
                     break;
             }
         }
@@ -109,7 +110,7 @@ class FinanceReportController extends Controller
             if ($start->isSameDay($end)) {
                 $periodText = $start->format('d F Y');
             } else {
-                $periodText = $start->format('d M Y') . ' - ' . $end->format('d M Y');
+                $periodText = $start->format('d M Y').' - '.$end->format('d M Y');
             }
         }
 

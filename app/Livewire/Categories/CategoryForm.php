@@ -2,18 +2,19 @@
 
 namespace App\Livewire\Categories;
 
-use Livewire\Component;
-use App\Models\Category;
 use App\DTOs\CategoryData;
-use Illuminate\Support\Str;
-use Livewire\Attributes\On;
-use Illuminate\Validation\Rule;
-use App\Services\CategoryService;
 use App\Exceptions\CategoryException;
+use App\Models\Category;
+use App\Services\CategoryService;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\On;
+use Livewire\Component;
 
 class CategoryForm extends Component
 {
     public bool $isEditing = false;
+
     public ?Category $category = null;
 
     public string $name = '';

@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use Exception;
-use App\Models\Customer;
 use App\DTOs\CustomerData;
-use Illuminate\Support\Facades\DB;
 use App\Exceptions\CustomerException;
+use App\Models\Customer;
+use Exception;
+use Illuminate\Support\Facades\DB;
 
 class CustomerService
 {

@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -19,7 +20,7 @@ return new class extends Migration
             ->get(['id', 'updated_at'])
             ->each(function (object $item): void {
                 $date = $item->updated_at
-                    ? \Illuminate\Support\Carbon::parse($item->updated_at)
+                    ? Carbon::parse($item->updated_at)
                     : now();
                 $prefix = 'BN-'.$date->format('Ymd').'-';
                 $lastBatchNumber = DB::table('purchase_items')

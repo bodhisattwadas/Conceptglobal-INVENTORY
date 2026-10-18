@@ -2,30 +2,38 @@
 
 namespace App\Livewire\Dashboard;
 
+use App\Enums\DatePeriod;
 use App\Models\Product;
+use App\Services\DashboardStatsService;
 use Carbon\Carbon;
 use Livewire\Component;
-use App\Enums\DatePeriod;
 use Livewire\WithPagination;
-use App\Services\DashboardStatsService;
 
 class Dashboard extends Component
 {
     use WithPagination;
 
     public string $dateFilter = DatePeriod::TODAY->value;
+
     public ?string $customStartDate = null;
+
     public ?string $customEndDate = null;
 
     public array $stats = [];
+
     public int $lowStockCount = 0;
+
     public array $recentSales = [];
+
     public array $topProducts = [];
+
     public array $topCustomers = [];
 
     // Charts Data
     public array $salesChart = [];
+
     public array $cashFlowChart = [];
+
     public array $expenseChart = [];
 
     public function mount(DashboardStatsService $service)
@@ -65,7 +73,6 @@ class Dashboard extends Component
 
         // 2. Cash Flow Stats
         $cashFlowStats = $service->getCashFlowStats($startDate, $endDate, $this->dateFilter);
-
 
         $this->stats = [
             'total_sales' => $salesStats['total_revenue'],
@@ -115,7 +122,7 @@ class Dashboard extends Component
     {
         $now = Carbon::now();
 
-        return match(DatePeriod::tryFrom($this->dateFilter)) {
+        return match (DatePeriod::tryFrom($this->dateFilter)) {
             DatePeriod::TODAY => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
             DatePeriod::YESTERDAY => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
             DatePeriod::THIS_WEEK => [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()],
@@ -123,7 +130,7 @@ class Dashboard extends Component
             DatePeriod::LAST_MONTH => [$now->copy()->subMonth()->startOfMonth(), $now->copy()->subMonth()->endOfMonth()],
             DatePeriod::CUSTOM => [
                 Carbon::parse($this->customStartDate ?: $now->copy()->startOfMonth())->startOfDay(),
-                Carbon::parse($this->customEndDate ?: $now)->endOfDay()
+                Carbon::parse($this->customEndDate ?: $now)->endOfDay(),
             ],
             default => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
         };

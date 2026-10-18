@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use App\Models\Product;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Cache;
 
 class ProductController extends Controller
@@ -15,7 +15,7 @@ class ProductController extends Controller
         $companyId = $request->integer('company_id');
         $forPurchase = $request->boolean('for_purchase');
 
-        $cacheKey = 'products_search_' . md5(json_encode([$query, $companyId, $forPurchase]));
+        $cacheKey = 'products_search_'.md5(json_encode([$query, $companyId, $forPurchase]));
 
         $products = Cache::remember($cacheKey, 300, function () use ($query, $companyId, $forPurchase) {
             return Product::query()
@@ -46,7 +46,7 @@ class ProductController extends Controller
                         'quantity' => $product->inventoryStock?->quantity ?? 0,
                         'unit' => $product->unit ? [
                             'symbol' => $product->unit->symbol,
-                            'name' => $product->unit->name
+                            'name' => $product->unit->name,
                         ] : null,
                     ];
                 });

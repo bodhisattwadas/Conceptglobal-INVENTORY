@@ -2,12 +2,12 @@
 
 namespace App\Livewire\Customers;
 
-use Exception;
-use Livewire\Component;
-use App\Models\Customer;
 use App\DTOs\CustomerData;
-use Livewire\Attributes\On;
+use App\Models\Customer;
 use App\Services\CustomerService;
+use Exception;
+use Livewire\Attributes\On;
+use Livewire\Component;
 
 class CustomerForm extends Component
 {
@@ -29,7 +29,7 @@ class CustomerForm extends Component
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255', 'unique:customers,email,' . ($this->customer?->id)],
+            'email' => ['nullable', 'email', 'max:255', 'unique:customers,email,'.($this->customer?->id)],
             'phone' => ['nullable', 'string', 'max:20', 'regex:/^\s*(?:\+91|91|0)?[\s-]*[6-9]\d{4}[\s-]*\d{5}\s*$/'],
             'address' => ['nullable', 'string', 'max:1000'],
             'notes' => ['nullable', 'string', 'max:1000'],
@@ -86,7 +86,7 @@ class CustomerForm extends Component
             $this->reset();
 
         } catch (Exception $e) {
-            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('toast', message: 'Error: '.$e->getMessage(), type: 'error');
         }
     }
 }

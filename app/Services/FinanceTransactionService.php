@@ -2,16 +2,16 @@
 
 namespace App\Services;
 
-use App\Models\Sale;
-use App\Models\Purchase;
-use Illuminate\Support\Str;
-use App\Models\FinanceCategory;
-use App\Enums\FinanceCategoryType;
-use App\Models\FinanceTransaction;
-use Illuminate\Support\Facades\DB;
 use App\DTOs\FinanceTransactionData;
-use Illuminate\Support\Facades\Auth;
+use App\Enums\FinanceCategoryType;
 use App\Exceptions\FinanceTransactionException;
+use App\Models\FinanceCategory;
+use App\Models\FinanceTransaction;
+use App\Models\Purchase;
+use App\Models\Sale;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class FinanceTransactionService
 {
@@ -32,7 +32,7 @@ class FinanceTransactionService
                 'transaction_date' => $sale->sale_date,
                 'finance_category_id' => $category->id,
                 'amount' => $sale->total,
-                'description' => 'Sale Inv: ' . $sale->invoice_number . ' - ' . ($sale->customer->name ?? 'Guest'),
+                'description' => 'Sale Inv: '.$sale->invoice_number.' - '.($sale->customer->name ?? 'Guest'),
                 'external_reference' => $sale->invoice_number,
                 'created_by' => $sale->created_by ?? Auth::id() ?? 1,
             ]
@@ -56,7 +56,7 @@ class FinanceTransactionService
                 'transaction_date' => $purchase->purchase_date,
                 'finance_category_id' => $category->id,
                 'amount' => $purchase->total,
-                'description' => 'Purchase PO: ' . $purchase->invoice_number . ' - ' . ($purchase->supplier->name ?? 'Unknown'),
+                'description' => 'Purchase PO: '.$purchase->invoice_number.' - '.($purchase->supplier->name ?? 'Unknown'),
                 'external_reference' => $purchase->invoice_number,
                 'created_by' => $purchase->created_by ?? Auth::id() ?? 1,
             ]
@@ -91,7 +91,7 @@ class FinanceTransactionService
                 ]);
             });
         } catch (\Exception $e) {
-            throw new FinanceTransactionException('Failed to create transaction: ' . $e->getMessage());
+            throw new FinanceTransactionException('Failed to create transaction: '.$e->getMessage());
         }
     }
 
@@ -113,10 +113,11 @@ class FinanceTransactionService
                     'description' => $data->description,
                     'external_reference' => $data->external_reference,
                 ]);
+
                 return $transaction;
             });
         } catch (\Exception $e) {
-            throw new FinanceTransactionException('Failed to update transaction: ' . $e->getMessage());
+            throw new FinanceTransactionException('Failed to update transaction: '.$e->getMessage());
         }
     }
 
@@ -136,7 +137,7 @@ class FinanceTransactionService
         try {
             $transaction->delete();
         } catch (\Exception $e) {
-            throw new FinanceTransactionException('Failed to delete transaction: ' . $e->getMessage());
+            throw new FinanceTransactionException('Failed to delete transaction: '.$e->getMessage());
         }
     }
 
@@ -153,6 +154,6 @@ class FinanceTransactionService
 
     private function generateTransactionCode(string $prefix = 'TRX'): string
     {
-        return $prefix . '.' . now()->format('ymd') . '.' . strtoupper(Str::random(4));
+        return $prefix.'.'.now()->format('ymd').'.'.strtoupper(Str::random(4));
     }
 }

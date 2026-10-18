@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\FinanceTransaction;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -176,6 +177,167 @@ class SalesWorkflowTest extends TestCase
         $this->assertSame(SaleStatus::COMPLETED, $sale->refresh()->status);
         $this->assertSame('89.60', $sale->cash_received);
         $this->assertSame('0.00', $sale->change);
+    }
+
+    public function test_sale_can_be_created_with_upi_payment(): void
+    {
+        $user = User::factory()->create();
+        $category = Category::create(['name' => 'Skin', 'slug' => 'skin']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc']);
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 100,
+            'selling_price' => 150,
+            'quantity' => 10,
+        ]);
+        $this->receiveStock($product, $user);
+
+        $response = $this->actingAs($user)->postJson(route('sales.store'), [
+            'sale_date' => now()->toDateString(),
+            'payment_method' => PaymentMethod::UPI->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 150],
+            ],
+        ]);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('sales', [
+            'payment_method' => 'upi',
+            'status' => 'completed',
+            'total' => 300,
+            'cash_received' => 300,
+            'change' => 0,
+        ]);
+    }
+
+    public function test_sale_can_be_created_with_card_payment(): void
+    {
+        $user = User::factory()->create();
+        $category = Category::create(['name' => 'Hair', 'slug' => 'hair']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc']);
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 200,
+            'selling_price' => 250,
+            'quantity' => 10,
+        ]);
+        $this->receiveStock($product, $user);
+
+        $response = $this->actingAs($user)->postJson(route('sales.store'), [
+            'sale_date' => now()->toDateString(),
+            'payment_method' => PaymentMethod::CARD->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 250],
+            ],
+        ]);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('sales', [
+            'payment_method' => 'card',
+            'status' => 'completed',
+            'total' => 250,
+            'cash_received' => 250,
+            'change' => 0,
+        ]);
+    }
+
+    public function test_customer_lookup_by_phone_finds_existing_customer(): void
+    {
+        $user = User::factory()->create();
+        $customer = Customer::create([
+            'name' => 'Asha Sharma',
+            'phone' => '+91 98765 43210',
+            'address' => '12 Park Street, Kolkata',
+            'email' => 'asha@example.com',
+        ]);
+
+        // Exact match / formatted
+        $response1 = $this->actingAs($user)->postJson(route('ajax.customers.by-phone'), [
+            'phone' => '+91 98765 43210',
+        ]);
+        $response1->assertOk()
+            ->assertJson([
+                'found' => true,
+                'customer' => [
+                    'id' => $customer->id,
+                    'name' => 'Asha Sharma',
+                    'address' => '12 Park Street, Kolkata',
+                    'email' => 'asha@example.com',
+                ],
+            ]);
+
+        // Unformatted raw 10 digits
+        $response2 = $this->actingAs($user)->postJson(route('ajax.customers.by-phone'), [
+            'phone' => '9876543210',
+        ]);
+        $response2->assertOk()
+            ->assertJson([
+                'found' => true,
+                'customer' => [
+                    'id' => $customer->id,
+                    'name' => 'Asha Sharma',
+                ],
+            ]);
+    }
+
+    public function test_customer_lookup_by_phone_returns_not_found_for_unregistered_phone(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson(route('ajax.customers.by-phone'), [
+            'phone' => '9999900000',
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'found' => false,
+                'customer' => null,
+            ]);
+    }
+
+    public function test_sale_can_be_created_with_custom_sale_date(): void
+    {
+        $user = User::factory()->create();
+        $category = Category::create(['name' => 'General', 'slug' => 'general']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc']);
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 50,
+            'selling_price' => 100,
+            'quantity' => 5,
+        ]);
+        $this->receiveStock($product, $user);
+
+        $customDate = '2026-05-15';
+
+        $response = $this->actingAs($user)->postJson(route('sales.store'), [
+            'sale_date' => $customDate,
+            'payment_method' => PaymentMethod::CASH->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'cash_received' => 100,
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100],
+            ],
+        ]);
+
+        $response->assertCreated();
+
+        $sale = Sale::latest('id')->first();
+        $this->assertNotNull($sale);
+        $this->assertSame($customDate, $sale->sale_date->toDateString());
+
+        $transaction = FinanceTransaction::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->first();
+
+        $this->assertNotNull($transaction);
+        $this->assertSame($customDate, $transaction->transaction_date->toDateString());
     }
 
     private function receiveStock(Product $product, User $user): void

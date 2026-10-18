@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Categories;
 
-use Livewire\Component;
 use App\Models\Category;
 use Livewire\Attributes\On;
+use Livewire\Component;
 
 class CategoryDetail extends Component
 {

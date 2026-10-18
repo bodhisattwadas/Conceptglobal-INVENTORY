@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Cache;
 
 class UserController extends Controller
@@ -12,7 +12,7 @@ class UserController extends Controller
     public function search(Request $request)
     {
         $query = $request->input('q') ?? $request->input('search');
-        $cacheKey = 'users_search_' . md5((string) $query);
+        $cacheKey = 'users_search_'.md5((string) $query);
 
         $users = Cache::remember($cacheKey, 300, function () use ($query) {
             return User::query()

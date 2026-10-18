@@ -2,27 +2,30 @@
 
 namespace App\Livewire\Purchases;
 
-use Carbon\Carbon;
-use App\Models\Purchase;
 use App\Enums\PurchaseStatus;
-use App\Services\PurchaseService;
 use App\Exceptions\PurchaseException;
+use App\Models\Purchase;
+use App\Services\PurchaseService;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\On;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
-use PowerComponents\LivewirePowerGrid\Facades\Filter;
-use PowerComponents\LivewirePowerGrid\PowerGridFields;
-use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
-use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
+use PowerComponents\LivewirePowerGrid\Facades\Filter;
+use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
+use PowerComponents\LivewirePowerGrid\PowerGridComponent;
+use PowerComponents\LivewirePowerGrid\PowerGridFields;
+use PowerComponents\LivewirePowerGrid\Traits\WithExport;
 
 final class PurchaseTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'purchase-table';
+
     public string $sortField = 'created_at';
+
     public string $sortDirection = 'desc';
 
     public function boot(): void
@@ -35,8 +38,9 @@ final class PurchaseTable extends PowerGridComponent
         $this->showCheckBox();
 
         return [
-            PowerGrid::exportable('purchase_export_' . now()->format('Y_m_d'))
-                ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
+            PowerGrid::exportable('purchase_export_'.now()->format('Y_m_d'))
+                ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV)
+                ->stripTags(true),
 
             PowerGrid::header()
                 ->showSearchInput(),
@@ -57,18 +61,19 @@ final class PurchaseTable extends PowerGridComponent
     {
         return PowerGrid::fields()
             ->add('id')
-            ->add('invoice_number', fn(Purchase $model) => $model->invoice_number ?: '<span class="italic text-gray-400">-</span>')
-            ->add('supplier_name', fn(Purchase $model) => $model->supplier ? $model->supplier->name : '-')
-            ->add('supplier_link', fn(Purchase $model) => $this->supplierLink($model))
-            ->add('company_name', fn(Purchase $model) => $model->company ? ($model->company->short_name ?: $model->company->company_name) : '-')
-            ->add('company_link', fn(Purchase $model) => $this->companyLink($model))
-            ->add('purchase_date_formatted', fn(Purchase $model) => Carbon::parse($model->purchase_date)->format('d/m/Y'))
-            ->add('total_formatted', fn(Purchase $model) => format_money((float) $model->total))
-            ->add('status_badge', function(Purchase $model) {
+            ->add('invoice_number', fn (Purchase $model) => $model->invoice_number ?: '-')
+            ->add('supplier_name', fn (Purchase $model) => $model->supplier ? $model->supplier->name : '-')
+            ->add('supplier_link', fn (Purchase $model) => $this->supplierLink($model))
+            ->add('company_name', fn (Purchase $model) => $model->company ? ($model->company->short_name ?: $model->company->company_name) : '-')
+            ->add('company_link', fn (Purchase $model) => $this->companyLink($model))
+            ->add('purchase_date_formatted', fn (Purchase $model) => Carbon::parse($model->purchase_date)->format('d/m/Y'))
+            ->add('total_formatted', fn (Purchase $model) => format_money((float) $model->total))
+            ->add('status_badge', function (Purchase $model) {
                 return view('components.status-badge', ['status' => $model->status])->render();
             })
-            ->add('date_period', fn() => '') // Virtual field for filter
-            ->add('creator_name', fn(Purchase $model) => $model->creator ? $model->creator->name : '-')
+            ->add('status_label', fn (Purchase $model) => $model->status instanceof PurchaseStatus ? $model->status->label() : ($model->status ? ucfirst((string) $model->status) : '-'))
+            ->add('date_period', fn () => '') // Virtual field for filter
+            ->add('creator_name', fn (Purchase $model) => $model->creator ? $model->creator->name : '-')
             ->add('created_at');
     }
 
@@ -85,17 +90,28 @@ final class PurchaseTable extends PowerGridComponent
 
             Column::make('Supplier / Vendor', 'supplier_link', 'supplier_id')
                 ->searchable()
-                ->sortable(),
+                ->sortable()
+                ->visibleInExport(false),
+
+            Column::make('Supplier / Vendor', 'supplier_name', 'supplier_id')
+                ->hidden()
+                ->visibleInExport(true),
 
             Column::make('Brand / Company', 'company_link', 'company_id')
                 ->searchable()
-                ->sortable(),
+                ->sortable()
+                ->visibleInExport(false),
+
+            Column::make('Brand / Company', 'company_name', 'company_id')
+                ->hidden()
+                ->visibleInExport(true),
 
             Column::make('PO Date', 'purchase_date_formatted', 'purchase_date')
                 ->sortable(),
 
             Column::make('Period', 'date_period')
-                ->hidden(),
+                ->hidden()
+                ->visibleInExport(false),
 
             Column::make('Total', 'total_formatted', 'total')
                 ->sortable()
@@ -105,7 +121,12 @@ final class PurchaseTable extends PowerGridComponent
             Column::make('Status', 'status_badge', 'status')
                 ->sortable()
                 ->headerAttribute('text-center')
-                ->bodyAttribute('text-center'),
+                ->bodyAttribute('text-center')
+                ->visibleInExport(false),
+
+            Column::make('Status', 'status_label', 'status')
+                ->hidden()
+                ->visibleInExport(true),
 
             Column::make('Created By', 'creator_name', 'created_by')
                 ->sortable(),
@@ -171,7 +192,7 @@ final class PurchaseTable extends PowerGridComponent
                 ->optionLabel('text'),
 
             Filter::multiSelect('status', 'status')
-                ->dataSource(collect(PurchaseStatus::cases())->map(fn($status) => [
+                ->dataSource(collect(PurchaseStatus::cases())->map(fn ($status) => [
                     'value' => $status->value,
                     'label' => $status->label(),
                 ]))
@@ -268,7 +289,7 @@ final class PurchaseTable extends PowerGridComponent
         return $actions;
     }
 
-    #[\Livewire\Attributes\On('delete')]
+    #[On('delete')]
     public function delete($rowId, PurchaseService $purchaseService): void
     {
         $purchase = Purchase::find($rowId);

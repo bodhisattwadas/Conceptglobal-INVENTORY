@@ -2,27 +2,30 @@
 
 namespace App\Livewire\Sales;
 
-use Carbon\Carbon;
-use App\Models\Sale;
 use App\Enums\SaleStatus;
-use App\Services\SaleService;
 use App\Exceptions\SaleException;
+use App\Models\Sale;
+use App\Services\SaleService;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\On;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
-use PowerComponents\LivewirePowerGrid\Facades\Filter;
-use PowerComponents\LivewirePowerGrid\PowerGridFields;
-use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
-use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
+use PowerComponents\LivewirePowerGrid\Facades\Filter;
+use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
+use PowerComponents\LivewirePowerGrid\PowerGridComponent;
+use PowerComponents\LivewirePowerGrid\PowerGridFields;
+use PowerComponents\LivewirePowerGrid\Traits\WithExport;
 
 final class SalesTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'sales-table';
+
     public string $sortField = 'created_at';
+
     public string $sortDirection = 'desc';
 
     public function boot(): void
@@ -35,7 +38,7 @@ final class SalesTable extends PowerGridComponent
         $this->showCheckBox();
 
         return [
-            PowerGrid::exportable('sales_export_' . now()->format('Y_m_d'))
+            PowerGrid::exportable('sales_export_'.now()->format('Y_m_d'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
 
             PowerGrid::header()
@@ -57,15 +60,15 @@ final class SalesTable extends PowerGridComponent
     {
         return PowerGrid::fields()
             ->add('id')
-            ->add('invoice_number', fn(Sale $model) => $model->invoice_number ?: '-')
-            ->add('customer_name', fn(Sale $model) => $model->customer ? $model->customer->name : 'Guest')
-            ->add('sale_date_formatted', fn(Sale $model) => Carbon::parse($model->sale_date)->format('d/m/Y'))
-            ->add('total_formatted', fn(Sale $model) => format_money($model->total))
-            ->add('status_badge', function(Sale $model) {
+            ->add('invoice_number', fn (Sale $model) => $model->invoice_number ?: '-')
+            ->add('customer_name', fn (Sale $model) => $model->customer ? $model->customer->name : 'Guest')
+            ->add('sale_date_formatted', fn (Sale $model) => Carbon::parse($model->sale_date)->format('d/m/Y'))
+            ->add('total_formatted', fn (Sale $model) => format_money($model->total))
+            ->add('status_badge', function (Sale $model) {
                 return view('components.status-badge', ['status' => $model->status])->render();
             })
-            ->add('date_period', fn() => '')
-            ->add('creator_name', fn(Sale $model) => $model->creator ? $model->creator->name : '-')
+            ->add('date_period', fn () => '')
+            ->add('creator_name', fn (Sale $model) => $model->creator ? $model->creator->name : '-')
             ->add('created_at');
     }
 
@@ -123,7 +126,7 @@ final class SalesTable extends PowerGridComponent
                 ->optionLabel('text'),
 
             Filter::multiSelect('status', 'status')
-                ->dataSource(collect(SaleStatus::cases())->map(fn($status) => [
+                ->dataSource(collect(SaleStatus::cases())->map(fn ($status) => [
                     'value' => $status->value,
                     'label' => $status->label(),
                 ])->toArray())
@@ -208,11 +211,11 @@ final class SalesTable extends PowerGridComponent
                     'description' => "Are you sure you want to PERMANENTLY DELETE invoice '{$row->invoice_number}'? This action cannot be undone.",
                 ])
                 ->tooltip('Delete Sale')
-                ->can(fn($row) => $row->status === SaleStatus::CANCELLED),
+                ->can(fn ($row) => $row->status === SaleStatus::CANCELLED),
         ];
     }
 
-    #[\Livewire\Attributes\On('delete')]
+    #[On('delete')]
     public function delete($rowId, SaleService $saleService): void
     {
         $sale = Sale::find($rowId);
@@ -221,9 +224,9 @@ final class SalesTable extends PowerGridComponent
                 $saleService->deleteSale($sale);
                 $this->dispatch('toast', message: 'Sale deleted successfully.', type: 'success');
             } catch (SaleException $e) {
-                $this->dispatch('toast', message: 'Delete failed: ' . $e->getMessage(), type: 'error');
+                $this->dispatch('toast', message: 'Delete failed: '.$e->getMessage(), type: 'error');
             } catch (\Exception $e) {
-                $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+                $this->dispatch('toast', message: 'Error: '.$e->getMessage(), type: 'error');
             }
         }
     }

@@ -164,7 +164,13 @@
                                 @endif
                                 @if($sale->global_discount > 0)
                                     <tr>
-                                        <td colspan="7" class="px-6 py-4 text-right text-red-600">Global Discount (Transaction)</td>
+                                        <td colspan="7" class="px-6 py-4 text-right text-red-600">
+                                            @if($sale->coupon_code)
+                                                Coupon Discount ({{ $sale->coupon_code }})
+                                            @else
+                                                Global Discount (Transaction)
+                                            @endif
+                                        </td>
                                         <td class="px-6 py-4 text-right text-red-600">
                                             - @money($sale->global_discount)
                                         </td>

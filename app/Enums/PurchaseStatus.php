@@ -12,7 +12,7 @@ enum PurchaseStatus: string
 
     public function label(): string
     {
-        return match($this) {
+        return match ($this) {
             self::DRAFT => 'Draft',
             self::ORDERED => 'Ordered',
             self::RECEIVED => 'Received',
@@ -23,7 +23,7 @@ enum PurchaseStatus: string
 
     public function color(): string
     {
-        return match($this) {
+        return match ($this) {
             self::DRAFT => 'text-gray-600 bg-gray-50 border-gray-200',
             self::ORDERED => 'text-sky-700 bg-sky-50 border-sky-200',
             self::RECEIVED => 'text-green-700 bg-green-50 border-green-200',

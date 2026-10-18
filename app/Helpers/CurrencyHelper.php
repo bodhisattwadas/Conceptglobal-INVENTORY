@@ -2,11 +2,11 @@
 
 use App\Models\Setting;
 
-if (!function_exists('format_money')) {
+if (! function_exists('format_money')) {
     /**
      * Format a number into currency based on application settings.
      *
-     * @param float|int $amount
+     * @param  float|int  $amount
      * @return string
      */
     function format_money($amount)
@@ -17,7 +17,7 @@ if (!function_exists('format_money')) {
         $fractions = (int) Setting::get('currency_fraction_digits', 2);
         $thousand = ',';
         $decimal = '.';
-        
+
         $formattedAmount = number_format((float) $amount, $fractions, $decimal, $thousand);
 
         if ($position === 'left') {
@@ -33,7 +33,7 @@ if (!function_exists('format_money')) {
     }
 }
 
-if (!function_exists('format_indian_phone')) {
+if (! function_exists('format_indian_phone')) {
     function format_indian_phone(?string $phone): string
     {
         if (blank($phone)) {
@@ -59,7 +59,7 @@ if (!function_exists('format_indian_phone')) {
     }
 }
 
-if (!function_exists('normalize_indian_phone')) {
+if (! function_exists('normalize_indian_phone')) {
     function normalize_indian_phone(?string $phone): ?string
     {
         if (blank($phone)) {
@@ -72,7 +72,7 @@ if (!function_exists('normalize_indian_phone')) {
     }
 }
 
-if (!function_exists('public_storage_url')) {
+if (! function_exists('public_storage_url')) {
     function public_storage_url(?string $path): ?string
     {
         if (blank($path)) {

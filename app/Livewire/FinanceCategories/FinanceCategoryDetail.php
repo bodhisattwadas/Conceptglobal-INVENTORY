@@ -2,9 +2,9 @@
 
 namespace App\Livewire\FinanceCategories;
 
-use Livewire\Component;
 use App\Models\FinanceCategory;
 use Livewire\Attributes\On;
+use Livewire\Component;
 
 class FinanceCategoryDetail extends Component
 {

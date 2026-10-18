@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
-use App\Enums\SaleStatus;
 use App\Enums\PaymentMethod;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Enums\SaleStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Sale extends Model
 {
@@ -27,6 +27,8 @@ class Sale extends Model
         'change',
         'payment_method',
         'notes',
+        'discount_coupon_id',
+        'coupon_code',
     ];
 
     protected $casts = [
@@ -54,5 +56,10 @@ class Sale extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function coupon(): BelongsTo
+    {
+        return $this->belongsTo(DiscountCoupon::class, 'discount_coupon_id');
     }
 }

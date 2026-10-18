@@ -2,12 +2,12 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Sale;
-use App\Models\Purchase;
-use App\Enums\SaleStatus;
 use App\Enums\PurchaseStatus;
-use Illuminate\Console\Command;
+use App\Enums\SaleStatus;
+use App\Models\Purchase;
+use App\Models\Sale;
 use App\Services\FinanceTransactionService;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 class SyncFinanceTransactions extends Command
@@ -51,7 +51,7 @@ class SyncFinanceTransactions extends Command
                 try {
                     $this->financeService->recordIncomeFromSale($sale);
                 } catch (\Exception $e) {
-                    $this->error("Failed to sync Sale ID {$sale->id}: " . $e->getMessage());
+                    $this->error("Failed to sync Sale ID {$sale->id}: ".$e->getMessage());
                     throw $e; // Stop transaction
                 }
                 $bar->advance();
@@ -61,7 +61,7 @@ class SyncFinanceTransactions extends Command
                 try {
                     $this->financeService->recordExpenseFromPurchase($purchase);
                 } catch (\Exception $e) {
-                    $this->error("Failed to sync Purchase ID {$purchase->id}: " . $e->getMessage());
+                    $this->error("Failed to sync Purchase ID {$purchase->id}: ".$e->getMessage());
                     throw $e;
                 }
                 $bar->advance();

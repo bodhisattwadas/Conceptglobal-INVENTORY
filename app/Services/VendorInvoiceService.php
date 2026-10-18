@@ -15,8 +15,7 @@ class VendorInvoiceService
         ?string $documentPath,
         ?string $orderReceivedDate = null,
         float $vendorAdditionalDiscount = 0
-    ): VendorInvoice
-    {
+    ): VendorInvoice {
         $receivedTotal = $purchase->items->sum(function ($item) {
             return ((int) ($item->received_quantity ?? $item->quantity)) * ((float) $item->unit_price);
         });

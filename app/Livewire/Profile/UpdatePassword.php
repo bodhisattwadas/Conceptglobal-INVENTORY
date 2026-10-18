@@ -4,13 +4,15 @@ namespace App\Livewire\Profile;
 
 use App\Models\User;
 use App\Services\ProfileService;
-use Livewire\Component;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Component;
 
 class UpdatePassword extends Component
 {
     public string $current_password = '';
+
     public string $password = '';
+
     public string $password_confirmation = '';
 
     public function rules(): array

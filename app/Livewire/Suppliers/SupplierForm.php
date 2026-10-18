@@ -2,15 +2,15 @@
 
 namespace App\Livewire\Suppliers;
 
-use Exception;
-use Livewire\Component;
+use App\DTOs\SupplierData;
 use App\Models\Company;
 use App\Models\Supplier;
-use App\DTOs\SupplierData;
-use Livewire\Attributes\On;
-use Livewire\WithFileUploads;
 use App\Services\SupplierService;
+use Exception;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\On;
+use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class SupplierForm extends Component
 {
@@ -19,49 +19,81 @@ class SupplierForm extends Component
     public ?Supplier $supplier = null;
 
     public string $name = '';
+
     public string $legal_name = '';
+
     public string $trade_name = '';
+
     public string $supplier_type = '';
+
     public string $registration_number = '';
+
     public string $tax_id = '';
+
     public string $website = '';
+
     public string $industry = '';
 
     public string $contact_person = '';
 
     public string $email = '';
+
     public string $accounts_email = '';
+
     public string $purchase_email = '';
 
     public string $phone = '';
+
     public string $alternate_phone = '';
 
     public string $address = '';
+
     public string $address_line_1 = '';
+
     public string $address_line_2 = '';
+
     public string $city = '';
+
     public string $state = '';
+
     public string $postal_code = '';
+
     public string $country = '';
+
     public string $bank_name = '';
+
     public string $bank_branch = '';
+
     public string $account_name = '';
+
     public string $account_number = '';
+
     public string $account_type = '';
+
     public string $ifsc_code = '';
+
     public string $swift_bic = '';
+
     public string $beneficiary_name = '';
+
     public string $bank_country = '';
+
     public string $status = 'active';
+
     public array $company_ids = [];
+
     public $blank_cheque = null;
+
     public $gst_document = null;
+
     public ?string $current_blank_cheque_path = null;
+
     public ?string $current_gst_document_path = null;
 
     public string $notes = '';
 
     public bool $isEditing = false;
+
     public bool $asPage = false;
 
     public function mount(bool $asPage = false, ?Supplier $supplier = null): void
@@ -85,7 +117,7 @@ class SupplierForm extends Component
             'website' => ['nullable', 'string', 'max:255'],
             'industry' => ['nullable', 'string', 'max:100'],
             'contact_person' => ['nullable', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255', 'unique:suppliers,email,' . ($this->supplier?->id)],
+            'email' => ['nullable', 'email', 'max:255', 'unique:suppliers,email,'.($this->supplier?->id)],
             'accounts_email' => ['nullable', 'email', 'max:255'],
             'purchase_email' => ['nullable', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
@@ -222,7 +254,7 @@ class SupplierForm extends Component
             if ($gstDocumentPath !== $this->current_gst_document_path) {
                 Storage::disk('public')->delete($gstDocumentPath);
             }
-            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('toast', message: 'Error: '.$e->getMessage(), type: 'error');
         }
     }
 

@@ -13,7 +13,7 @@ enum DatePeriod: string
 
     public function label(): string
     {
-        return match($this) {
+        return match ($this) {
             self::TODAY => 'Today',
             self::YESTERDAY => 'Yesterday',
             self::THIS_WEEK => 'This Week',

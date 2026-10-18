@@ -2,11 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Crypt;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Supplier>
+ * @extends Factory<Supplier>
  */
 class SupplierFactory extends Factory
 {
@@ -25,7 +26,7 @@ class SupplierFactory extends Factory
 
         return [
             'name' => $companyName,
-            'legal_name' => $companyName . ' Pvt Ltd',
+            'legal_name' => $companyName.' Pvt Ltd',
             'trade_name' => fake()->optional(0.7)->company(),
             'supplier_type' => fake()->randomElement(['Distributor', 'Manufacturer', 'Wholesaler', 'Importer']),
             'registration_number' => strtoupper(fake()->bothify('REG-####-???')),
@@ -46,7 +47,7 @@ class SupplierFactory extends Factory
             'postal_code' => fake()->postcode(),
             'country' => $country,
             'bank_name' => fake()->randomElement(['HDFC Bank', 'ICICI Bank', 'State Bank of India', 'Axis Bank', 'Kotak Mahindra Bank']),
-            'bank_branch' => $city . ' Main Branch',
+            'bank_branch' => $city.' Main Branch',
             'account_name' => $companyName,
             'account_number_encrypted' => Crypt::encryptString($accountNumber),
             'account_number_last4' => substr($accountNumber, -4),

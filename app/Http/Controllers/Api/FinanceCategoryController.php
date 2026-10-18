@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use App\Models\FinanceCategory;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Cache;
 
 class FinanceCategoryController extends Controller
@@ -12,7 +12,7 @@ class FinanceCategoryController extends Controller
     public function search(Request $request)
     {
         $query = $request->input('q') ?? $request->input('search');
-        $cacheKey = 'finance_categories_search_' . md5((string) $query);
+        $cacheKey = 'finance_categories_search_'.md5((string) $query);
 
         $categories = Cache::remember($cacheKey, 300, function () use ($query) {
             return FinanceCategory::query()
@@ -24,7 +24,7 @@ class FinanceCategoryController extends Controller
                 ->map(function ($category) {
                     return [
                         'value' => $category->id,
-                        'text' => $category->name . ' (' . ucfirst($category->type->value) . ')',
+                        'text' => $category->name.' ('.ucfirst($category->type->value).')',
                         'name' => $category->name,
                     ];
                 });

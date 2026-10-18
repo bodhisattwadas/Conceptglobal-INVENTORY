@@ -2,13 +2,14 @@
 
 namespace Database\Factories;
 
-use App\Models\Unit;
 use App\Models\Category;
 use App\Models\Company;
+use App\Models\Product;
+use App\Models\Unit;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Product>
+ * @extends Factory<Product>
  */
 class ProductFactory extends Factory
 {
@@ -25,10 +26,10 @@ class ProductFactory extends Factory
         $mrp = fake()->numberBetween(10000, 1000000);
 
         return [
-            'category_id' => !empty($categories) ? fake()->randomElement($categories) : Category::factory(),
-            'unit_id' => !empty($units) ? fake()->randomElement($units) : Unit::factory(),
-            'company_id' => !empty($companies) ? fake()->randomElement($companies) : null,
-            'sku' => 'P.' . date('ymd') . '.' . strtoupper(fake()->unique()->lexify('????')),
+            'category_id' => ! empty($categories) ? fake()->randomElement($categories) : Category::factory(),
+            'unit_id' => ! empty($units) ? fake()->randomElement($units) : Unit::factory(),
+            'company_id' => ! empty($companies) ? fake()->randomElement($companies) : null,
+            'sku' => 'P.'.date('ymd').'.'.strtoupper(fake()->unique()->lexify('????')),
             'name' => fake()->words(3, true),
             'description' => fake()->sentence(),
             'mrp' => $mrp,

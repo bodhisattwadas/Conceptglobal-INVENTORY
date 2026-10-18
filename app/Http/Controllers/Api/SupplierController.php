@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Cache;
 
 class SupplierController extends Controller
@@ -12,7 +12,7 @@ class SupplierController extends Controller
     public function search(Request $request)
     {
         $query = $request->input('q');
-        $cacheKey = 'suppliers_search_' . md5($query);
+        $cacheKey = 'suppliers_search_'.md5($query);
 
         $suppliers = Cache::remember($cacheKey, 300, function () use ($query) {
             return Supplier::query()
@@ -25,7 +25,7 @@ class SupplierController extends Controller
                 ->map(function ($supplier) {
                     return [
                         'value' => $supplier->id,
-                        'text' => $supplier->name . ($supplier->phone ? ' | ' . format_indian_phone($supplier->phone) : ''),
+                        'text' => $supplier->name.($supplier->phone ? ' | '.format_indian_phone($supplier->phone) : ''),
                     ];
                 });
         });

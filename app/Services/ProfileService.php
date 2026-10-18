@@ -3,20 +3,19 @@
 namespace App\Services;
 
 use App\Models\User;
+use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Exception;
 
 class ProfileService
 {
     /**
      * Update user profile information.
      *
-     * @param User $user
-     * @param array{name: string, email: string} $data
-     * @return User
+     * @param  array{name: string, email: string}  $data
+     *
      * @throws Exception
      */
     public function updateProfile(User $user, array $data): User
@@ -62,7 +61,7 @@ class ProfileService
                 return $user;
 
             } catch (Exception $e) {
-                Log::error("Failed to update profile for user {$user->id}: " . $e->getMessage());
+                Log::error("Failed to update profile for user {$user->id}: ".$e->getMessage());
                 throw $e;
             }
         });
@@ -71,17 +70,13 @@ class ProfileService
     /**
      * Update user password.
      *
-     * @param User $user
-     * @param string $currentPassword
-     * @param string $newPassword
-     * @return void
      * @throws Exception
      */
     public function updatePassword(User $user, string $currentPassword, string $newPassword): void
     {
         DB::transaction(function () use ($user, $currentPassword, $newPassword) {
             try {
-                if (!Hash::check($currentPassword, $user->password)) {
+                if (! Hash::check($currentPassword, $user->password)) {
                     throw new Exception('The provided current password does not match your password.');
                 }
 
@@ -92,7 +87,7 @@ class ProfileService
                 Log::info("User password updated: {$user->id}");
 
             } catch (Exception $e) {
-                Log::error("Failed to update password for user {$user->id}: " . $e->getMessage());
+                Log::error("Failed to update password for user {$user->id}: ".$e->getMessage());
                 throw $e;
             }
         });

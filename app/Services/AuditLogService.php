@@ -45,6 +45,6 @@ class AuditLogService
     {
         $digits = preg_replace('/\D+/', '', $value);
 
-        return 'XXXX' . substr($digits, -4);
+        return 'XXXX'.substr($digits, -4);
     }
 }

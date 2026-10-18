@@ -2,25 +2,28 @@
 
 namespace App\Livewire\Customers;
 
-use Carbon\Carbon;
+use App\Exceptions\CustomerException;
 use App\Models\Customer;
 use App\Services\CustomerService;
-use App\Exceptions\CustomerException;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\On;
 use PowerComponents\LivewirePowerGrid\Button;
 use PowerComponents\LivewirePowerGrid\Column;
-use PowerComponents\LivewirePowerGrid\PowerGridFields;
-use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
-use PowerComponents\LivewirePowerGrid\Traits\WithExport;
-use PowerComponents\LivewirePowerGrid\PowerGridComponent;
 use PowerComponents\LivewirePowerGrid\Components\SetUp\Exportable;
+use PowerComponents\LivewirePowerGrid\Facades\PowerGrid;
+use PowerComponents\LivewirePowerGrid\PowerGridComponent;
+use PowerComponents\LivewirePowerGrid\PowerGridFields;
+use PowerComponents\LivewirePowerGrid\Traits\WithExport;
 
 final class CustomerTable extends PowerGridComponent
 {
     use WithExport;
 
     public string $tableName = 'customer-table';
+
     public string $sortField = 'created_at';
+
     public string $sortDirection = 'desc';
 
     public function setUp(): array
@@ -28,7 +31,7 @@ final class CustomerTable extends PowerGridComponent
         $this->showCheckBox();
 
         return [
-            PowerGrid::exportable('customer_export_' . now()->format('Y_m_d'))
+            PowerGrid::exportable('customer_export_'.now()->format('Y_m_d'))
                 ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
 
             PowerGrid::header()
@@ -52,11 +55,11 @@ final class CustomerTable extends PowerGridComponent
             ->add('name')
             ->add('email')
             ->add('phone')
-            ->add('phone_formatted', fn(Customer $model) => format_indian_phone($model->phone))
+            ->add('phone_formatted', fn (Customer $model) => format_indian_phone($model->phone))
             ->add('address')
             ->add('notes')
             ->add('created_at')
-            ->add('created_at_formatted', fn(Customer $model) => Carbon::parse($model->created_at)->format('Y-m-d'));
+            ->add('created_at_formatted', fn (Customer $model) => Carbon::parse($model->created_at)->format('Y-m-d'));
     }
 
     public function columns(): array
@@ -120,7 +123,7 @@ final class CustomerTable extends PowerGridComponent
         ];
     }
 
-    #[\Livewire\Attributes\On('delete')]
+    #[On('delete')]
     public function delete($rowId, CustomerService $customerService): void
     {
         $customer = Customer::find($rowId);
@@ -133,7 +136,7 @@ final class CustomerTable extends PowerGridComponent
                 // Ensure we catch our custom exception or fallback to general exception
                 $message = $e instanceof CustomerException
                     ? $e->getMessage()
-                    : 'Failed to delete customer: ' . $e->getMessage();
+                    : 'Failed to delete customer: '.$e->getMessage();
 
                 $this->dispatch('toast', message: $message, type: 'error');
             }

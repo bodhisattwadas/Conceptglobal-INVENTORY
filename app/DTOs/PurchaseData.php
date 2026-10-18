@@ -22,19 +22,19 @@ class PurchaseData
     public static function fromArray(array $data): self
     {
         $items = array_map(
-            fn(array $item) => PurchaseItemData::fromArray($item),
+            fn (array $item) => PurchaseItemData::fromArray($item),
             $data['items'] ?? []
         );
 
         return new self(
             supplier_id: (int) $data['supplier_id'],
-            company_id: !empty($data['company_id']) ? (int) $data['company_id'] : null,
+            company_id: ! empty($data['company_id']) ? (int) $data['company_id'] : null,
             purchase_date: Carbon::parse($data['purchase_date']),
             items: $items,
-            invoice_number: !empty($data['invoice_number']) ? $data['invoice_number'] : null,
-            due_date: !empty($data['due_date']) ? Carbon::parse($data['due_date']) : null,
-            notes: !empty($data['notes']) ? $data['notes'] : null,
-            proof_image: !empty($data['proof_image']) ? $data['proof_image'] : null,
+            invoice_number: ! empty($data['invoice_number']) ? $data['invoice_number'] : null,
+            due_date: ! empty($data['due_date']) ? Carbon::parse($data['due_date']) : null,
+            notes: ! empty($data['notes']) ? $data['notes'] : null,
+            proof_image: ! empty($data['proof_image']) ? $data['proof_image'] : null,
             status: isset($data['status']) ? PurchaseStatus::from($data['status']) : PurchaseStatus::DRAFT,
         );
     }
@@ -45,7 +45,7 @@ class PurchaseData
             'supplier_id' => $this->supplier_id,
             'company_id' => $this->company_id,
             'purchase_date' => $this->purchase_date->toDateTimeString(),
-            'items' => array_map(fn($item) => $item->toArray(), $this->items),
+            'items' => array_map(fn ($item) => $item->toArray(), $this->items),
             'invoice_number' => $this->invoice_number,
             'due_date' => $this->due_date?->toDateTimeString(),
             'notes' => $this->notes,

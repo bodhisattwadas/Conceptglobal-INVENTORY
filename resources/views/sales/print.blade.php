@@ -331,7 +331,7 @@
                 </div>
                 @if($sale->global_discount > 0)
                 <div class="amount-row">
-                    <span class="amount-label">Extra Discount</span>
+                    <span class="amount-label">{{ $sale->coupon_code ? 'Coupon (' . $sale->coupon_code . ')' : 'Extra Discount' }}</span>
                     <span class="amount-value">- @money($sale->global_discount)</span>
                 </div>
                 @endif
