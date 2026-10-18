@@ -12,6 +12,7 @@ use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use ReflectionClass;
 use Tests\TestCase;
 
@@ -105,5 +106,62 @@ class InventoryWorkflowTest extends TestCase
         $this->assertStringContainsString('whitespace-nowrap', $html);
         $this->assertStringContainsString('10', $html);
         $this->assertStringContainsString(format_money(450), $html);
+    }
+
+    public function test_inventory_table_and_print_exclude_items_with_zero_count(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $category = Category::create([
+            'name' => 'General',
+            'slug' => 'general',
+        ]);
+        $unit = Unit::create([
+            'name' => 'Piece',
+            'symbol' => 'pc',
+        ]);
+
+        $productInStock = Product::factory()->create([
+            'name' => 'Available Item',
+            'sku' => 'SKU-IN-STOCK',
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'quantity' => 15,
+        ]);
+        InventoryStock::create([
+            'product_id' => $productInStock->id,
+            'quantity' => 15,
+        ]);
+
+        $productZero = Product::factory()->create([
+            'name' => 'Out Of Stock Item',
+            'sku' => 'SKU-ZERO-COUNT',
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'quantity' => 0,
+        ]);
+        InventoryStock::create([
+            'product_id' => $productZero->id,
+            'quantity' => 0,
+        ]);
+
+        // 1. Datasource query check
+        $table = new InventoryTable;
+        $stocks = $table->datasource()->get();
+
+        $this->assertTrue($stocks->contains('sku', 'SKU-IN-STOCK'));
+        $this->assertFalse($stocks->contains('sku', 'SKU-ZERO-COUNT'));
+
+        // 2. Livewire component rendering check
+        Livewire::actingAs($admin)
+            ->test(InventoryTable::class)
+            ->assertSee('SKU-IN-STOCK')
+            ->assertSee('Available Item')
+            ->assertDontSee('SKU-ZERO-COUNT')
+            ->assertDontSee('Out Of Stock Item');
+
+        // 3. Print report check
+        $printResponse = $this->actingAs($admin)->get(route('inventory.print'));
+        $printResponse->assertOk();
     }
 }

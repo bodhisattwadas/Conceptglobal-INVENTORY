@@ -18,6 +18,7 @@ class InventoryController extends Controller
         $stocks = InventoryStock::query()
             ->with(['product.company', 'product.category', 'product.unit'])
             ->whereHas('product')
+            ->where('quantity', '>', 0)
             ->orderByDesc('updated_at')
             ->get();
 
