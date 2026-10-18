@@ -140,12 +140,16 @@ final class InventoryTable extends PowerGridComponent
             'border-lime-300 bg-lime-50 text-lime-800',
         ];
 
-        $html = '<div class="flex max-w-80 flex-wrap justify-center gap-1">';
+        $html = '<div class="flex flex-col items-center gap-1 max-w-xs mx-auto">';
 
         foreach ($batches as $index => $batch) {
             $label = ($batch->batch_number ?: 'Batch').' : '.(int) $batch->received_quantity.' @ '.format_money($batch->unit_price);
             $class = $colors[$index % count($colors)];
-            $html .= '<span class="inline-grid w-64 shrink-0 grid-cols-[8.75rem_2.25rem_5rem] items-center rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold leading-tight '.$class.'" title="'.e($label).'"><span class="truncate pr-2 text-left">'.e($batch->batch_number ?: 'Batch').'</span><span class="border-l border-current/25 px-2 text-center">'.e((string) (int) $batch->received_quantity).'</span><span class="border-l border-current/25 pl-2 text-right">'.e(format_money($batch->unit_price)).'</span></span>';
+            $html .= '<span class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-[10px] font-bold leading-tight shadow-xs '.$class.'" title="'.e($label).'">'
+                .'<span class="truncate pr-2 text-left max-w-36" style="max-width: 8.5rem;" title="'.e($batch->batch_number ?: 'Batch').'">'.e($batch->batch_number ?: 'Batch').'</span>'
+                .'<span class="shrink-0 border-l border-current/25 px-2 text-center">'.e((string) (int) $batch->received_quantity).'</span>'
+                .'<span class="shrink-0 border-l border-current/25 pl-2 text-right whitespace-nowrap">'.e(format_money($batch->unit_price)).'</span>'
+                .'</span>';
         }
 
         $html .= '</div>';
