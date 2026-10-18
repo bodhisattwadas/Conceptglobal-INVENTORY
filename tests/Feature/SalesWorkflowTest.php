@@ -340,6 +340,93 @@ class SalesWorkflowTest extends TestCase
         $this->assertSame($customDate, $transaction->transaction_date->toDateString());
     }
 
+    public function test_user_can_update_sale_date_and_sync_finance_transaction(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+        $category = Category::create(['name' => 'General', 'slug' => 'general']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc']);
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 50,
+            'selling_price' => 100,
+            'quantity' => 5,
+        ]);
+        $this->receiveStock($product, $user);
+
+        // Create completed sale
+        $this->actingAs($user)->postJson(route('sales.store'), [
+            'sale_date' => '2026-05-15',
+            'payment_method' => PaymentMethod::CASH->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'cash_received' => 100,
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100],
+            ],
+        ]);
+
+        $sale = Sale::latest('id')->first();
+        $this->assertNotNull($sale);
+        $this->assertSame('2026-05-15', $sale->sale_date->toDateString());
+
+        // Update date to 2026-07-20
+        $newDate = '2026-07-20';
+        $response = $this->actingAs($user)->patch(route('sales.update-date', $sale), [
+            'sale_date' => $newDate,
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+
+        $sale->refresh();
+        $this->assertSame($newDate, $sale->sale_date->toDateString());
+
+        $transaction = FinanceTransaction::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->first();
+
+        $this->assertNotNull($transaction);
+        $this->assertSame($newDate, $transaction->transaction_date->toDateString());
+    }
+
+    public function test_sale_date_update_validation_rejects_empty_or_invalid_date(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+        $sale = $this->pendingSale($user, total: 200);
+
+        $response = $this->actingAs($user)->patch(route('sales.update-date', $sale), [
+            'sale_date' => '',
+        ]);
+
+        $response->assertSessionHasErrors('sale_date');
+
+        $response2 = $this->actingAs($user)->patch(route('sales.update-date', $sale), [
+            'sale_date' => 'not-a-valid-date',
+        ]);
+
+        $response2->assertSessionHasErrors('sale_date');
+    }
+
+    public function test_user_can_update_sale_date_via_json(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+        $sale = $this->pendingSale($user, total: 300);
+
+        $response = $this->actingAs($user)->patchJson(route('sales.update-date', $sale), [
+            'sale_date' => '2026-08-10',
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+                'message' => 'Sale date updated successfully.',
+                'sale_date' => '2026-08-10',
+            ]);
+
+        $this->assertSame('2026-08-10', $sale->refresh()->sale_date->toDateString());
+    }
+
     private function receiveStock(Product $product, User $user): void
     {
         $purchase = Purchase::create([

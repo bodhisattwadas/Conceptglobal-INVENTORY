@@ -8,6 +8,10 @@
                 <x-secondary-button href="{{ route('sales.index') }}">
                     &larr; {{ __('Back to List') }}
                 </x-secondary-button>
+                <x-secondary-button type="button" x-data x-on:click="$dispatch('open-modal', { name: 'edit-date-modal' })">
+                    <x-heroicon-o-calendar class="w-4 h-4 mr-2 text-indigo-600" />
+                    {{ __('Edit Date') }}
+                </x-secondary-button>
                 <x-primary-button href="{{ route('sales.print', $sale) }}" target="_blank">
                     <x-heroicon-o-printer class="w-4 h-4 mr-2" />
                     {{ __('Print Invoice') }}
@@ -45,9 +49,21 @@
                         </x-detail-item>
 
                         <!-- Sale Date -->
-                        <x-detail-item label="Sale Date" :value="$sale->sale_date->format('d M Y')">
-                            <x-heroicon-o-calendar class="w-4 h-4 text-gray-400" />
-                        </x-detail-item>
+                        <div class="flex items-start justify-between">
+                            <x-detail-item label="Sale Date" :value="$sale->sale_date->format('d M Y')">
+                                <x-heroicon-o-calendar class="w-4 h-4 text-gray-400" />
+                            </x-detail-item>
+                            <button
+                                type="button"
+                                x-data
+                                x-on:click="$dispatch('open-modal', { name: 'edit-date-modal' })"
+                                class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-xs transition mt-1"
+                                title="{{ __('Edit Sale Date') }}"
+                            >
+                                <x-heroicon-o-pencil-square class="w-3.5 h-3.5 text-indigo-600" />
+                                {{ __('Edit Date') }}
+                            </button>
+                        </div>
 
                         <!-- Payment Method -->
                         <x-detail-item label="Payment Method" :value="$sale->payment_method->label()">
@@ -352,6 +368,69 @@
                             </form>
                         </div>
                     </div>
+                </x-modal>
+
+                <!-- Edit Sale Date Modal -->
+                <x-modal name="edit-date-modal" maxWidth="md">
+                    <form action="{{ route('sales.update-date', $sale) }}" method="POST" class="p-6">
+                        @csrf
+                        @method('PATCH')
+
+                        <div class="flex items-start justify-between border-b border-gray-100 pb-4 mb-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">{{ __('Edit Sale Date') }}</h3>
+                                <p class="text-xs text-gray-500 mt-0.5">Invoice: <span class="font-mono font-bold">{{ $sale->invoice_number ?: '#'.$sale->id }}</span></p>
+                            </div>
+                            <button
+                                type="button"
+                                x-on:click="$dispatch('close-modal', { name: 'edit-date-modal' })"
+                                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                            >
+                                <x-heroicon-o-x-mark class="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <x-input-label for="edit_sale_date" :value="__('Sale Date')" required hint="Select the new date for this sales record." />
+                                <input
+                                    id="edit_sale_date"
+                                    type="date"
+                                    name="sale_date"
+                                    value="{{ old('sale_date', $sale->sale_date->format('Y-m-d')) }}"
+                                    required
+                                    class="block w-full mt-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm font-medium"
+                                >
+                                <x-input-error :messages="$errors->get('sale_date')" class="mt-1" />
+                            </div>
+
+                            <div class="rounded-md bg-amber-50 p-3 border border-amber-200">
+                                <div class="flex">
+                                    <div class="shrink-0">
+                                        <svg class="h-5 w-5 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-xs text-amber-800">
+                                            Updating this date will also synchronize the accounting transaction date for revenue and dashboard reporting.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
+                            <x-secondary-button type="button" x-on:click="$dispatch('close-modal', { name: 'edit-date-modal' })">
+                                {{ __('Cancel') }}
+                            </x-secondary-button>
+
+                            <x-primary-button type="submit">
+                                <x-heroicon-o-check class="w-4 h-4 mr-1.5" />
+                                {{ __('Save Changes') }}
+                            </x-primary-button>
+                        </div>
+                    </form>
                 </x-modal>
 
             </div>

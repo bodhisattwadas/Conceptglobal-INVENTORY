@@ -124,6 +124,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('print', 'print')->name('print');
         Route::patch('complete', 'complete')->name('complete');
         Route::patch('restore', 'restore')->name('restore');
+        Route::patch('date', 'updateDate')->name('update-date');
     });
 
     // =========================================================================

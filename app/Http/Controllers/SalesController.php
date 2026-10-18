@@ -112,4 +112,31 @@ class SalesController extends Controller
             return back()->with('error', $e->getMessage());
         }
     }
+
+    public function updateDate(Request $request, Sale $sale, SaleService $saleService)
+    {
+        $validated = $request->validate([
+            'sale_date' => ['required', 'date'],
+        ]);
+
+        try {
+            $saleService->updateSaleDate($sale, $validated['sale_date']);
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Sale date updated successfully.',
+                    'sale_date' => $sale->fresh()->sale_date->format('Y-m-d'),
+                ]);
+            }
+
+            return redirect()->back()->with('success', 'Sale date updated successfully.');
+        } catch (\Exception $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+
+            return back()->with('error', $e->getMessage());
+        }
+    }
 }

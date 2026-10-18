@@ -8,10 +8,12 @@ use App\Enums\SaleStatus;
 use App\Exceptions\DiscountCouponException;
 use App\Exceptions\SaleException;
 use App\Models\DiscountCoupon;
+use App\Models\FinanceTransaction;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\DB;
 
@@ -333,6 +335,29 @@ class SaleService
             // Manually delete items first due to restrictOnDelete constraint
             $sale->items()->delete();
             $sale->delete();
+        });
+    }
+
+    /**
+     * Update the sale date and synchronize associated finance transaction.
+     */
+    public function updateSaleDate(Sale $sale, Carbon|string $saleDate): Sale
+    {
+        return DB::transaction(function () use ($sale, $saleDate) {
+            $parsedDate = $saleDate instanceof Carbon ? $saleDate : Carbon::parse($saleDate);
+
+            $sale->update([
+                'sale_date' => $parsedDate,
+            ]);
+
+            FinanceTransaction::query()
+                ->where('reference_type', Sale::class)
+                ->where('reference_id', $sale->id)
+                ->update([
+                    'transaction_date' => $parsedDate,
+                ]);
+
+            return $sale;
         });
     }
 
