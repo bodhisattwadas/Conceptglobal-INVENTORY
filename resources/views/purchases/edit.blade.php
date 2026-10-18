@@ -1,4 +1,4 @@
-<x-app-layout title="Edit Purchase Order">
+<x-app-layout title="Edit Purchase Order" header-max-width="max-w-7xl">
     <x-slot name="header">
         <div class="flex justify-between items-center">
             <h2 class="font-semibold text-xl text-foreground leading-tight">
@@ -11,7 +11,7 @@
     </x-slot>
 
     <div class="py-4">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <form action="{{ route('purchases.update', $purchase) }}" method="POST" enctype="multipart/form-data"
                     x-data="purchaseForm({
                         items: {{ Js::from(old('items', $purchase->items->map(function($item) {
@@ -24,6 +24,7 @@
                                 'key' => Str::random(10),
                                 'product_name' => $item->product->name ?? '',
                                 'product_code' => $item->product->sku ?? ''
+                                ,'company_id' => $item->product->company_id ?? null
                                 ,'brand' => $item->product->company ? ($item->product->company->short_name ?: $item->product->company->company_name) : ''
                                 ,'mrp' => $item->product->mrp ?? 0
                             ];

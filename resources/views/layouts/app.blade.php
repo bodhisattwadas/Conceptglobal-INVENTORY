@@ -1,4 +1,4 @@
-@props(['title' => ''])
+@props(['title' => '', 'headerMaxWidth' => 'max-w-7xl'])
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
@@ -23,7 +23,7 @@
 
                 <!-- Page Heading -->
                 @isset($header)
-                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                    <div class="{{ $headerMaxWidth }} mx-auto py-6 px-4 sm:px-6 lg:px-8">
                         {{ $header }}
                     </div>
                 @endisset

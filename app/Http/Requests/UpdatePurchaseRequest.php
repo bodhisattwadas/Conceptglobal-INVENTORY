@@ -51,6 +51,7 @@ class UpdatePurchaseRequest extends FormRequest
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => [
                 'required',
+                'distinct',
                 Rule::exists('products', 'id'),
             ],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
@@ -65,6 +66,7 @@ class UpdatePurchaseRequest extends FormRequest
         return [
             'items.required' => 'Please add at least one item.',
             'items.*.product_id.required' => 'Product is required.',
+            'items.*.product_id.distinct' => 'Each product can only be added once per purchase order.',
             'items.*.quantity.min' => 'Quantity must be at least 1.',
             'items.*.discount_percent.between' => 'MRP discount must be between 0% and 100%.',
             'due_date.after' => 'Expected delivery date must be after the PO date.',
