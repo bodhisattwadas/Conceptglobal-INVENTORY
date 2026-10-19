@@ -7,7 +7,6 @@ use App\Enums\SaleStatus;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Validator;
 
 class StoreSaleRequest extends FormRequest
 {
@@ -37,6 +36,7 @@ class StoreSaleRequest extends FormRequest
         $this->merge([
             'cash_received' => $this->normalizeMoney($this->input('cash_received')),
             'change' => $this->normalizeMoney($this->input('change')),
+            'bill_discount' => $this->normalizeMoney($this->input('bill_discount')),
             'global_discount' => $this->normalizeMoney($this->input('global_discount')),
             'items' => $items,
         ]);
@@ -65,6 +65,7 @@ class StoreSaleRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:2000'],
             'cash_received' => ['nullable', 'numeric', 'min:0'],
             'change' => ['nullable', 'numeric', 'min:0'],
+            'bill_discount' => ['nullable', 'numeric', 'min:0'],
             'global_discount' => ['nullable', 'numeric', 'min:0'],
             'coupon_id' => ['nullable', 'integer', 'exists:discount_coupons,id'],
             'coupon_code' => ['nullable', 'string', 'max:50'],
@@ -85,21 +86,6 @@ class StoreSaleRequest extends FormRequest
             'items.*.unit_price.min' => 'Unit price must be at least 0.',
             'items.*.discount.min' => 'Discount must be at least 0.',
         ];
-    }
-
-    public function withValidator(Validator $validator): void
-    {
-        $validator->after(function (Validator $validator): void {
-            $hasItemDiscount = collect($this->input('items', []))
-                ->contains(fn (mixed $item): bool => is_array($item) && (float) ($item['discount'] ?? 0) > 0);
-
-            if ($hasItemDiscount && (float) $this->input('global_discount', 0) > 0) {
-                $validator->errors()->add(
-                    'global_discount',
-                    'Use either item discounts or one global/coupon discount, not both.'
-                );
-            }
-        });
     }
 
     private function normalizeMoney(mixed $value): mixed

@@ -468,7 +468,7 @@
                         </template>
 
                         <!-- If No Coupon: Available Coupons Dropdown & Manual Entry -->
-                        <div x-show="!appliedCoupon && totalDiscount === 0" class="pt-0.5">
+                        <div x-show="!appliedCoupon" class="pt-0.5">
                             <!-- Dropdown View -->
                             <div x-show="!manualCouponMode" class="flex items-center gap-1.5">
                                 <div class="relative flex-1 min-w-0">
@@ -542,21 +542,24 @@
                             </div>
                         </div>
 
-                        <!-- Manual Global Disc (shown when no coupon applied) -->
-                        <div class="flex justify-between items-center" x-show="!appliedCoupon">
-                            <span class="font-medium text-gray-600">Manual Disc</span>
+                        <!-- Discount Box at Final Bill -->
+                        <div class="flex justify-between items-center pt-0.5">
+                            <span class="font-medium text-gray-600">Other Discount</span>
                             <div class="relative w-28">
                                 <div class="absolute inset-y-0 flex items-center pointer-events-none" :class="window.currencyPosition === 'left' ? 'left-0 pl-2' : 'right-0 pr-2'">
                                     <span class="text-gray-500 text-[10px]" x-text="window.currencySymbol"></span>
                                 </div>
                                 <input
-                                    type="text"
-                                    :value="formatNumber(globalDiscount)"
-                                    @input="setGlobalDiscount(unformatNumber($event.target.value))"
-                                    :disabled="totalDiscount > 0"
-                                    class="focus:ring-indigo-500 focus:border-indigo-500 block w-full text-xs border-gray-300 rounded py-0.5"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    :max="maxBillDiscount"
+                                    :value="billDiscount"
+                                    @input="onBillDiscountInput($event.target.value)"
+                                    class="focus:ring-indigo-500 focus:border-indigo-500 block w-full text-xs font-semibold border-gray-300 rounded py-0.5"
                                     :class="window.currencyPosition === 'left' ? 'pl-7 pr-1 text-right' : 'pr-7 pl-1 text-left'"
-                                    placeholder="0"
+                                    placeholder="0.00"
+                                    aria-label="Other discount"
                                 >
                             </div>
                         </div>
@@ -646,7 +649,7 @@
                         ref: ''
                     },
                     cashIsExact: true,
-                    globalDiscount: 0,
+                    billDiscount: '',
                     couponCode: '',
                     selectedCouponCode: '',
                     manualCouponMode: false,
@@ -693,18 +696,15 @@
                             } catch (e) {}
                         }
 
-                        const savedGlobalDiscount = localStorage.getItem('pos_globalDiscount');
-                        if (savedGlobalDiscount) {
-                            this.globalDiscount = parseFloat(savedGlobalDiscount) || 0;
+                        const savedBillDiscount = localStorage.getItem('pos_billDiscount') ?? localStorage.getItem('pos_globalDiscount');
+                        if (savedBillDiscount !== null && savedBillDiscount !== '') {
+                            this.billDiscount = savedBillDiscount;
                         }
 
                         const savedAppliedCoupon = localStorage.getItem('pos_applied_coupon');
                         if (savedAppliedCoupon) {
                             try {
                                 this.appliedCoupon = JSON.parse(savedAppliedCoupon);
-                                if (this.appliedCoupon) {
-                                    this.globalDiscount = this.appliedCoupon.discount_amount || 0;
-                                }
                             } catch (e) {
                                 this.appliedCoupon = null;
                             }
@@ -725,13 +725,13 @@
                         });
                         this.$watch('customer', (val) => localStorage.setItem('pos_customer', JSON.stringify(val)));
                         this.$watch('payment', (val) => localStorage.setItem('pos_payment', JSON.stringify(val)));
-                        this.$watch('globalDiscount', (val) => {
-                            localStorage.setItem('pos_globalDiscount', val);
-                            if (this.payment.method === 'cash' && this.cashIsExact) {
-                                this.$nextTick(() => {
-                                    this.payment.cash_received = this.total;
-                                });
+                        this.$watch('billDiscount', (val) => {
+                            if (val !== '' && val !== null && val !== undefined) {
+                                localStorage.setItem('pos_billDiscount', String(val));
+                            } else {
+                                localStorage.removeItem('pos_billDiscount');
                             }
+                            this.syncCashReceived();
                         });
                         this.$watch('appliedCoupon', (val) => {
                             if (val) {
@@ -739,11 +739,8 @@
                             } else {
                                 localStorage.removeItem('pos_applied_coupon');
                             }
-                            if (this.payment.method === 'cash' && this.cashIsExact) {
-                                this.$nextTick(() => {
-                                    this.payment.cash_received = this.total;
-                                });
-                            }
+                            this.clampBillDiscount();
+                            this.syncCashReceived();
                         });
                     },
 
@@ -1021,11 +1018,8 @@
                         const toSave = (this.cart || []).filter(item => !!item.id);
                         localStorage.setItem('pos_cart', JSON.stringify(toSave));
                         this.recalculateCouponDiscount();
-                        if (this.payment.method === 'cash' && this.cashIsExact) {
-                            this.$nextTick(() => {
-                                this.payment.cash_received = this.total;
-                            });
-                        }
+                        this.clampBillDiscount();
+                        this.syncCashReceived();
                     },
 
                     focusPhoneInput() {
@@ -1097,6 +1091,7 @@
                         localStorage.removeItem('pos_customer');
                         localStorage.removeItem('pos_payment');
                         localStorage.removeItem('pos_globalDiscount');
+                        localStorage.removeItem('pos_billDiscount');
                         localStorage.removeItem('pos_applied_coupon');
                     },
 
@@ -1131,25 +1126,51 @@
 
                     setItemDiscountPercent(index, value) {
                         const percent = this.clampDiscountPercent(value);
-
-                        if (percent > 0 && (this.globalDiscount > 0 || this.appliedCoupon)) {
-                            this.$dispatch('toast', { message: 'Remove the coupon / global discount before adding item discounts.', type: 'warning' });
-                            this.cart[index].discountPercent = 0;
-                            return;
-                        }
-
                         this.cart[index].discountPercent = value !== '' && Number(value) === percent ? value : percent;
                         this.persistCart();
+                        this.recalculateCouponDiscount();
+                        this.clampBillDiscount();
                     },
 
-                    setGlobalDiscount(value) {
-                        if (value > 0 && this.totalDiscount > 0) {
-                            this.$dispatch('toast', { message: 'Remove item discounts before adding a global discount.', type: 'warning' });
-                            this.globalDiscount = 0;
+                    onBillDiscountInput(val) {
+                        if (val === '' || val === null || val === undefined) {
+                            this.billDiscount = '';
+                            this.syncCashReceived();
                             return;
                         }
 
-                        this.globalDiscount = value;
+                        const num = parseFloat(val);
+                        if (isNaN(num) || num < 0) {
+                            this.billDiscount = '0';
+                            this.syncCashReceived();
+                            return;
+                        }
+
+                        const max = this.maxBillDiscount;
+                        if (num > max) {
+                            this.billDiscount = String(max);
+                            this.$dispatch('toast', { message: 'Other discount cannot exceed remaining subtotal (' + this.formatCurrency(max) + ')', type: 'warning' });
+                            this.syncCashReceived();
+                            return;
+                        }
+
+                        this.billDiscount = val;
+                        this.syncCashReceived();
+                    },
+
+                    clampBillDiscount() {
+                        const max = this.maxBillDiscount;
+                        if (this.numericBillDiscount > max) {
+                            this.billDiscount = max > 0 ? String(max) : '';
+                        }
+                    },
+
+                    syncCashReceived() {
+                        if (this.payment.method === 'cash' && this.cashIsExact) {
+                            this.$nextTick(() => {
+                                this.payment.cash_received = this.total;
+                            });
+                        }
                     },
 
                     handleCouponSelection(code) {
@@ -1196,8 +1217,10 @@
                             this.selectedCouponCode = '';
                             return;
                         }
-                        if (this.totalDiscount > 0) {
-                            this.$dispatch('toast', { message: 'Cannot combine coupons with item-level discounts.', type: 'warning' });
+
+                        const eligibleSubtotal = Math.max(0, this.subtotal - this.totalDiscount);
+                        if (eligibleSubtotal <= 0) {
+                            this.$dispatch('toast', { message: 'Cart total after item discounts must be greater than zero to apply a coupon.', type: 'warning' });
                             this.selectedCouponCode = '';
                             return;
                         }
@@ -1212,7 +1235,7 @@
                             },
                             body: JSON.stringify({
                                 code: code,
-                                subtotal: this.subtotal
+                                subtotal: eligibleSubtotal
                             })
                         })
                         .then(res => res.json().then(data => ({ ok: res.ok, data })))
@@ -1227,10 +1250,11 @@
                                     max_discount_amount: data.coupon.max_discount_amount,
                                     discount_amount: data.discount_amount
                                 };
-                                this.globalDiscount = data.discount_amount;
                                 this.couponCode = '';
                                 this.selectedCouponCode = '';
                                 this.manualCouponMode = false;
+                                this.clampBillDiscount();
+                                this.syncCashReceived();
                                 this.$dispatch('toast', { message: data.message || 'Coupon applied successfully!', type: 'success' });
                             } else {
                                 this.selectedCouponCode = '';
@@ -1249,9 +1273,10 @@
 
                     removeCoupon() {
                         this.appliedCoupon = null;
-                        this.globalDiscount = 0;
                         this.couponCode = '';
                         this.selectedCouponCode = '';
+                        this.clampBillDiscount();
+                        this.syncCashReceived();
                         this.$dispatch('toast', { message: 'Coupon removed.', type: 'info' });
                     },
 
@@ -1260,14 +1285,18 @@
 
                         if (this.validCartItems.length === 0) {
                             this.appliedCoupon = null;
-                            this.globalDiscount = 0;
+                            this.clampBillDiscount();
+                            this.syncCashReceived();
                             return;
                         }
 
-                        if (this.appliedCoupon.min_purchase_amount && this.subtotal < this.appliedCoupon.min_purchase_amount) {
+                        const eligibleSubtotal = Math.max(0, this.subtotal - this.totalDiscount);
+
+                        if (this.appliedCoupon.min_purchase_amount && eligibleSubtotal < this.appliedCoupon.min_purchase_amount) {
                             const code = this.appliedCoupon.code;
                             this.appliedCoupon = null;
-                            this.globalDiscount = 0;
+                            this.clampBillDiscount();
+                            this.syncCashReceived();
                             this.$dispatch('toast', {
                                 message: 'Cart subtotal fell below minimum purchase for coupon ' + code + '. Coupon removed.',
                                 type: 'warning'
@@ -1277,18 +1306,19 @@
 
                         let discount = 0;
                         if (this.appliedCoupon.type === 'percentage') {
-                            let raw = (this.subtotal * parseFloat(this.appliedCoupon.value)) / 100;
+                            let raw = (eligibleSubtotal * parseFloat(this.appliedCoupon.value)) / 100;
                             if (this.appliedCoupon.max_discount_amount) {
                                 raw = Math.min(raw, parseFloat(this.appliedCoupon.max_discount_amount));
                             }
-                            discount = Math.min(raw, this.subtotal);
+                            discount = Math.min(raw, eligibleSubtotal);
                         } else {
-                            discount = Math.min(parseFloat(this.appliedCoupon.value), this.subtotal);
+                            discount = Math.min(parseFloat(this.appliedCoupon.value), eligibleSubtotal);
                         }
 
                         discount = Math.round(discount * 100) / 100;
                         this.appliedCoupon.discount_amount = discount;
-                        this.globalDiscount = discount;
+                        this.clampBillDiscount();
+                        this.syncCashReceived();
                     },
 
                     selectPaymentMethod(method) {
@@ -1332,8 +1362,25 @@
                         return this.cart.reduce((sum, item) => sum + (item.id ? (this.lineDiscountAmount(item) * item.quantity) : 0), 0);
                     },
 
+                    get numericBillDiscount() {
+                        return parseFloat(this.billDiscount) || 0;
+                    },
+
+                    get couponDiscount() {
+                        return this.appliedCoupon ? (parseFloat(this.appliedCoupon.discount_amount) || 0) : 0;
+                    },
+
+                    get maxBillDiscount() {
+                        const remaining = Math.max(0, this.subtotal - this.totalDiscount - this.couponDiscount);
+                        return Math.round(remaining * 100) / 100;
+                    },
+
+                    get globalDiscount() {
+                        return Math.round((this.couponDiscount + this.numericBillDiscount) * 100) / 100;
+                    },
+
                     get total() {
-                        return Math.max(0, this.subtotal - this.totalDiscount - this.globalDiscount);
+                        return Math.max(0, Math.round((this.subtotal - this.totalDiscount - this.globalDiscount) * 100) / 100);
                     },
 
                     get change() {
@@ -1418,12 +1465,8 @@
                             this.$dispatch('toast', { message: 'Cart is empty. Please select a product first.', type: 'warning' });
                             return;
                         }
-                        if (this.total < 0) {
-                            this.$dispatch('toast', { message: 'Discount cannot exceed the sale subtotal.', type: 'error' });
-                            return;
-                        }
-                        if (this.totalDiscount > 0 && this.globalDiscount > 0) {
-                            this.$dispatch('toast', { message: 'Only one discount type can be applied per sale.', type: 'error' });
+                        if (this.globalDiscount > (this.subtotal - this.totalDiscount)) {
+                            this.$dispatch('toast', { message: 'Discount cannot exceed remaining subtotal.', type: 'error' });
                             return;
                         }
                         if (this.saleStatus === 'completed' && this.payment.method === 'cash' && this.payment.cash_received < this.total) {
@@ -1506,6 +1549,7 @@
                                 payment_method: this.payment.method,
                                 cash_received: this.payment.method === 'cash' ? this.payment.cash_received : this.total,
                                 notes: notes || null,
+                                bill_discount: this.numericBillDiscount,
                                 global_discount: this.globalDiscount,
                                 coupon_id: this.appliedCoupon ? this.appliedCoupon.id : null,
                                 coupon_code: this.appliedCoupon ? this.appliedCoupon.code : null,
@@ -1560,7 +1604,7 @@
                             notes: '',
                             ref: ''
                         };
-                        this.globalDiscount = 0;
+                        this.billDiscount = '';
                         this.appliedCoupon = null;
                         this.couponCode = '';
                         this.selectedCouponCode = '';
@@ -1637,9 +1681,9 @@
                         <span x-text="'- ' + formatCurrency(appliedCoupon ? appliedCoupon.discount_amount : 0)"></span>
                     </div>
 
-                    <div class="flex items-center justify-between text-red-600" x-show="globalDiscount > 0 && !appliedCoupon">
-                        <span>Manual Discount</span>
-                        <span class="font-semibold" x-text="'- ' + formatCurrency(globalDiscount)"></span>
+                    <div class="flex items-center justify-between text-red-600" x-show="numericBillDiscount > 0">
+                        <span>Other Discount</span>
+                        <span class="font-semibold" x-text="'- ' + formatCurrency(numericBillDiscount)"></span>
                     </div>
 
                     <!-- Total -->

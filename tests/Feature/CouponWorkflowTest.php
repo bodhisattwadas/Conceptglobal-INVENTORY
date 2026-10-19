@@ -417,6 +417,56 @@ class CouponWorkflowTest extends TestCase
         $response->assertSee('POSDROPDOWN');
         $response->assertSee('Select Coupon');
         $response->assertSee('Enter promo code manually');
+        $response->assertSee('x-show="!appliedCoupon"', false);
+        $response->assertDontSee('x-show="!appliedCoupon && totalDiscount === 0"', false);
+    }
+
+    public function test_sale_can_be_completed_with_both_item_level_discount_and_coupon(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+        $product = $this->productWithStock(10, price: 100, user: $user);
+
+        $coupon = DiscountCoupon::create([
+            'code' => 'COMBO10',
+            'type' => CouponType::Percentage,
+            'value' => 10,
+            'min_purchase_amount' => 50,
+            'used_count' => 0,
+            'is_active' => true,
+        ]);
+
+        // 2 items @ 100 each = 200 gross. Item discount: 10 each = 20 total.
+        // Net subtotal before coupon = 180.
+        // 10% coupon discount on 180 = 18.
+        // Total bill = 180 - 18 = 162.
+        $response = $this->actingAs($user)->postJson(route('sales.store'), [
+            'sale_date' => now()->toDateString(),
+            'payment_method' => PaymentMethod::CASH->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'coupon_id' => $coupon->id,
+            'coupon_code' => $coupon->code,
+            'global_discount' => 18,
+            'cash_received' => 162,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'unit_price' => 100,
+                    'discount' => 10,
+                ],
+            ],
+        ]);
+
+        $response->assertCreated();
+
+        $sale = Sale::latest()->first();
+        $this->assertSame('200.00', $sale->subtotal);
+        $this->assertSame('38.00', $sale->total_discount);
+        $this->assertSame('18.00', $sale->global_discount);
+        $this->assertSame('162.00', $sale->total);
+        $this->assertSame($coupon->id, $sale->discount_coupon_id);
+        $this->assertSame('COMBO10', $sale->coupon_code);
+        $this->assertSame(1, $coupon->refresh()->used_count);
     }
 
     private function productWithStock(int $quantity, float $price = 100, ?User $user = null): Product

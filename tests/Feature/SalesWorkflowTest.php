@@ -6,6 +6,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\DiscountCoupon;
 use App\Models\FinanceTransaction;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -451,6 +452,95 @@ class SalesWorkflowTest extends TestCase
         $response->assertSee('hasBlankRow', false);
         $response->assertSee('Add Product');
         $response->assertDontSee('x-ref="productSelect"', false);
+    }
+
+    public function test_pos_create_view_renders_final_bill_discount_input(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+
+        $response = $this->actingAs($user)->get(route('sales.create'));
+        $response->assertOk();
+        $response->assertSee('Other Discount');
+        $response->assertSee('onBillDiscountInput($event.target.value)', false);
+        $response->assertSee(':max="maxBillDiscount"', false);
+        $response->assertSee('placeholder="0.00"', false);
+        $response->assertSee('aria-label="Other discount"', false);
+    }
+
+    public function test_sale_can_be_created_with_decimal_bill_discount(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+        $category = Category::create(['name' => 'Discount Test Category', 'slug' => 'discount-test-category-'.uniqid()]);
+        $unit = Unit::factory()->create();
+
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 40.00,
+            'selling_price' => 100.00,
+            'quantity' => 10,
+        ]);
+        $this->receiveStock($product, $user);
+
+        $coupon = DiscountCoupon::create([
+            'code' => 'SAVE10',
+            'type' => 'fixed',
+            'value' => 10.00,
+            'min_purchase_amount' => 50.00,
+            'is_active' => true,
+        ]);
+
+        // Sale subtotal: 100.00
+        // Item discount: 5.25 (line net: 94.75)
+        // Coupon discount: 10.00
+        // Bill discount: 12.50
+        // Global discount: 10.00 + 12.50 = 22.50
+        // Total discount: 5.25 + 22.50 = 27.75
+        // Final Total: 100.00 - 27.75 = 72.25
+        $payload = [
+            'customer_id' => null,
+            'sale_date' => now()->toDateString(),
+            'payment_method' => PaymentMethod::CASH->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 100.00,
+                    'discount' => 5.25,
+                ],
+            ],
+            'bill_discount' => 12.50,
+            'global_discount' => 22.50,
+            'coupon_id' => $coupon->id,
+            'coupon_code' => $coupon->code,
+            'cash_received' => 80.00,
+        ];
+
+        $response = $this->actingAs($user)->postJson(route('sales.store'), $payload);
+        $response->assertCreated()
+            ->assertJson([
+                'success' => true,
+            ]);
+
+        $sale = Sale::first();
+        $this->assertNotNull($sale);
+        $this->assertEquals(100.00, (float) $sale->subtotal);
+        $this->assertEquals(22.50, (float) $sale->global_discount);
+        $this->assertEquals(27.75, (float) $sale->total_discount);
+        $this->assertEquals(72.25, (float) $sale->total);
+        $this->assertEquals(80.00, (float) $sale->cash_received);
+        $this->assertEquals(7.75, (float) $sale->change);
+        $this->assertSame($coupon->id, $sale->discount_coupon_id);
+        $this->assertSame('SAVE10', $sale->coupon_code);
+
+        $this->assertTrue(FinanceTransaction::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->where('amount', 72.25)
+            ->exists());
+
+        $this->assertSame(1, $coupon->fresh()->used_count);
     }
 
     private function receiveStock(Product $product, User $user): void

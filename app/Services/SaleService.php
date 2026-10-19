@@ -119,17 +119,19 @@ class SaleService
                     $totalDiscount = round($totalDiscount + $discount * $quantity, 2);
                 }
 
-                $globalDiscount = $data->global_discount;
-
+                $couponDiscount = 0.0;
                 if ($appliedCoupon) {
                     try {
                         $couponResult = $this->couponService->validateAndCalculate($appliedCoupon, $totalSubtotal);
-                        $globalDiscount = (float) $couponResult['discount_amount'];
+                        $couponDiscount = (float) $couponResult['discount_amount'];
                         $this->couponService->incrementUsage($appliedCoupon);
                     } catch (DiscountCouponException $e) {
                         throw SaleException::invalidDiscount($e->getMessage());
                     }
                 }
+
+                $billDiscount = (float) ($data->bill_discount > 0 ? $data->bill_discount : (empty($appliedCoupon) ? $data->global_discount : 0));
+                $globalDiscount = round($couponDiscount + $billDiscount, 2);
 
                 if ($globalDiscount > $totalSubtotal) {
                     throw SaleException::invalidDiscount('Discount ('.format_money($globalDiscount).') cannot exceed subtotal ('.format_money($totalSubtotal).').');

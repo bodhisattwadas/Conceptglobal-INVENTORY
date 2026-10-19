@@ -170,7 +170,7 @@
                                         @money($sale->subtotal)
                                     </td>
                                 </tr>
-                                @if($sale->total_discount > 0)
+                                @if(($sale->total_discount - $sale->global_discount) > 0)
                                     <tr>
                                         <td colspan="7" class="px-6 py-4 text-right text-red-600">Total Discount (Items)</td>
                                         <td class="px-6 py-4 text-right text-red-600">
@@ -182,9 +182,9 @@
                                     <tr>
                                         <td colspan="7" class="px-6 py-4 text-right text-red-600">
                                             @if($sale->coupon_code)
-                                                Coupon Discount ({{ $sale->coupon_code }})
+                                                Discount (incl. Coupon {{ $sale->coupon_code }})
                                             @else
-                                                Global Discount (Transaction)
+                                                Other Discount
                                             @endif
                                         </td>
                                         <td class="px-6 py-4 text-right text-red-600">

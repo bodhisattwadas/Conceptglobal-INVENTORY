@@ -22,6 +22,7 @@ readonly class SaleData
         public float $cash_received = 0,
         public float $change = 0,
         public float $global_discount = 0,
+        public float $bill_discount = 0,
         public ?int $coupon_id = null,
         public ?string $coupon_code = null,
     ) {}
@@ -39,6 +40,7 @@ readonly class SaleData
             cash_received: (float) ($data['cash_received'] ?? 0),
             change: (float) ($data['change'] ?? 0),
             global_discount: (float) ($data['global_discount'] ?? 0),
+            bill_discount: (float) ($data['bill_discount'] ?? 0),
             coupon_id: isset($data['coupon_id']) && ! empty($data['coupon_id']) ? (int) $data['coupon_id'] : null,
             coupon_code: ! empty($data['coupon_code']) ? strtoupper(trim($data['coupon_code'])) : null,
         );
@@ -57,6 +59,7 @@ readonly class SaleData
             'cash_received' => $this->cash_received,
             'change' => $this->change,
             'global_discount' => $this->global_discount,
+            'bill_discount' => $this->bill_discount,
             'coupon_id' => $this->coupon_id,
             'coupon_code' => $this->coupon_code,
         ];
