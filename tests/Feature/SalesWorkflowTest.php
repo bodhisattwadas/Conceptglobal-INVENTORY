@@ -461,8 +461,9 @@ class SalesWorkflowTest extends TestCase
         $response = $this->actingAs($user)->get(route('sales.create'));
         $response->assertOk();
         $response->assertSee('Other Discount');
+        $response->assertSee('inputmode="decimal"', false);
+        $response->assertSee('filterDiscountKeydown($event)', false);
         $response->assertSee('onBillDiscountInput($event.target.value)', false);
-        $response->assertSee(':max="maxBillDiscount"', false);
         $response->assertSee('placeholder="0.00"', false);
         $response->assertSee('aria-label="Other discount"', false);
     }
@@ -541,6 +542,65 @@ class SalesWorkflowTest extends TestCase
             ->exists());
 
         $this->assertSame(1, $coupon->fresh()->used_count);
+    }
+
+    public function test_sale_can_be_created_with_negative_decimal_bill_discount_and_is_treated_as_discount(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+        $category = Category::create(['name' => 'Negative Test Category', 'slug' => 'neg-test-category-'.uniqid()]);
+        $unit = Unit::factory()->create();
+
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 50.00,
+            'selling_price' => 200.00,
+            'quantity' => 5,
+        ]);
+        $this->receiveStock($product, $user);
+
+        // Subtotal: 200.00
+        // Bill discount passed as negative: -15.50
+        // Always treated as discount deduction of 15.50
+        // Total should be 200.00 - 15.50 = 184.50
+        $payload = [
+            'customer_id' => null,
+            'sale_date' => now()->toDateString(),
+            'payment_method' => PaymentMethod::CASH->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 200.00,
+                    'discount' => 0,
+                ],
+            ],
+            'bill_discount' => -15.50,
+            'global_discount' => -15.50,
+            'cash_received' => 200.00,
+        ];
+
+        $response = $this->actingAs($user)->postJson(route('sales.store'), $payload);
+        $response->assertCreated()
+            ->assertJson([
+                'success' => true,
+            ]);
+
+        $sale = Sale::latest('id')->first();
+        $this->assertNotNull($sale);
+        $this->assertEquals(200.00, (float) $sale->subtotal);
+        $this->assertEquals(15.50, (float) $sale->global_discount);
+        $this->assertEquals(15.50, (float) $sale->total_discount);
+        $this->assertEquals(184.50, (float) $sale->total);
+        $this->assertEquals(200.00, (float) $sale->cash_received);
+        $this->assertEquals(15.50, (float) $sale->change);
+
+        $this->assertTrue(FinanceTransaction::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->where('amount', 184.50)
+            ->exists());
     }
 
     private function receiveStock(Product $product, User $user): void

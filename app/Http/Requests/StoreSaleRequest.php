@@ -36,8 +36,8 @@ class StoreSaleRequest extends FormRequest
         $this->merge([
             'cash_received' => $this->normalizeMoney($this->input('cash_received')),
             'change' => $this->normalizeMoney($this->input('change')),
-            'bill_discount' => $this->normalizeMoney($this->input('bill_discount')),
-            'global_discount' => $this->normalizeMoney($this->input('global_discount')),
+            'bill_discount' => $this->normalizeDiscount($this->input('bill_discount')),
+            'global_discount' => $this->normalizeDiscount($this->input('global_discount')),
             'items' => $items,
         ]);
     }
@@ -96,6 +96,19 @@ class StoreSaleRequest extends FormRequest
 
         if (is_numeric($value)) {
             return round((float) $value, 2);
+        }
+
+        return $value;
+    }
+
+    private function normalizeDiscount(mixed $value): mixed
+    {
+        if ($value === null || $value === '') {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return round(abs((float) $value), 2);
         }
 
         return $value;

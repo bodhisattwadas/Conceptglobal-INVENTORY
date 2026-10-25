@@ -542,22 +542,22 @@
                             </div>
                         </div>
 
-                        <!-- Discount Box at Final Bill -->
-                        <div class="flex justify-between items-center pt-0.5">
+                        <!-- Other Discount Box at Final Bill -->
+                        <div class="flex justify-between items-center py-1">
                             <span class="font-medium text-gray-600">Other Discount</span>
-                            <div class="relative w-28">
-                                <div class="absolute inset-y-0 flex items-center pointer-events-none" :class="window.currencyPosition === 'left' ? 'left-0 pl-2' : 'right-0 pr-2'">
-                                    <span class="text-gray-500 text-[10px]" x-text="window.currencySymbol"></span>
+                            <div class="relative w-36 sm:w-44">
+                                <div class="absolute inset-y-0 flex items-center pointer-events-none" :class="window.currencyPosition === 'left' ? 'left-0 pl-2.5' : 'right-0 pr-2.5'">
+                                    <span class="text-gray-400 font-bold text-xs" x-text="window.currencySymbol"></span>
                                 </div>
                                 <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    :max="maxBillDiscount"
+                                    type="text"
+                                    inputmode="decimal"
+                                    autocomplete="off"
                                     :value="billDiscount"
                                     @input="onBillDiscountInput($event.target.value)"
-                                    class="focus:ring-indigo-500 focus:border-indigo-500 block w-full text-xs font-semibold border-gray-300 rounded py-0.5"
-                                    :class="window.currencyPosition === 'left' ? 'pl-7 pr-1 text-right' : 'pr-7 pl-1 text-left'"
+                                    @keydown="filterDiscountKeydown($event)"
+                                    class="focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block w-full text-sm font-bold text-red-600 bg-white border border-gray-300 rounded-lg py-1.5 shadow-sm transition-colors"
+                                    :class="window.currencyPosition === 'left' ? 'pl-8 pr-2.5 text-right' : 'pr-8 pl-2.5 text-left'"
                                     placeholder="0.00"
                                     aria-label="Other discount"
                                 >
@@ -902,6 +902,79 @@
                         this.syncAllProductDropdowns(item);
                     },
 
+                    handleProductScan(select, item, query) {
+                        const qLower = query.trim().toLowerCase();
+                        if (!qLower) return;
+
+                        const existingRow = this.cart.find(row => 
+                            row.key !== item.key && row.id && (
+                                (row.sku && row.sku.toLowerCase() === qLower) ||
+                                (row.name && row.name.toLowerCase() === qLower)
+                            )
+                        );
+
+                        if (existingRow) {
+                            if (existingRow.quantity < existingRow.max_stock) {
+                                existingRow.quantity += 1;
+                                this.persistCart();
+                                this.$dispatch('toast', { message: `Increased quantity for "${existingRow.name}" to ${existingRow.quantity}`, type: 'info' });
+                            } else {
+                                this.$dispatch('toast', { message: `Maximum stock (${existingRow.max_stock}) reached for "${existingRow.name}"`, type: 'warning' });
+                            }
+                            select.clear(true);
+                            select.close();
+                            if (select.dropdown_input) select.dropdown_input.value = '';
+                            if (select.control_input) select.control_input.value = '';
+                            this.focusRowSelect(item);
+                            return;
+                        }
+
+                        const exactMatch = Object.values(select.options).find(opt => 
+                            (opt.sku && opt.sku.toLowerCase() === qLower) ||
+                            (opt.text && opt.text.toLowerCase() === qLower) ||
+                            (opt.name && opt.name.toLowerCase() === qLower)
+                        );
+
+                        if (exactMatch) {
+                            select.addOption(exactMatch);
+                            select.setValue(exactMatch.value || exactMatch.id);
+                            this.setRowProduct(item, exactMatch);
+                            select.close();
+                            return;
+                        }
+
+                        fetch('{{ route("ajax.products.search") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                            },
+                            body: JSON.stringify({ q: query })
+                        })
+                        .then(r => r.json())
+                        .then(products => {
+                            const list = Array.isArray(products) ? products : [];
+                            const available = this.filterAvailableProducts(list, item);
+
+                            if (available.length === 0) {
+                                this.$dispatch('toast', { message: `No available product found matching "${query}"`, type: 'warning' });
+                                return;
+                            }
+
+                            const match = available.find(p => p.sku && p.sku.toLowerCase() === qLower) ||
+                                          available.find(p => p.sku && p.sku.toLowerCase().startsWith(qLower)) ||
+                                          available.find(p => (p.text || p.name || '').toLowerCase() === qLower) ||
+                                          available[0];
+
+                            select.addOption(match);
+                            select.setValue(match.value || match.id);
+                            this.setRowProduct(item, match);
+                            select.close();
+                        })
+                        .catch(err => console.error('Scan error:', err));
+                    },
+
                     initRowProductSelect(el, item) {
                         this.waitForTomSelect(() => {
                             if (el.tomselect) return;
@@ -979,6 +1052,41 @@
                             if (select.control_input) {
                                 select.control_input.placeholder = 'Search product name or SKU...';
                             }
+
+                            const handleScannerKeyDown = (e) => {
+                                if (e.key === 'Enter' || e.keyCode === 13) {
+                                    const input = e.target;
+                                    const query = (input.value || '').trim();
+                                    if (!query) return;
+
+                                    const qLower = query.toLowerCase();
+
+                                    const activeVal = select.activeOption?.dataset?.value;
+                                    const activeData = activeVal ? select.options[activeVal] : null;
+                                    const activeMatches = activeData && (
+                                        (activeData.sku && activeData.sku.toLowerCase() === qLower) ||
+                                        (activeData.text && activeData.text.toLowerCase() === qLower) ||
+                                        (activeData.name && activeData.name.toLowerCase() === qLower)
+                                    );
+
+                                    if (!activeMatches) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.stopImmediatePropagation();
+                                        this.handleProductScan(select, item, query);
+                                    }
+                                }
+                            };
+
+                            select.control_input?.addEventListener('keydown', handleScannerKeyDown, true);
+                            if (select.dropdown_input) {
+                                select.dropdown_input.addEventListener('keydown', handleScannerKeyDown, true);
+                            }
+                            select.wrapper?.addEventListener('keydown', (e) => {
+                                if ((e.key === 'Enter' || e.keyCode === 13) && (e.target?.classList.contains('dropdown-input') || e.target?.classList.contains('ts-input'))) {
+                                    handleScannerKeyDown(e);
+                                }
+                            }, true);
 
                             select.on('dropdown_open', () => {
                                 const forbiddenIds = this.selectedProductIds(item);
@@ -1132,6 +1240,58 @@
                         this.clampBillDiscount();
                     },
 
+                    filterDiscountKeydown(e) {
+                        // Allow navigation, editing, and functional keys
+                        if ([
+                            'Backspace', 'Tab', 'Enter', 'Delete', 'Escape',
+                            'ArrowLeft', 'ArrowRight', 'Home', 'End'
+                        ].includes(e.key)) {
+                            return;
+                        }
+
+                        // Allow copy, paste, select-all, cut, undo shortcuts
+                        if (e.ctrlKey || e.metaKey) {
+                            return;
+                        }
+
+                        // Strictly block ArrowUp and ArrowDown ("no number up/down")
+                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            return;
+                        }
+
+                        // Allow digits 0-9
+                        if (/^[0-9]$/.test(e.key)) {
+                            return;
+                        }
+
+                        const input = e.target;
+                        const val = input.value || '';
+                        const selStart = input.selectionStart ?? 0;
+                        const selEnd = input.selectionEnd ?? 0;
+
+                        // Allow decimal separator if not already present or if selected text covers it
+                        if (e.key === '.' || (window.decimalSeparator && e.key === window.decimalSeparator)) {
+                            const hasDot = val.includes('.');
+                            const selectedCoversDot = hasDot && val.slice(selStart, selEnd).includes('.');
+                            if (!hasDot || selectedCoversDot) {
+                                return;
+                            }
+                        }
+
+                        // Allow minus sign at index 0 if not already present or if selected text covers it
+                        if (e.key === '-') {
+                            const hasMinus = val.includes('-');
+                            const selectedCoversMinus = hasMinus && val.slice(selStart, selEnd).includes('-');
+                            if (selStart === 0 && (!hasMinus || selectedCoversMinus)) {
+                                return;
+                            }
+                        }
+
+                        // Block all other keys (letters, symbols, spaces, etc. - "ONLY number in this textbox")
+                        e.preventDefault();
+                    },
+
                     onBillDiscountInput(val) {
                         if (val === '' || val === null || val === undefined) {
                             this.billDiscount = '';
@@ -1139,29 +1299,58 @@
                             return;
                         }
 
-                        const num = parseFloat(val);
-                        if (isNaN(num) || num < 0) {
-                            this.billDiscount = '0';
+                        let raw = String(val).trim();
+                        const isNegative = raw.startsWith('-');
+
+                        // Retain ONLY digits and at most one decimal point
+                        let digitsAndDot = raw.replace(/[^0-9.]/g, '');
+                        const parts = digitsAndDot.split('.');
+                        if (parts.length > 2) {
+                            digitsAndDot = parts[0] + '.' + parts.slice(1).join('');
+                        }
+
+                        let cleaned = (isNegative ? '-' : '') + digitsAndDot;
+
+                        // Handle intermediate typing states like "-", ".", "-."
+                        if (cleaned === '-' || cleaned === '.' || cleaned === '-.') {
+                            this.billDiscount = cleaned;
+                            this.syncCashReceived();
+                            return;
+                        }
+
+                        if (cleaned === '') {
+                            this.billDiscount = '';
+                            this.syncCashReceived();
+                            return;
+                        }
+
+                        const absVal = Math.abs(parseFloat(cleaned));
+                        if (isNaN(absVal)) {
+                            this.billDiscount = '';
                             this.syncCashReceived();
                             return;
                         }
 
                         const max = this.maxBillDiscount;
-                        if (num > max) {
-                            this.billDiscount = String(max);
-                            this.$dispatch('toast', { message: 'Other discount cannot exceed remaining subtotal (' + this.formatCurrency(max) + ')', type: 'warning' });
+                        if (absVal > max) {
+                            this.billDiscount = isNegative ? ('-' + max) : String(max);
+                            this.$dispatch('toast', {
+                                message: 'Other discount cannot exceed remaining subtotal (' + this.formatCurrency(max) + ')',
+                                type: 'warning'
+                            });
                             this.syncCashReceived();
                             return;
                         }
 
-                        this.billDiscount = val;
+                        this.billDiscount = cleaned;
                         this.syncCashReceived();
                     },
 
                     clampBillDiscount() {
                         const max = this.maxBillDiscount;
                         if (this.numericBillDiscount > max) {
-                            this.billDiscount = max > 0 ? String(max) : '';
+                            const isNegative = String(this.billDiscount).startsWith('-');
+                            this.billDiscount = max > 0 ? (isNegative ? ('-' + max) : String(max)) : '';
                         }
                     },
 
@@ -1363,7 +1552,10 @@
                     },
 
                     get numericBillDiscount() {
-                        return parseFloat(this.billDiscount) || 0;
+                        if (!this.billDiscount) return 0;
+                        const val = parseFloat(this.billDiscount);
+                        if (isNaN(val) || val === 0) return 0;
+                        return Math.abs(val);
                     },
 
                     get couponDiscount() {

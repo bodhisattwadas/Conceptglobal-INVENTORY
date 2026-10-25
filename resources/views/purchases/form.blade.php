@@ -169,6 +169,7 @@
             init() {
                 const seededItems = (initialData.items || []).map(item => this.normalizeItem(item));
                 this.items = seededItems.length ? seededItems : [this.blankItem()];
+                this.initScannerListener();
             },
 
             submitForm(e) {
@@ -226,6 +227,17 @@
                     this.supplier_id = value;
                     this.items.forEach(item => this.destroyRowSelects(item));
                     this.items = [this.blankItem()];
+                    this.$nextTick(() => {
+                        this.items.forEach(item => {
+                            const pSelect = document.getElementById(`product_search_${item.key}`)?.tomselect;
+                            if (pSelect) this.reloadProductSelect(pSelect, item);
+                            const bSelect = document.getElementById(`company_id_${item.key}`)?.tomselect;
+                            if (bSelect) {
+                                bSelect.enable();
+                                bSelect.load('');
+                            }
+                        });
+                    });
                 }, 'Select Supplier / Vendor...');
             },
 
@@ -331,8 +343,41 @@
                 };
             },
 
+            focusRowSelect(item) {
+                this.$nextTick(() => {
+                    const select = document.getElementById(`product_search_${item.key}`)?.tomselect;
+                    if (select) {
+                        select.focus();
+                    } else {
+                        setTimeout(() => {
+                            document.getElementById(`product_search_${item.key}`)?.tomselect?.focus();
+                        }, 80);
+                    }
+                });
+            },
+
             addRow() {
-                this.items.push(this.blankItem());
+                const existingBlank = this.items.find(item => !item.product_id);
+                if (existingBlank) {
+                    this.focusRowSelect(existingBlank);
+                    this.$dispatch('toast', { message: 'Please select a product for the existing blank row first.', type: 'warning' });
+                    return;
+                }
+                const newItem = this.blankItem();
+                this.items.push(newItem);
+                this.focusRowSelect(newItem);
+            },
+
+            removeItem(index) {
+                const item = this.items[index];
+                this.destroyRowSelects(item);
+                this.items.splice(index, 1);
+                if (this.items.length === 0) {
+                    const newItem = this.blankItem();
+                    this.items.push(newItem);
+                    this.focusRowSelect(newItem);
+                }
+                this.syncAllProductDropdowns();
             },
 
             destroyRowSelects(item) {
@@ -356,16 +401,25 @@
                 const discount = this.defaultDiscountPercent;
                 const unitPrice = this.money(mrp * (1 - discount / 100));
 
-                item.product_id = product.value;
-                item.product_name = product.text;
-                item.product_code = product.sku;
-                item.brand = product.brand;
+                item.product_id = product.value || product.id;
+                item.product_name = product.text || product.name;
+                item.product_code = product.sku || '';
+                item.brand = product.brand || item.brand;
                 item.company_id = product.brand_id || item.company_id;
                 item.mrp = mrp;
                 item.discount_percent = discount;
-                item.quantity = item.quantity || 1;
+                item.quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
                 item.unit_price = unitPrice;
                 item.subtotal = this.money((parseInt(item.quantity) || 0) * unitPrice);
+
+                if (product.brand_id && product.brand) {
+                    const brandSelect = document.getElementById(`company_id_${item.key}`)?.tomselect;
+                    if (brandSelect && String(brandSelect.getValue()) !== String(product.brand_id)) {
+                        brandSelect.addOption({ value: product.brand_id, text: product.brand });
+                        brandSelect.setValue(product.brand_id, true);
+                    }
+                }
+
                 this.syncAllProductDropdowns(item);
             },
 
@@ -414,7 +468,7 @@
                 });
             },
 
-            reloadProductSelect(select, item) {
+            reloadProductSelect(select, item, autoFocus = false) {
                 if (!select) return;
 
                 if (typeof select.clearCache === 'function') {
@@ -423,6 +477,7 @@
 
                 select.clearOptions();
                 select.loadedSearches = {};
+                select.wrapper?.classList.remove('preloaded');
 
                 if (item.product_id && item.product_name) {
                     select.addOption({
@@ -439,9 +494,9 @@
                     select.setValue(item.product_id, true);
                 }
 
-                if (!item.company_id) {
+                if (!this.supplier_id) {
                     select.disable();
-                    select.settings.placeholder = 'Select a brand first...';
+                    select.settings.placeholder = 'Select vendor first...';
                     const placeholderEl = select.control?.querySelector('.items-placeholder');
                     if (placeholderEl) placeholderEl.placeholder = select.settings.placeholder;
                     select.inputState();
@@ -449,24 +504,65 @@
                 }
 
                 select.enable();
-                select.settings.placeholder = 'Search products for selected brand...';
+                select.settings.placeholder = item.company_id
+                    ? 'Search products for selected brand...'
+                    : 'Search product or scan barcode...';
                 const placeholderEl = select.control?.querySelector('.items-placeholder');
                 if (placeholderEl) placeholderEl.placeholder = select.settings.placeholder;
                 select.inputState();
-                select.load('');
+
+                // Fetch and populate available products immediately
+                this.fetchOptions('{{ route("ajax.products.search") }}', {
+                    q: '',
+                    supplier_id: this.supplier_id || undefined,
+                    company_id: item.company_id || undefined,
+                    for_purchase: true
+                }, (products) => {
+                    const available = this.filterAvailableProducts(products, item);
+                    select.clearOptions();
+                    select.loadedSearches[''] = true;
+
+                    if (item.product_id && item.product_name) {
+                        select.addOption({
+                            value: item.product_id,
+                            id: item.product_id,
+                            text: item.product_name,
+                            name: item.product_name,
+                            sku: item.product_code,
+                            mrp: item.mrp,
+                            price: item.mrp,
+                            brand: item.brand,
+                            brand_id: item.company_id
+                        });
+                        select.setValue(item.product_id, true);
+                    }
+
+                    available.forEach(p => {
+                        select.addOption(p);
+                    });
+
+                    select.refreshOptions(false);
+
+                    if (autoFocus) {
+                        this.$nextTick(() => {
+                            select.focus();
+                            select.open();
+                        });
+                    }
+                });
             },
 
-            reloadRowProductSelect(item) {
+            reloadRowProductSelect(item, autoFocus = false) {
                 const reload = () => {
                     const productSelect = document.getElementById(`product_search_${item.key}`)?.tomselect;
                     if (productSelect) {
-                        this.reloadProductSelect(productSelect, item);
+                        this.reloadProductSelect(productSelect, item, autoFocus);
                     }
                 };
 
                 const productSelect = document.getElementById(`product_search_${item.key}`)?.tomselect;
                 if (productSelect) {
-                    this.reloadProductSelect(productSelect, item);
+                    this.reloadProductSelect(productSelect, item, autoFocus);
                 } else {
                     setTimeout(reload, 50);
                 }
@@ -486,6 +582,9 @@
                             this.fetchOptions('{{ route("ajax.companies.search") }}', { q: query, supplier_id: this.supplier_id }, callback);
                         },
                         onChange: value => {
+                            if (String(item.company_id || '') === String(value || '')) {
+                                return;
+                            }
                             item.company_id = value;
                             const option = value ? select.options[value] : null;
                             item.brand = option ? option.text : '';
@@ -493,7 +592,7 @@
 
                             const productSelect = document.getElementById(`product_search_${item.key}`)?.tomselect;
                             productSelect?.clear(true);
-                            this.reloadRowProductSelect(item);
+                            this.reloadRowProductSelect(item, true);
                         }
                     });
 
@@ -514,21 +613,152 @@
                 });
             },
 
+            handleProductScan(select, item, query) {
+                const qLower = query.trim().toLowerCase();
+                if (!qLower) return;
+
+                const existingRow = this.items.find(row => 
+                    row.key !== item.key && row.product_id && (
+                        (row.product_code && row.product_code.toLowerCase() === qLower) ||
+                        (row.product_name && row.product_name.toLowerCase() === qLower)
+                    )
+                );
+
+                if (existingRow) {
+                    existingRow.quantity = (parseInt(existingRow.quantity) || 0) + 1;
+                    this.calculateLine(this.items.indexOf(existingRow));
+                    select.clear(true);
+                    select.close();
+                    if (select.dropdown_input) select.dropdown_input.value = '';
+                    if (select.control_input) select.control_input.value = '';
+                    this.$dispatch('toast', {
+                        message: `Increased quantity for "${existingRow.product_name}" to ${existingRow.quantity}`,
+                        type: 'info'
+                    });
+                    this.focusRowSelect(item);
+                    return;
+                }
+
+                const exactMatch = Object.values(select.options).find(opt => 
+                    (opt.sku && opt.sku.toLowerCase() === qLower) ||
+                    (opt.text && opt.text.toLowerCase() === qLower) ||
+                    (opt.name && opt.name.toLowerCase() === qLower)
+                );
+
+                if (exactMatch) {
+                    select.addOption(exactMatch);
+                    select.setValue(exactMatch.value);
+                    this.setRowProduct(item, exactMatch);
+                    select.close();
+                    this.onProductScanSuccess(item);
+                    return;
+                }
+
+                this.fetchOptions('{{ route("ajax.products.search") }}', {
+                    q: query,
+                    supplier_id: this.supplier_id || undefined,
+                    company_id: item.company_id || undefined,
+                    for_purchase: true
+                }, (products) => {
+                    let list = Array.isArray(products) ? products : [];
+
+                    if (list.length === 0 && item.company_id) {
+                        this.fetchOptions('{{ route("ajax.products.search") }}', {
+                            q: query,
+                            supplier_id: this.supplier_id || undefined,
+                            for_purchase: true
+                        }, (allProducts) => {
+                            this.processScanResults(select, item, Array.isArray(allProducts) ? allProducts : [], query);
+                        });
+                    } else {
+                        this.processScanResults(select, item, list, query);
+                    }
+                });
+            },
+
+            processScanResults(select, item, products, query) {
+                const qLower = query.trim().toLowerCase();
+                const available = this.filterAvailableProducts(products, item);
+
+                if (available.length === 0) {
+                    const existingProduct = products.find(p => 
+                        (p.sku && p.sku.toLowerCase() === qLower) ||
+                        (p.text && p.text.toLowerCase() === qLower) ||
+                        (p.name && p.name.toLowerCase() === qLower)
+                    );
+
+                    if (existingProduct) {
+                        const existingRow = this.items.find(row => 
+                            String(row.product_id) === String(existingProduct.value || existingProduct.id)
+                        );
+                        if (existingRow) {
+                            existingRow.quantity = (parseInt(existingRow.quantity) || 0) + 1;
+                            this.calculateLine(this.items.indexOf(existingRow));
+                            select.clear(true);
+                            select.close();
+                            if (select.dropdown_input) select.dropdown_input.value = '';
+                            if (select.control_input) select.control_input.value = '';
+                            this.$dispatch('toast', {
+                                message: `Increased quantity for "${existingRow.product_name}" to ${existingRow.quantity}`,
+                                type: 'info'
+                            });
+                            this.focusRowSelect(item);
+                            return;
+                        }
+                    }
+
+                    this.$dispatch('toast', {
+                        message: `No available product found matching "${query}"`,
+                        type: 'warning'
+                    });
+                    return;
+                }
+
+                const match = available.find(p => p.sku && p.sku.toLowerCase() === qLower) ||
+                              available.find(p => p.sku && p.sku.toLowerCase().startsWith(qLower)) ||
+                              available.find(p => (p.text || p.name || '').toLowerCase() === qLower) ||
+                              available[0];
+
+                select.addOption(match);
+                select.setValue(match.value || match.id);
+                this.setRowProduct(item, match);
+                select.close();
+                this.onProductScanSuccess(item);
+            },
+
+            onProductScanSuccess(item) {
+                this.$dispatch('toast', { message: `Selected "${item.product_name}"`, type: 'success' });
+
+                this.$nextTick(() => {
+                    const emptyRow = this.items.find(row => !row.product_id);
+                    if (emptyRow) {
+                        this.focusRowSelect(emptyRow);
+                    } else {
+                        this.addRow();
+                    }
+                });
+            },
+
             initRowProductSelect(el, item) {
                 this.waitForTomSelect(() => {
                     const select = new TomSelect(el, {
-                        placeholder: item.company_id ? 'Search products for selected brand...' : 'Select a brand first...',
+                        placeholder: item.company_id
+                            ? 'Search products for selected brand...'
+                            : (this.supplier_id ? 'Search product or scan barcode...' : 'Select vendor first...'),
                         preload: 'focus',
+                        maxOptions: 500,
                         valueField: 'value',
                         labelField: 'text',
                         searchField: ['text', 'name', 'sku'],
                         plugins: ['dropdown_input', 'clear_button'],
                         openOnFocus: true,
+                        loadThrottle: 150,
                         load: (query, callback) => {
-                            if (!item.company_id) return callback([]);
+                            if (!this.supplier_id) return callback([]);
                             this.fetchOptions('{{ route("ajax.products.search") }}', {
                                 q: query,
-                                company_id: item.company_id,
+                                supplier_id: this.supplier_id || undefined,
+                                company_id: item.company_id || undefined,
                                 for_purchase: true
                             }, products => callback(this.filterAvailableProducts(products, item)));
                         },
@@ -539,11 +769,13 @@
                                 select.removeItem(value, true);
                                 select.removeOption(value);
                                 select.refreshOptions(false);
+                                this.$dispatch('toast', { message: 'Product already added in another row.', type: 'warning' });
                                 return;
                             }
                             const data = select.options[value];
                             if (data) {
                                 this.setRowProduct(item, data);
+                                this.onProductScanSuccess(item);
                             }
                         },
                         onChange: value => {
@@ -553,9 +785,18 @@
                         },
                         render: {
                             option: (data, escape) => {
-                                return `<div class="flex items-center justify-between gap-3 w-full py-1">
-                                    <span class="min-w-0 truncate font-medium text-gray-900">${escape(data.text || data.name || '')}</span>
-                                    <span class="shrink-0 text-xs font-mono text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">${escape(data.sku || '')}</span>
+                                const brandHtml = data.brand ? `<span class="shrink-0 text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">${escape(data.brand)}</span>` : '';
+                                return `<div class="flex items-center justify-between gap-3 w-full py-1.5 px-1">
+                                    <div class="min-w-0 pr-2">
+                                        <div class="truncate font-medium text-gray-900">${escape(data.text || data.name || '')}</div>
+                                        <div class="flex items-center gap-1.5 mt-0.5">
+                                            <span class="text-xs font-mono text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">${escape(data.sku || '')}</span>
+                                            ${brandHtml}
+                                        </div>
+                                    </div>
+                                    <div class="text-right shrink-0">
+                                        <div class="text-sm font-semibold text-gray-700">${window.formatMoney(data.mrp || data.price || 0)}</div>
+                                    </div>
                                 </div>`;
                             },
                             item: (data, escape) => {
@@ -571,6 +812,41 @@
                         select.control_input.placeholder = 'Search product name or code...';
                     }
 
+                    const handleScannerKeyDown = (e) => {
+                        if (e.key === 'Enter' || e.keyCode === 13) {
+                            const input = e.target;
+                            const query = (input.value || '').trim();
+                            if (!query) return;
+
+                            const qLower = query.toLowerCase();
+
+                            const activeVal = select.activeOption?.dataset?.value;
+                            const activeData = activeVal ? select.options[activeVal] : null;
+                            const activeMatches = activeData && (
+                                (activeData.sku && activeData.sku.toLowerCase() === qLower) ||
+                                (activeData.text && activeData.text.toLowerCase() === qLower) ||
+                                (activeData.name && activeData.name.toLowerCase() === qLower)
+                            );
+
+                            if (!activeMatches) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                this.handleProductScan(select, item, query);
+                            }
+                        }
+                    };
+
+                    select.control_input?.addEventListener('keydown', handleScannerKeyDown, true);
+                    if (select.dropdown_input) {
+                        select.dropdown_input.addEventListener('keydown', handleScannerKeyDown, true);
+                    }
+                    select.wrapper?.addEventListener('keydown', (e) => {
+                        if ((e.key === 'Enter' || e.keyCode === 13) && (e.target?.classList.contains('dropdown-input') || e.target?.classList.contains('ts-input'))) {
+                            handleScannerKeyDown(e);
+                        }
+                    }, true);
+
                     select.on('dropdown_open', () => {
                         const forbiddenIds = this.selectedProductIds(item);
                         let changed = false;
@@ -583,12 +859,14 @@
                         if (changed) {
                             select.refreshOptions(false);
                         }
-                        if (item.company_id && Object.keys(select.options).length <= (item.product_id ? 1 : 0)) {
-                            select.load('');
+                        if (this.supplier_id && Object.keys(select.options).length <= (item.product_id ? 1 : 0)) {
+                            this.reloadProductSelect(select, item, false);
+                        } else {
+                            select.refreshOptions(false);
                         }
                     });
 
-                    if (!item.company_id) {
+                    if (!this.supplier_id) {
                         select.disable();
                     } else {
                         this.reloadProductSelect(select, item);
@@ -607,6 +885,68 @@
                             brand_id: item.company_id
                         });
                         select.setValue(item.product_id, true);
+                    }
+                });
+            },
+
+            initScannerListener() {
+                let scanBuffer = '';
+                let lastKeyTime = 0;
+
+                window.addEventListener('keydown', (e) => {
+                    const target = e.target;
+                    const isFormInput = target && (
+                        target.id === 'purchase_date' ||
+                        target.id === 'due_date' ||
+                        target.id === 'notes' ||
+                        target.id === 'supplier_id' ||
+                        target.name?.includes('quantity') ||
+                        target.name?.includes('discount_percent')
+                    );
+                    if (isFormInput) return;
+
+                    if (target && (target.classList?.contains('dropdown-input') || target.classList?.contains('ts-input') || target.closest?.('.ts-wrapper'))) {
+                        return;
+                    }
+
+                    const now = Date.now();
+                    const diff = now - lastKeyTime;
+                    lastKeyTime = now;
+
+                    if (e.key === 'Enter') {
+                        if (scanBuffer.length >= 2) {
+                            const barcode = scanBuffer.trim();
+                            scanBuffer = '';
+                            e.preventDefault();
+
+                            if (!this.supplier_id) {
+                                this.$dispatch('toast', { message: 'Please select a vendor first before scanning.', type: 'warning' });
+                                return;
+                            }
+
+                            let targetItem = this.items.find(row => !row.product_id);
+                            if (!targetItem) {
+                                targetItem = this.blankItem();
+                                this.items.push(targetItem);
+                            }
+
+                            this.$nextTick(() => {
+                                const select = document.getElementById(`product_search_${targetItem.key}`)?.tomselect;
+                                if (select) {
+                                    this.handleProductScan(select, targetItem, barcode);
+                                }
+                            });
+                        } else {
+                            scanBuffer = '';
+                        }
+                        return;
+                    }
+
+                    if (e.key && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                        if (diff > 80) {
+                            scanBuffer = '';
+                        }
+                        scanBuffer += e.key;
                     }
                 });
             }

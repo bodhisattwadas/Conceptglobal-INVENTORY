@@ -130,7 +130,9 @@ class SaleService
                     }
                 }
 
-                $billDiscount = (float) ($data->bill_discount > 0 ? $data->bill_discount : (empty($appliedCoupon) ? $data->global_discount : 0));
+                $rawBillDiscount = abs((float) $data->bill_discount);
+                $rawGlobalDiscount = abs((float) $data->global_discount);
+                $billDiscount = (float) ($rawBillDiscount > 0 ? $rawBillDiscount : (empty($appliedCoupon) ? $rawGlobalDiscount : 0));
                 $globalDiscount = round($couponDiscount + $billDiscount, 2);
 
                 if ($globalDiscount > $totalSubtotal) {

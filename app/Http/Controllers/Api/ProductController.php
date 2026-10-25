@@ -6,30 +6,59 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
     public function search(Request $request)
     {
-        $query = $request->input('q') ?? $request->input('search');
+        $rawQuery = $request->input('q') ?? $request->input('search');
+        $query = is_string($rawQuery) ? trim($rawQuery) : '';
         $companyId = $request->integer('company_id');
+        $supplierId = $request->integer('supplier_id');
         $forPurchase = $request->boolean('for_purchase');
 
-        $cacheKey = 'products_search_'.md5(json_encode([$query, $companyId, $forPurchase]));
+        $queryLower = mb_strtolower($query);
 
-        $products = Cache::remember($cacheKey, 300, function () use ($query, $companyId, $forPurchase) {
+        $cacheKey = 'products_search_'.md5(json_encode([$queryLower, $companyId, $supplierId, $forPurchase]));
+
+        $products = Cache::remember($cacheKey, 60, function () use ($query, $queryLower, $companyId, $supplierId, $forPurchase) {
+            $supplierCompanyIds = [];
+            if ($supplierId > 0 && ! $companyId) {
+                $supplierCompanyIds = DB::table('supplier_companies')
+                    ->where('supplier_id', $supplierId)
+                    ->pluck('company_id')
+                    ->all();
+            }
+
             return Product::query()
                 ->with(['unit', 'company', 'inventoryStock'])
                 ->where('is_active', true)
                 ->when(! $forPurchase, fn ($builder) => $builder->whereHas('inventoryStock', fn ($stock) => $stock->where('quantity', '>', 0)))
-                ->when($companyId, fn ($builder) => $builder->where('company_id', $companyId))
-                ->when($query, function ($q) use ($query) {
-                    $q->where(function ($searchQuery) use ($query) {
-                        $searchQuery->where('name', 'like', "%{$query}%")
-                            ->orWhere('sku', 'like', "%{$query}%");
+                ->when($companyId > 0, fn ($builder) => $builder->where('company_id', $companyId))
+                ->when(! $companyId && ! empty($supplierCompanyIds), fn ($builder) => $builder->whereIn('company_id', $supplierCompanyIds))
+                ->when($query !== '', function ($q) use ($queryLower) {
+                    $q->where(function ($searchQuery) use ($queryLower) {
+                        $searchQuery->whereRaw('LOWER(name) LIKE ?', ["%{$queryLower}%"])
+                            ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$queryLower}%"]);
                     });
                 })
-                ->limit(50)
+                ->when($query !== '', function ($q) use ($queryLower) {
+                    $q->orderByRaw('CASE 
+                        WHEN LOWER(sku) = ? THEN 0 
+                        WHEN LOWER(sku) LIKE ? THEN 1 
+                        WHEN LOWER(name) = ? THEN 2 
+                        WHEN LOWER(name) LIKE ? THEN 3 
+                        ELSE 4 
+                    END', [
+                        $queryLower,
+                        $queryLower.'%',
+                        $queryLower,
+                        $queryLower.'%',
+                    ]);
+                })
+                ->orderBy('name')
+                ->limit(($companyId > 0 || $forPurchase) ? 300 : 50)
                 ->get()
                 ->map(function ($product) {
                     return [

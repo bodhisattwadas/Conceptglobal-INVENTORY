@@ -144,4 +144,107 @@ class PurchaseWorkflowTest extends TestCase
             $this->assertStringNotContainsString('>', $value, "Column {$key} contains HTML tags: {$value}");
         }
     }
+
+    public function test_product_search_endpoint_supports_case_insensitive_sku_and_scanner_inputs(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $company = Company::create([
+            'company_code' => 'BRD-001',
+            'company_name' => 'Lakme',
+            'short_name' => 'Lakme',
+        ]);
+
+        $category = Category::create([
+            'name' => 'Makeup',
+            'slug' => 'makeup',
+        ]);
+
+        $unit = Unit::create([
+            'name' => 'Piece',
+            'symbol' => 'pc',
+        ]);
+
+        $product = Product::factory()->create([
+            'company_id' => $company->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'COS.0001',
+            'name' => 'LuxeGlow HD Foundation',
+            'mrp' => 899,
+            'is_active' => true,
+        ]);
+
+        // 1. Lowercase search should find uppercase SKU
+        $response = $this->actingAs($user)->postJson(route('ajax.products.search'), [
+            'q' => 'cos.0001',
+            'for_purchase' => true,
+        ]);
+
+        $response->assertOk();
+        $data = $response->json();
+        $this->assertCount(1, $data);
+        $this->assertSame($product->id, $data[0]['value']);
+        $this->assertSame('COS.0001', $data[0]['sku']);
+
+        // 2. Barcode scanner input with whitespace/newline
+        $responseScanner = $this->actingAs($user)->postJson(route('ajax.products.search'), [
+            'q' => "  COS.0001\r\n ",
+            'for_purchase' => true,
+        ]);
+
+        $responseScanner->assertOk();
+        $dataScanner = $responseScanner->json();
+        $this->assertCount(1, $dataScanner);
+        $this->assertSame($product->id, $dataScanner[0]['value']);
+    }
+
+    public function test_product_search_endpoint_filters_by_supplier_brands(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $supplier = Supplier::create([
+            'name' => 'Mega Vendor',
+            'contact_person' => 'Vendor Person',
+            'email' => 'mega@test.com',
+            'phone' => '1234567890',
+        ]);
+
+        $brandA = Company::create(['company_code' => 'BRD-A', 'company_name' => 'Brand A']);
+        $brandB = Company::create(['company_code' => 'BRD-B', 'company_name' => 'Brand B']);
+
+        $supplier->companies()->attach([$brandA->id]);
+
+        $category = Category::create(['name' => 'Makeup', 'slug' => 'makeup-2']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc2']);
+
+        $productA = Product::factory()->create([
+            'company_id' => $brandA->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'SKU-A',
+            'name' => 'Product A',
+            'is_active' => true,
+        ]);
+
+        $productB = Product::factory()->create([
+            'company_id' => $brandB->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'SKU-B',
+            'name' => 'Product B',
+            'is_active' => true,
+        ]);
+
+        // When supplier_id is provided, only brands supplied by that vendor are returned
+        $response = $this->actingAs($user)->postJson(route('ajax.products.search'), [
+            'supplier_id' => $supplier->id,
+            'for_purchase' => true,
+        ]);
+
+        $response->assertOk();
+        $ids = collect($response->json())->pluck('value')->all();
+        $this->assertContains($productA->id, $ids);
+        $this->assertNotContains($productB->id, $ids);
+    }
 }
