@@ -247,4 +247,99 @@ class PurchaseWorkflowTest extends TestCase
         $this->assertContains($productA->id, $ids);
         $this->assertNotContains($productB->id, $ids);
     }
+
+    public function test_product_search_endpoint_searches_by_brand_name(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $brand = Company::create(['company_code' => 'BRD-LAKME', 'company_name' => 'Lakme Cosmetics', 'short_name' => 'Lakme']);
+        $category = Category::create(['name' => 'Makeup', 'slug' => 'makeup-lakme']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc-lakme']);
+
+        $product = Product::factory()->create([
+            'company_id' => $brand->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'LAK.001',
+            'name' => 'Eyeconic Kajal',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($user)->postJson(route('ajax.products.search'), [
+            'q' => 'Lakme',
+            'for_purchase' => true,
+        ]);
+
+        $response->assertOk();
+        $data = $response->json();
+        $this->assertNotEmpty($data);
+        $this->assertSame($product->id, $data[0]['value']);
+        $this->assertSame('Lakme', $data[0]['brand']);
+    }
+
+    public function test_purchase_create_view_renders_table_with_single_product_select_and_brand_column(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($user)->get(route('purchases.create'));
+
+        $response->assertOk();
+        $response->assertSee('Product');
+        $response->assertSee('Brand');
+        $response->assertSee(':id="`product_search_${item.key}`"', false);
+        $response->assertDontSee(':id="`company_id_${item.key}`"', false);
+        $response->assertSee('x-text="item.brand || \'-\'"', false);
+    }
+
+    public function test_purchase_can_be_created_with_products_from_vendor_brands_auto_populating_company_id(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $supplier = Supplier::create([
+            'name' => 'Supplier X',
+            'contact_person' => 'Supplier Contact',
+            'email' => 'supplierx@test.com',
+            'phone' => '9876543210',
+        ]);
+
+        $brand = Company::create(['company_code' => 'BRD-X', 'company_name' => 'Brand X']);
+        $supplier->companies()->attach([$brand->id]);
+
+        $category = Category::create(['name' => 'Skincare', 'slug' => 'skincare-x']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc-x']);
+
+        $product = Product::factory()->create([
+            'company_id' => $brand->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'SKU-X1',
+            'name' => 'Product X1',
+            'mrp' => 1000,
+            'is_active' => true,
+        ]);
+
+        // company_id omitted in request body; prepareForValidation should infer from first product
+        $response = $this->actingAs($user)->post(route('purchases.store'), [
+            'supplier_id' => $supplier->id,
+            'purchase_date' => now()->toDateString(),
+            'due_date' => now()->addDays(3)->toDateString(),
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'company_id' => $brand->id,
+                    'quantity' => 10,
+                    'discount_percent' => 20,
+                    'unit_price' => 800,
+                    'selling_price' => 1000,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('purchases', [
+            'supplier_id' => $supplier->id,
+            'company_id' => $brand->id,
+            'total' => 8000,
+        ]);
+    }
 }

@@ -36,11 +36,15 @@ class ProductController extends Controller
                 ->where('is_active', true)
                 ->when(! $forPurchase, fn ($builder) => $builder->whereHas('inventoryStock', fn ($stock) => $stock->where('quantity', '>', 0)))
                 ->when($companyId > 0, fn ($builder) => $builder->where('company_id', $companyId))
-                ->when(! $companyId && ! empty($supplierCompanyIds), fn ($builder) => $builder->whereIn('company_id', $supplierCompanyIds))
+                ->when($supplierId > 0 && ! $companyId, fn ($builder) => $builder->whereIn('company_id', $supplierCompanyIds))
                 ->when($query !== '', function ($q) use ($queryLower) {
                     $q->where(function ($searchQuery) use ($queryLower) {
                         $searchQuery->whereRaw('LOWER(name) LIKE ?', ["%{$queryLower}%"])
-                            ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$queryLower}%"]);
+                            ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$queryLower}%"])
+                            ->orWhereHas('company', function ($companyQuery) use ($queryLower) {
+                                $companyQuery->whereRaw('LOWER(company_name) LIKE ?', ["%{$queryLower}%"])
+                                    ->orWhereRaw('LOWER(short_name) LIKE ?', ["%{$queryLower}%"]);
+                            });
                     });
                 })
                 ->when($query !== '', function ($q) use ($queryLower) {

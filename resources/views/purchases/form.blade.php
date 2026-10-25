@@ -55,8 +55,8 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="w-[240px] min-w-[220px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Brand</th>
                             <th class="min-w-[340px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Product</th>
+                            <th class="w-[200px] min-w-[180px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Brand</th>
                             <th class="w-16 px-2 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">Qty</th>
                             <th class="w-28 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">MRP</th>
                             <th class="w-32 px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">MRP Discount %</th>
@@ -67,14 +67,6 @@
                     <tbody class="divide-y divide-gray-200 bg-white">
                         <template x-for="(item, index) in items" :key="item.key">
                             <tr>
-                                <td class="w-[240px] min-w-[220px] px-4 py-3 align-top">
-                                    <select
-                                        :id="`company_id_${item.key}`"
-                                        x-init="initRowBrandSelect($el, item)"
-                                        autocomplete="off"
-                                    ></select>
-                                    <input type="hidden" :name="item.product_id ? `items[${index}][company_id]` : null" :value="item.company_id">
-                                </td>
                                 <td class="min-w-[340px] px-4 py-3 align-top">
                                     <select
                                         :id="`product_search_${item.key}`"
@@ -82,9 +74,16 @@
                                         autocomplete="off"
                                     ></select>
                                     <input type="hidden" :name="item.product_id ? `items[${index}][product_id]` : null" :value="item.product_id">
+                                    <input type="hidden" :name="item.product_id ? `items[${index}][product_name]` : null" :value="item.product_name">
+                                    <input type="hidden" :name="item.product_id ? `items[${index}][product_code]` : null" :value="item.product_code">
                                     <div x-show="item.product_code" class="mt-1">
                                         <span class="inline-flex items-center rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium font-mono text-emerald-700 border border-emerald-200" x-text="item.product_code"></span>
                                     </div>
+                                </td>
+                                <td class="w-[200px] min-w-[180px] px-4 py-3 align-top">
+                                    <div class="pt-2 text-sm font-medium text-gray-800" x-text="item.brand || '-'"></div>
+                                    <input type="hidden" :name="item.product_id ? `items[${index}][company_id]` : null" :value="item.company_id">
+                                    <input type="hidden" :name="item.product_id ? `items[${index}][brand]` : null" :value="item.brand">
                                 </td>
                                 <td class="w-16 px-2 py-3 text-center align-top whitespace-nowrap">
                                     <input type="number" :name="item.product_id ? `items[${index}][quantity]` : null" x-model.number="item.quantity" @input="calculateLine(index)" class="w-12 rounded-md border-gray-300 px-1 py-1.5 text-center text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" min="1">
@@ -231,11 +230,6 @@
                         this.items.forEach(item => {
                             const pSelect = document.getElementById(`product_search_${item.key}`)?.tomselect;
                             if (pSelect) this.reloadProductSelect(pSelect, item);
-                            const bSelect = document.getElementById(`company_id_${item.key}`)?.tomselect;
-                            if (bSelect) {
-                                bSelect.enable();
-                                bSelect.load('');
-                            }
                         });
                     });
                 }, 'Select Supplier / Vendor...');
@@ -382,7 +376,6 @@
 
             destroyRowSelects(item) {
                 if (!item) return;
-                document.getElementById(`company_id_${item.key}`)?.tomselect?.destroy();
                 document.getElementById(`product_search_${item.key}`)?.tomselect?.destroy();
             },
 
@@ -390,6 +383,8 @@
                 item.product_id = '';
                 item.product_name = '';
                 item.product_code = '';
+                item.brand = '';
+                item.company_id = '';
                 item.mrp = 0;
                 item.unit_price = 0;
                 item.subtotal = 0;
@@ -404,21 +399,13 @@
                 item.product_id = product.value || product.id;
                 item.product_name = product.text || product.name;
                 item.product_code = product.sku || '';
-                item.brand = product.brand || item.brand;
-                item.company_id = product.brand_id || item.company_id;
+                item.brand = product.brand || item.brand || '';
+                item.company_id = product.brand_id || product.company_id || item.company_id || '';
                 item.mrp = mrp;
                 item.discount_percent = discount;
                 item.quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
                 item.unit_price = unitPrice;
                 item.subtotal = this.money((parseInt(item.quantity) || 0) * unitPrice);
-
-                if (product.brand_id && product.brand) {
-                    const brandSelect = document.getElementById(`company_id_${item.key}`)?.tomselect;
-                    if (brandSelect && String(brandSelect.getValue()) !== String(product.brand_id)) {
-                        brandSelect.addOption({ value: product.brand_id, text: product.brand });
-                        brandSelect.setValue(product.brand_id, true);
-                    }
-                }
 
                 this.syncAllProductDropdowns(item);
             },
@@ -504,9 +491,7 @@
                 }
 
                 select.enable();
-                select.settings.placeholder = item.company_id
-                    ? 'Search products for selected brand...'
-                    : 'Search product or scan barcode...';
+                select.settings.placeholder = 'Search product name, SKU or scan barcode...';
                 const placeholderEl = select.control?.querySelector('.items-placeholder');
                 if (placeholderEl) placeholderEl.placeholder = select.settings.placeholder;
                 select.inputState();
@@ -515,7 +500,6 @@
                 this.fetchOptions('{{ route("ajax.products.search") }}', {
                     q: '',
                     supplier_id: this.supplier_id || undefined,
-                    company_id: item.company_id || undefined,
                     for_purchase: true
                 }, (products) => {
                     const available = this.filterAvailableProducts(products, item);
@@ -548,67 +532,6 @@
                             select.focus();
                             select.open();
                         });
-                    }
-                });
-            },
-
-            reloadRowProductSelect(item, autoFocus = false) {
-                const reload = () => {
-                    const productSelect = document.getElementById(`product_search_${item.key}`)?.tomselect;
-                    if (productSelect) {
-                        this.reloadProductSelect(productSelect, item, autoFocus);
-                    }
-                };
-
-                const productSelect = document.getElementById(`product_search_${item.key}`)?.tomselect;
-                if (productSelect) {
-                    this.reloadProductSelect(productSelect, item, autoFocus);
-                } else {
-                    setTimeout(reload, 50);
-                }
-            },
-
-            initRowBrandSelect(el, item) {
-                this.waitForTomSelect(() => {
-                    const select = new TomSelect(el, {
-                        placeholder: this.supplier_id ? 'Select Brand...' : 'Select vendor first...',
-                        preload: 'focus',
-                        valueField: 'value',
-                        labelField: 'text',
-                        searchField: 'text',
-                        plugins: ['dropdown_input'],
-                        load: (query, callback) => {
-                            if (!this.supplier_id) return callback([]);
-                            this.fetchOptions('{{ route("ajax.companies.search") }}', { q: query, supplier_id: this.supplier_id }, callback);
-                        },
-                        onChange: value => {
-                            if (String(item.company_id || '') === String(value || '')) {
-                                return;
-                            }
-                            item.company_id = value;
-                            const option = value ? select.options[value] : null;
-                            item.brand = option ? option.text : '';
-                            this.clearRowProduct(item);
-
-                            const productSelect = document.getElementById(`product_search_${item.key}`)?.tomselect;
-                            productSelect?.clear(true);
-                            this.reloadRowProductSelect(item, true);
-                        }
-                    });
-
-                    if (select.control_input) {
-                        select.control_input.placeholder = 'Search brand...';
-                    }
-
-                    if (!this.supplier_id) {
-                        select.disable();
-                    } else {
-                        select.load('');
-                    }
-
-                    if (item.company_id && item.brand) {
-                        select.addOption({ value: item.company_id, text: item.brand });
-                        select.setValue(item.company_id, true);
                     }
                 });
             },
@@ -657,22 +580,9 @@
                 this.fetchOptions('{{ route("ajax.products.search") }}', {
                     q: query,
                     supplier_id: this.supplier_id || undefined,
-                    company_id: item.company_id || undefined,
                     for_purchase: true
                 }, (products) => {
-                    let list = Array.isArray(products) ? products : [];
-
-                    if (list.length === 0 && item.company_id) {
-                        this.fetchOptions('{{ route("ajax.products.search") }}', {
-                            q: query,
-                            supplier_id: this.supplier_id || undefined,
-                            for_purchase: true
-                        }, (allProducts) => {
-                            this.processScanResults(select, item, Array.isArray(allProducts) ? allProducts : [], query);
-                        });
-                    } else {
-                        this.processScanResults(select, item, list, query);
-                    }
+                    this.processScanResults(select, item, Array.isArray(products) ? products : [], query);
                 });
             },
 
@@ -742,14 +652,14 @@
             initRowProductSelect(el, item) {
                 this.waitForTomSelect(() => {
                     const select = new TomSelect(el, {
-                        placeholder: item.company_id
-                            ? 'Search products for selected brand...'
-                            : (this.supplier_id ? 'Search product or scan barcode...' : 'Select vendor first...'),
+                        placeholder: this.supplier_id
+                            ? 'Search product name, SKU or scan barcode...'
+                            : 'Select vendor first...',
                         preload: 'focus',
                         maxOptions: 500,
                         valueField: 'value',
                         labelField: 'text',
-                        searchField: ['text', 'name', 'sku'],
+                        searchField: ['text', 'name', 'sku', 'brand'],
                         plugins: ['dropdown_input', 'clear_button'],
                         openOnFocus: true,
                         loadThrottle: 150,
@@ -758,7 +668,6 @@
                             this.fetchOptions('{{ route("ajax.products.search") }}', {
                                 q: query,
                                 supplier_id: this.supplier_id || undefined,
-                                company_id: item.company_id || undefined,
                                 for_purchase: true
                             }, products => callback(this.filterAvailableProducts(products, item)));
                         },
@@ -785,7 +694,7 @@
                         },
                         render: {
                             option: (data, escape) => {
-                                const brandHtml = data.brand ? `<span class="shrink-0 text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">${escape(data.brand)}</span>` : '';
+                                const brandHtml = data.brand ? `<span class="shrink-0 text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 font-medium">${escape(data.brand)}</span>` : '';
                                 return `<div class="flex items-center justify-between gap-3 w-full py-1.5 px-1">
                                     <div class="min-w-0 pr-2">
                                         <div class="truncate font-medium text-gray-900">${escape(data.text || data.name || '')}</div>
@@ -809,7 +718,10 @@
                     });
 
                     if (select.control_input) {
-                        select.control_input.placeholder = 'Search product name or code...';
+                        select.control_input.placeholder = 'Search product name, SKU or brand...';
+                    }
+                    if (select.dropdown_input) {
+                        select.dropdown_input.placeholder = 'Search product name, SKU or brand...';
                     }
 
                     const handleScannerKeyDown = (e) => {

@@ -27,7 +27,18 @@ class UpdatePurchaseRequest extends FormRequest
             return $item;
         })->all();
 
-        $this->merge(['items' => $items]);
+        $companyId = $this->input('company_id');
+        if (! $companyId) {
+            $firstProductId = collect($items)->pluck('product_id')->filter()->first();
+            if ($firstProductId) {
+                $companyId = Product::query()->whereKey($firstProductId)->value('company_id');
+            }
+        }
+
+        $this->merge([
+            'items' => $items,
+            'company_id' => $companyId,
+        ]);
     }
 
     public function authorize(): bool
