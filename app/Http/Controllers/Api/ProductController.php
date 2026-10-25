@@ -41,6 +41,7 @@ class ProductController extends Controller
                     $q->where(function ($searchQuery) use ($queryLower) {
                         $searchQuery->whereRaw('LOWER(name) LIKE ?', ["%{$queryLower}%"])
                             ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$queryLower}%"])
+                            ->orWhereRaw('LOWER(product_code) LIKE ?', ["%{$queryLower}%"])
                             ->orWhereHas('company', function ($companyQuery) use ($queryLower) {
                                 $companyQuery->whereRaw('LOWER(company_name) LIKE ?', ["%{$queryLower}%"])
                                     ->orWhereRaw('LOWER(short_name) LIKE ?', ["%{$queryLower}%"]);
@@ -49,12 +50,16 @@ class ProductController extends Controller
                 })
                 ->when($query !== '', function ($q) use ($queryLower) {
                     $q->orderByRaw('CASE 
-                        WHEN LOWER(sku) = ? THEN 0 
-                        WHEN LOWER(sku) LIKE ? THEN 1 
-                        WHEN LOWER(name) = ? THEN 2 
-                        WHEN LOWER(name) LIKE ? THEN 3 
-                        ELSE 4 
+                        WHEN LOWER(product_code) = ? THEN 0 
+                        WHEN LOWER(product_code) LIKE ? THEN 1 
+                        WHEN LOWER(sku) = ? THEN 2 
+                        WHEN LOWER(sku) LIKE ? THEN 3 
+                        WHEN LOWER(name) = ? THEN 4 
+                        WHEN LOWER(name) LIKE ? THEN 5 
+                        ELSE 6 
                     END', [
+                        $queryLower,
+                        $queryLower.'%',
                         $queryLower,
                         $queryLower.'%',
                         $queryLower,
@@ -74,6 +79,7 @@ class ProductController extends Controller
                         'selling_price' => $product->mrp ?: $product->selling_price,
                         'mrp' => $product->mrp,
                         'sku' => $product->sku,
+                        'product_code' => $product->product_code,
                         'brand' => $product->company ? ($product->company->short_name ?: $product->company->company_name) : null,
                         'brand_id' => $product->company_id,
                         'quantity' => $product->inventoryStock?->quantity ?? 0,

@@ -15,18 +15,24 @@
             <form action="{{ route('purchases.update', $purchase) }}" method="POST" enctype="multipart/form-data"
                     x-data="purchaseForm({
                         items: {{ Js::from(old('items', $purchase->items->map(function($item) {
+                            $mrp = (float) ($item->product->mrp ?? $item->selling_price ?? 0);
+                            $unitPrice = (float) $item->unit_price;
+                            $discountPercent = $mrp > 0
+                                ? round((1 - ($unitPrice / $mrp)) * 100, 2)
+                                : 0;
                             return [
                                 'product_id' => $item->product_id,
                                 'quantity' => $item->quantity,
                                 'unit_price' => $item->unit_price,
                                 'selling_price' => $item->selling_price,
+                                'discount_percent' => $discountPercent,
                                 'subtotal' => $item->subtotal,
                                 'key' => Str::random(10),
                                 'product_name' => $item->product->name ?? '',
-                                'product_code' => $item->product->sku ?? ''
-                                ,'company_id' => $item->product->company_id ?? null
-                                ,'brand' => $item->product->company ? ($item->product->company->short_name ?: $item->product->company->company_name) : ''
-                                ,'mrp' => $item->product->mrp ?? 0
+                                'product_code' => $item->product->product_code ?? $item->product->sku ?? '',
+                                'company_id' => $item->product->company_id ?? null,
+                                'brand' => $item->product->company ? ($item->product->company->short_name ?: $item->product->company->company_name) : '',
+                                'mrp' => $mrp ?: $item->unit_price ?: 0,
                             ];
                         }))) }},
                         supplier_id: {{ Js::from(old('supplier_id', $purchase->supplier_id)) }},

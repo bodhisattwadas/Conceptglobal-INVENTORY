@@ -874,6 +874,7 @@
                         item.id = product.id || product.value;
                         item.name = product.name || product.text;
                         item.sku = product.sku || '';
+                        item.product_code = product.product_code || '';
                         item.price = parseFloat(product.selling_price || product.price) || 0;
                         item.quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
                         item.max_stock = product.quantity !== undefined ? product.quantity : 9999;
@@ -980,11 +981,11 @@
                             if (el.tomselect) return;
 
                             const select = new TomSelect(el, {
-                                placeholder: 'Search product (Name or SKU)...',
+                                placeholder: 'Search product (Barcode, Name, or SKU)...',
                                 preload: 'focus',
                                 valueField: 'value',
                                 labelField: 'text',
-                                searchField: ['text', 'name', 'sku'],
+                                searchField: ['text', 'name', 'sku', 'product_code'],
                                 plugins: ['dropdown_input', 'clear_button'],
                                 openOnFocus: true,
                                 load: (query, callback) => {
@@ -1025,14 +1026,24 @@
                                     option: (data, escape) => {
                                         const name = escape(data.text || data.name || '');
                                         const sku = escape(data.sku || '');
+                                        const productCode = escape(data.product_code || '');
                                         const price = this.formatCurrency(data.selling_price || data.price || 0);
                                         const qty = escape(String(data.quantity || 0));
                                         const unit = escape(data.unit?.symbol || '');
 
+                                        const codeParts = [];
+                                        if (productCode) {
+                                            codeParts.push(`Barcode: ${productCode}`);
+                                        }
+                                        if (sku) {
+                                            codeParts.push(`SKU: ${sku}`);
+                                        }
+                                        const codeInfo = codeParts.join(' | ');
+
                                         return `<div class="flex items-center justify-between gap-3 w-full py-2 px-2.5">
                                             <div class="min-w-0 pr-2">
                                                 <div class="font-semibold text-gray-900 truncate">${name}</div>
-                                                <div class="text-xs text-gray-500 font-mono mt-0.5">${sku}</div>
+                                                <div class="text-xs text-gray-500 font-mono mt-0.5">${codeInfo}</div>
                                             </div>
                                             <div class="text-right shrink-0">
                                                 <div class="font-bold text-indigo-600">${price}</div>
@@ -1050,7 +1061,7 @@
                             });
 
                             if (select.control_input) {
-                                select.control_input.placeholder = 'Search product name or SKU...';
+                                select.control_input.placeholder = 'Search product (Barcode, Name, or SKU)...';
                             }
 
                             const handleScannerKeyDown = (e) => {

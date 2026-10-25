@@ -342,4 +342,59 @@ class PurchaseWorkflowTest extends TestCase
             'total' => 8000,
         ]);
     }
+
+    public function test_custom_mrp_discount_is_saved_and_preserved_on_edit(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+        $supplier = Supplier::create([
+            'name' => 'Supplier Custom Discount',
+            'contact_person' => 'John Doe',
+            'phone' => '1234567890',
+            'email' => 'supplier_discount@test.com',
+        ]);
+        $brand = Company::create(['company_code' => 'BRD-DISC', 'company_name' => 'Brand Discount']);
+        $supplier->companies()->attach($brand->id);
+
+        $category = Category::create(['name' => 'Makeup Disc', 'slug' => 'makeup-disc']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pcs']);
+
+        $product = Product::create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'company_id' => $brand->id,
+            'sku' => 'SKU-DISC-01',
+            'name' => 'Palette Special',
+            'mrp' => 1299,
+            'is_active' => true,
+        ]);
+
+        // Submit PO with custom discount 25% (different from default 17%)
+        $response = $this->actingAs($user)->post(route('purchases.store'), [
+            'supplier_id' => $supplier->id,
+            'company_id' => $brand->id,
+            'purchase_date' => now()->toDateString(),
+            'due_date' => now()->addDays(2)->toDateString(),
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'discount_percent' => 25,
+                    'unit_price' => 974.25,
+                    'selling_price' => 1299,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $purchase = Purchase::latest()->first();
+
+        // 1299 * (1 - 0.25) = 974.25; 974.25 * 2 = 1948.50
+        $this->assertEquals(1948.5, (float) $purchase->total);
+        $this->assertEquals(974.25, (float) $purchase->items->first()->unit_price);
+
+        // Edit view should preserve the 25% discount and not revert to 17%
+        $editResponse = $this->actingAs($user)->get(route('purchases.edit', $purchase));
+        $editResponse->assertOk();
+        $editResponse->assertSee('25');
+    }
 }

@@ -91,7 +91,7 @@
                                 <td class="w-28 px-4 py-3 text-right text-sm align-top whitespace-nowrap" x-text="window.formatMoney(item.mrp || 0)"></td>
                                 <td class="w-32 px-4 py-3 text-center align-top whitespace-nowrap">
                                     <div class="inline-flex items-center gap-1">
-                                        <input type="number" :name="item.product_id ? `items[${index}][discount_percent]` : null" x-model.number="item.discount_percent" @input="calculateLine(index)" class="w-20 rounded-md border-gray-300 text-right text-sm" min="0" max="100" step="0.01">
+                                        <input type="number" :name="item.product_id ? `items[${index}][discount_percent]` : null" x-model.number="item.discount_percent" @input="calculateLine(index, $event.target.value)" @change="calculateLine(index, $event.target.value)" class="w-20 rounded-md border-gray-300 text-right text-sm" min="0" max="100" step="0.01">
                                         <span class="text-sm text-gray-500">%</span>
                                     </div>
                                     <input type="hidden" :name="item.product_id ? `items[${index}][unit_price]` : null" :value="item.unit_price">
@@ -173,6 +173,11 @@
 
             submitForm(e) {
                 if (this.loading) return;
+                this.items.forEach((item, idx) => {
+                    if (item.product_id) {
+                        this.calculateLine(idx, item.discount_percent);
+                    }
+                });
                 this.loading = true;
                 e.target.submit();
             },
@@ -186,10 +191,14 @@
                 this.syncAllProductDropdowns();
             },
 
-            calculateLine(index) {
+            calculateLine(index, explicitValue = null) {
                 const item = this.items[index];
-                item.discount_percent = Math.max(0, Math.min(100, parseFloat(item.discount_percent) || 0));
-                item.unit_price = this.money((parseFloat(item.mrp) || 0) * (1 - item.discount_percent / 100));
+                if (!item) return;
+
+                const rawVal = explicitValue !== null ? explicitValue : item.discount_percent;
+                const discount = Math.max(0, Math.min(100, parseFloat(rawVal) || 0));
+                item.discount_percent = discount;
+                item.unit_price = this.money((parseFloat(item.mrp) || 0) * (1 - discount / 100));
                 item.subtotal = this.money((parseInt(item.quantity) || 0) * (parseFloat(item.unit_price) || 0));
             },
 
@@ -393,12 +402,13 @@
 
             setRowProduct(item, product) {
                 const mrp = this.money(product.mrp || product.price || 0);
-                const discount = this.defaultDiscountPercent;
+                const hasExistingDiscount = item.discount_percent !== undefined && item.discount_percent !== null && item.discount_percent !== '' && !isNaN(Number(item.discount_percent));
+                const discount = hasExistingDiscount ? Number(item.discount_percent) : this.defaultDiscountPercent;
                 const unitPrice = this.money(mrp * (1 - discount / 100));
 
                 item.product_id = product.value || product.id;
                 item.product_name = product.text || product.name;
-                item.product_code = product.sku || '';
+                item.product_code = product.product_code || product.sku || '';
                 item.brand = product.brand || item.brand || '';
                 item.company_id = product.brand_id || product.company_id || item.company_id || '';
                 item.mrp = mrp;
@@ -679,6 +689,9 @@
                                 select.removeOption(value);
                                 select.refreshOptions(false);
                                 this.$dispatch('toast', { message: 'Product already added in another row.', type: 'warning' });
+                                return;
+                            }
+                            if (String(item.product_id) === String(value)) {
                                 return;
                             }
                             const data = select.options[value];

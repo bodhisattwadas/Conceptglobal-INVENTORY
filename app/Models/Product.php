@@ -16,6 +16,7 @@ class Product extends Model
         'unit_id',
         'company_id',
         'sku',
+        'product_code',
         'name',
         'mrp',
         'purchase_price',

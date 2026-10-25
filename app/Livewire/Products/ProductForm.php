@@ -23,6 +23,8 @@ class ProductForm extends Component
     // Form Fields
     public ?string $sku = null;
 
+    public ?string $product_code = null;
+
     public string $name = '';
 
     public ?int $category_id = null;
@@ -69,7 +71,7 @@ class ProductForm extends Component
     #[On('create-product')]
     public function create(): void
     {
-        $this->reset(['sku', 'name', 'category_id', 'unit_id', 'company_id', 'brandName', 'mrp', 'purchase_price', 'selling_price', 'min_stock', 'description', 'notes', 'image', 'currentImagePath', 'product', 'isEditing', 'categoryName', 'unitName']);
+        $this->reset(['sku', 'product_code', 'name', 'category_id', 'unit_id', 'company_id', 'brandName', 'mrp', 'purchase_price', 'selling_price', 'min_stock', 'description', 'notes', 'image', 'currentImagePath', 'product', 'isEditing', 'categoryName', 'unitName']);
         $this->is_active = true;
 
         $this->dispatch('open-modal', name: 'product-form-modal');
@@ -80,6 +82,7 @@ class ProductForm extends Component
     {
         $this->product = $product->load('priceHistories.changedBy');
         $this->sku = $product->sku;
+        $this->product_code = $product->product_code;
         $this->name = $product->name;
         $this->category_id = $product->category_id;
         $this->unit_id = $product->unit_id;
@@ -108,6 +111,7 @@ class ProductForm extends Component
     {
         return [
             'name' => ['required', 'string', 'max:150'],
+            'product_code' => ['nullable', 'string', 'max:100'],
             'sku' => [
                 'nullable',
                 'string',

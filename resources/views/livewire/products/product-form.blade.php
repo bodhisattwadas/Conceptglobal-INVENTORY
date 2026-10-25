@@ -90,16 +90,27 @@
                     </div>
                 @endif
 
+                <!-- Product Code / Barcode -->
+                <x-form-input
+                    name="product_code"
+                    label="Product Code / Barcode (UPC/EAN)"
+                    placeholder="Scan barcode or enter code (e.g. 8906036215017)"
+                    type="text"
+                    wire:model="product_code"
+                    class="{{ !$isEditing ? 'col-span-1' : '' }}"
+                    hint="Barcode or UPC scanned via barcode reader. Example: 8906036215017."
+                />
+
                 <!-- Name -->
                 <x-form-input
                     name="name"
                     label="Product Name"
-                    placeholder="e.g. Wireless Mouse"
+                    placeholder="e.g. Strawberry Hydrating & Softening Body Wash"
                     type="text"
                     wire:model="name"
                     required
-                    class="{{ !$isEditing ? 'col-span-2' : '' }}"
-                    hint="Customer-readable product name. Example: Matte Lipstick Ruby Red."
+                    class="{{ !$isEditing ? 'col-span-1' : 'col-span-2' }}"
+                    hint="Customer-readable product name without barcode prefix. Example: Strawberry Hydrating & Softening Body Wash."
                 />
             </div>
 
