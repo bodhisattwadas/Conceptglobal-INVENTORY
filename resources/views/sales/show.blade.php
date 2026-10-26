@@ -178,17 +178,29 @@
                                         </td>
                                     </tr>
                                 @endif
-                                @if($sale->global_discount > 0)
+                                @php
+                                    $hasCoupon = ($sale->coupon_discount > 0) || ($sale->coupon_code && $sale->coupon_discount == 0 && $sale->global_discount > 0 && $sale->round_off == 0);
+                                    $couponDiscountAmount = $sale->coupon_discount > 0 ? $sale->coupon_discount : ($hasCoupon ? $sale->global_discount : 0);
+                                    $hasRoundOff = ($sale->round_off != 0) || (!$sale->coupon_code && $sale->global_discount != 0 && $sale->round_off == 0);
+                                    $roundOffAmount = $sale->round_off != 0 ? $sale->round_off : ($hasRoundOff ? -$sale->global_discount : 0);
+                                @endphp
+                                @if($hasCoupon && $couponDiscountAmount > 0)
                                     <tr>
-                                        <td colspan="7" class="px-6 py-4 text-right text-red-600">
-                                            @if($sale->coupon_code)
-                                                Discount (incl. Coupon {{ $sale->coupon_code }})
-                                            @else
-                                                Other Discount
-                                            @endif
+                                        <td colspan="7" class="px-6 py-4 text-right text-emerald-600">
+                                            Coupon ({{ $sale->coupon_code }})
                                         </td>
-                                        <td class="px-6 py-4 text-right text-red-600">
-                                            - @money($sale->global_discount)
+                                        <td class="px-6 py-4 text-right text-emerald-600">
+                                            - @money($couponDiscountAmount)
+                                        </td>
+                                    </tr>
+                                @endif
+                                @if($hasRoundOff && $roundOffAmount != 0)
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-right {{ $roundOffAmount < 0 ? 'text-red-600' : 'text-emerald-600' }}">
+                                            Round Off
+                                        </td>
+                                        <td class="px-6 py-4 text-right {{ $roundOffAmount < 0 ? 'text-red-600' : 'text-emerald-600' }}">
+                                            {{ $roundOffAmount < 0 ? '- ' : '+ ' }}@money(abs($roundOffAmount))
                                         </td>
                                     </tr>
                                 @endif

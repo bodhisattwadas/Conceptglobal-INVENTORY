@@ -397,4 +397,111 @@ class PurchaseWorkflowTest extends TestCase
         $editResponse->assertOk();
         $editResponse->assertSee('25');
     }
+
+    public function test_purchase_create_view_defaults_mrp_discount_to_zero_percent(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($user)->get(route('purchases.create'));
+
+        $response->assertOk();
+        $response->assertSee('defaultDiscountPercent: 0', false);
+    }
+
+    public function test_product_search_supports_name_barcode_both_and_returns_barcode_name_format(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $company = Company::create([
+            'company_code' => 'BRD-STR',
+            'company_name' => 'Berry Brand',
+            'short_name' => 'Berry',
+        ]);
+
+        $category = Category::create([
+            'name' => 'Body Care',
+            'slug' => 'body-care',
+        ]);
+
+        $unit = Unit::create([
+            'name' => 'Piece',
+            'symbol' => 'pc',
+        ]);
+
+        $product = Product::factory()->create([
+            'company_id' => $company->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'SKU-STRAW-1',
+            'product_code' => '8906036215017',
+            'name' => 'Strawberry Hydrating & Softening Body Wash',
+            'mrp' => 450,
+            'is_active' => true,
+        ]);
+
+        // 1. Search by name alone
+        $resName = $this->actingAs($user)->postJson(route('ajax.products.search'), [
+            'q' => 'Strawberry',
+            'for_purchase' => true,
+        ]);
+        $resName->assertOk();
+        $dataName = $resName->json();
+        $this->assertCount(1, $dataName);
+        $this->assertSame($product->id, $dataName[0]['value']);
+        $this->assertSame('8906036215017 - Strawberry Hydrating & Softening Body Wash', $dataName[0]['text']);
+        $this->assertSame('8906036215017', $dataName[0]['product_code']);
+
+        // 2. Search by barcode alone
+        $resBarcode = $this->actingAs($user)->postJson(route('ajax.products.search'), [
+            'q' => '8906036215017',
+            'for_purchase' => true,
+        ]);
+        $resBarcode->assertOk();
+        $dataBarcode = $resBarcode->json();
+        $this->assertCount(1, $dataBarcode);
+        $this->assertSame($product->id, $dataBarcode[0]['value']);
+        $this->assertSame('8906036215017 - Strawberry Hydrating & Softening Body Wash', $dataBarcode[0]['text']);
+
+        // 3. Search by both (barcode - name)
+        $resBothHyphen = $this->actingAs($user)->postJson(route('ajax.products.search'), [
+            'q' => '8906036215017 - Strawberry',
+            'for_purchase' => true,
+        ]);
+        $resBothHyphen->assertOk();
+        $dataBothHyphen = $resBothHyphen->json();
+        $this->assertCount(1, $dataBothHyphen);
+        $this->assertSame($product->id, $dataBothHyphen[0]['value']);
+
+        // 4. Search by both (barcode space name)
+        $resBothSpace = $this->actingAs($user)->postJson(route('ajax.products.search'), [
+            'q' => '8906036215017 Strawberry',
+            'for_purchase' => true,
+        ]);
+        $resBothSpace->assertOk();
+        $dataBothSpace = $resBothSpace->json();
+        $this->assertCount(1, $dataBothSpace);
+        $this->assertSame($product->id, $dataBothSpace[0]['value']);
+
+        // 5. Search by both (barcode-name without spaces around hyphen)
+        $resBothJoined = $this->actingAs($user)->postJson(route('ajax.products.search'), [
+            'q' => '8906036215017-Strawberry',
+            'for_purchase' => true,
+        ]);
+        $resBothJoined->assertOk();
+        $dataBothJoined = $resBothJoined->json();
+        $this->assertCount(1, $dataBothJoined);
+        $this->assertSame($product->id, $dataBothJoined[0]['value']);
+    }
+
+    public function test_purchase_create_view_supports_product_code_search_and_barcode_name_format(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($user)->get(route('purchases.create'));
+
+        $response->assertOk();
+        $response->assertSee('searchField: [\'text\', \'name\', \'product_code\', \'sku\', \'brand\']', false);
+        $response->assertSee('formatProductDisplay', false);
+        $response->assertSee('Search product name, barcode or SKU...', false);
+    }
 }

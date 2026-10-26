@@ -23,6 +23,7 @@ readonly class SaleData
         public float $change = 0,
         public float $global_discount = 0,
         public float $bill_discount = 0,
+        public ?float $round_off = null,
         public ?int $coupon_id = null,
         public ?string $coupon_code = null,
     ) {}
@@ -41,6 +42,7 @@ readonly class SaleData
             change: (float) ($data['change'] ?? 0),
             global_discount: (float) ($data['global_discount'] ?? 0),
             bill_discount: (float) ($data['bill_discount'] ?? 0),
+            round_off: isset($data['round_off']) && $data['round_off'] !== '' && $data['round_off'] !== null ? (float) $data['round_off'] : null,
             coupon_id: isset($data['coupon_id']) && ! empty($data['coupon_id']) ? (int) $data['coupon_id'] : null,
             coupon_code: ! empty($data['coupon_code']) ? strtoupper(trim($data['coupon_code'])) : null,
         );
@@ -60,6 +62,7 @@ readonly class SaleData
             'change' => $this->change,
             'global_discount' => $this->global_discount,
             'bill_discount' => $this->bill_discount,
+            'round_off' => $this->round_off,
             'coupon_id' => $this->coupon_id,
             'coupon_code' => $this->coupon_code,
         ];

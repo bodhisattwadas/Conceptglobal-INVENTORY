@@ -38,28 +38,47 @@ class ProductController extends Controller
                 ->when($companyId > 0, fn ($builder) => $builder->where('company_id', $companyId))
                 ->when($supplierId > 0 && ! $companyId, fn ($builder) => $builder->whereIn('company_id', $supplierCompanyIds))
                 ->when($query !== '', function ($q) use ($queryLower) {
-                    $q->where(function ($searchQuery) use ($queryLower) {
-                        $searchQuery->whereRaw('LOWER(name) LIKE ?', ["%{$queryLower}%"])
+                    $terms = preg_split('/[\s\-–—]+/u', $queryLower, -1, PREG_SPLIT_NO_EMPTY);
+                    if (empty($terms)) {
+                        $terms = [$queryLower];
+                    }
+
+                    $q->where(function ($sub) use ($queryLower, $terms) {
+                        $sub->where(function ($allTerms) use ($terms) {
+                            foreach ($terms as $term) {
+                                $allTerms->where(function ($termQuery) use ($term) {
+                                    $termQuery->whereRaw('LOWER(name) LIKE ?', ["%{$term}%"])
+                                        ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$term}%"])
+                                        ->orWhereRaw('LOWER(product_code) LIKE ?', ["%{$term}%"])
+                                        ->orWhereHas('company', function ($companyQuery) use ($term) {
+                                            $companyQuery->whereRaw('LOWER(company_name) LIKE ?', ["%{$term}%"])
+                                                ->orWhereRaw('LOWER(short_name) LIKE ?', ["%{$term}%"]);
+                                        });
+                                });
+                            }
+                        })
+                            ->orWhereRaw('LOWER(name) LIKE ?', ["%{$queryLower}%"])
                             ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$queryLower}%"])
-                            ->orWhereRaw('LOWER(product_code) LIKE ?', ["%{$queryLower}%"])
-                            ->orWhereHas('company', function ($companyQuery) use ($queryLower) {
-                                $companyQuery->whereRaw('LOWER(company_name) LIKE ?', ["%{$queryLower}%"])
-                                    ->orWhereRaw('LOWER(short_name) LIKE ?', ["%{$queryLower}%"]);
-                            });
+                            ->orWhereRaw('LOWER(product_code) LIKE ?', ["%{$queryLower}%"]);
                     });
                 })
                 ->when($query !== '', function ($q) use ($queryLower) {
+                    $firstTerm = explode(' ', trim($queryLower))[0] ?? $queryLower;
                     $q->orderByRaw('CASE 
                         WHEN LOWER(product_code) = ? THEN 0 
                         WHEN LOWER(product_code) LIKE ? THEN 1 
-                        WHEN LOWER(sku) = ? THEN 2 
-                        WHEN LOWER(sku) LIKE ? THEN 3 
-                        WHEN LOWER(name) = ? THEN 4 
-                        WHEN LOWER(name) LIKE ? THEN 5 
-                        ELSE 6 
+                        WHEN LOWER(product_code) = ? THEN 2 
+                        WHEN LOWER(product_code) LIKE ? THEN 3 
+                        WHEN LOWER(sku) = ? THEN 4 
+                        WHEN LOWER(sku) LIKE ? THEN 5 
+                        WHEN LOWER(name) = ? THEN 6 
+                        WHEN LOWER(name) LIKE ? THEN 7 
+                        ELSE 8 
                     END', [
                         $queryLower,
                         $queryLower.'%',
+                        $firstTerm,
+                        $firstTerm.'%',
                         $queryLower,
                         $queryLower.'%',
                         $queryLower,
@@ -70,10 +89,14 @@ class ProductController extends Controller
                 ->limit(($companyId > 0 || $forPurchase) ? 300 : 50)
                 ->get()
                 ->map(function ($product) {
+                    $displayText = $product->product_code
+                        ? "{$product->product_code} - {$product->name}"
+                        : ($product->sku ? "{$product->sku} - {$product->name}" : $product->name);
+
                     return [
                         'value' => $product->id,
                         'id' => $product->id,
-                        'text' => $product->name,
+                        'text' => $displayText,
                         'name' => $product->name,
                         'price' => $product->mrp ?: $product->purchase_price,
                         'selling_price' => $product->mrp ?: $product->selling_price,

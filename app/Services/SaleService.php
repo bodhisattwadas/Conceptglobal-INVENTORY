@@ -63,6 +63,8 @@ class SaleService
                     'change' => 0,
                     'subtotal' => 0,
                     'global_discount' => $data->global_discount,
+                    'coupon_discount' => 0,
+                    'round_off' => 0,
                     'total_discount' => 0,
                     'total' => 0,
                     'discount_coupon_id' => $appliedCoupon?->id,
@@ -130,16 +132,28 @@ class SaleService
                     }
                 }
 
-                $rawBillDiscount = abs((float) $data->bill_discount);
-                $rawGlobalDiscount = abs((float) $data->global_discount);
-                $billDiscount = (float) ($rawBillDiscount > 0 ? $rawBillDiscount : (empty($appliedCoupon) ? $rawGlobalDiscount : 0));
-                $globalDiscount = round($couponDiscount + $billDiscount, 2);
+                if ($data->round_off !== null) {
+                    $roundOff = round($data->round_off, 2);
+                    $globalDiscount = round($couponDiscount - $roundOff, 2);
 
-                if ($globalDiscount > $totalSubtotal) {
-                    throw SaleException::invalidDiscount('Discount ('.format_money($globalDiscount).') cannot exceed subtotal ('.format_money($totalSubtotal).').');
+                    if ($globalDiscount > $totalSubtotal) {
+                        throw SaleException::invalidDiscount('Discount ('.format_money($globalDiscount).') cannot exceed subtotal ('.format_money($totalSubtotal).').');
+                    }
+
+                    $total = max(0, round($totalSubtotal - $globalDiscount, 2));
+                } else {
+                    $rawBillDiscount = abs((float) $data->bill_discount);
+                    $rawGlobalDiscount = abs((float) $data->global_discount);
+                    $billDiscount = (float) ($rawBillDiscount > 0 ? $rawBillDiscount : (empty($appliedCoupon) ? $rawGlobalDiscount : 0));
+                    $globalDiscount = round($couponDiscount + $billDiscount, 2);
+                    $roundOff = round(-$billDiscount, 2);
+
+                    if ($globalDiscount > $totalSubtotal) {
+                        throw SaleException::invalidDiscount('Discount ('.format_money($globalDiscount).') cannot exceed subtotal ('.format_money($totalSubtotal).').');
+                    }
+
+                    $total = round($totalSubtotal - $globalDiscount, 2);
                 }
-
-                $total = round($totalSubtotal - $globalDiscount, 2);
 
                 if ($data->status === SaleStatus::COMPLETED) {
                     if ($data->payment_method === PaymentMethod::CASH && $data->cash_received < $total) {
@@ -157,6 +171,8 @@ class SaleService
                     'subtotal' => round($totalSubtotal + $totalDiscount, 2),
                     'total_discount' => round($totalDiscount + $globalDiscount, 2),
                     'global_discount' => $globalDiscount,
+                    'coupon_discount' => $couponDiscount,
+                    'round_off' => $roundOff,
                     'total' => $total,
                     'cash_received' => $data->payment_method === PaymentMethod::CASH ? $data->cash_received : $total,
                     'change' => $change,

@@ -542,9 +542,20 @@
                             </div>
                         </div>
 
-                        <!-- Other Discount Box at Final Bill -->
+                        <!-- Round Off Box at Final Bill -->
                         <div class="flex justify-between items-center py-1">
-                            <span class="font-medium text-gray-600">Other Discount</span>
+                            <div class="flex items-center gap-1.5">
+                                <span class="font-medium text-gray-600">Round Off</span>
+                                <button
+                                    x-show="isManualRoundOff"
+                                    type="button"
+                                    @click="resetRoundOffToAuto()"
+                                    class="text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded border border-gray-300 font-medium transition-colors"
+                                    title="Reset to auto round off"
+                                >
+                                    Auto
+                                </button>
+                            </div>
                             <div class="relative w-36 sm:w-44">
                                 <div class="absolute inset-y-0 flex items-center pointer-events-none" :class="window.currencyPosition === 'left' ? 'left-0 pl-2.5' : 'right-0 pr-2.5'">
                                     <span class="text-gray-400 font-bold text-xs" x-text="window.currencySymbol"></span>
@@ -553,13 +564,16 @@
                                     type="text"
                                     inputmode="decimal"
                                     autocomplete="off"
-                                    :value="billDiscount"
-                                    @input="onBillDiscountInput($event.target.value)"
+                                    :value="roundOff"
+                                    @input="onRoundOffInput($event.target.value)"
                                     @keydown="filterDiscountKeydown($event)"
-                                    class="focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block w-full text-sm font-bold text-red-600 bg-white border border-gray-300 rounded-lg py-1.5 shadow-sm transition-colors"
-                                    :class="window.currencyPosition === 'left' ? 'pl-8 pr-2.5 text-right' : 'pr-8 pl-2.5 text-left'"
+                                    class="focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block w-full text-sm font-bold bg-white border border-gray-300 rounded-lg py-1.5 shadow-sm transition-colors text-gray-800"
+                                    :class="[
+                                        window.currencyPosition === 'left' ? 'pl-8 pr-2.5 text-right' : 'pr-8 pl-2.5 text-left',
+                                        numericRoundOff < 0 ? 'text-red-600' : (numericRoundOff > 0 ? 'text-emerald-700' : 'text-gray-800')
+                                    ]"
                                     placeholder="0.00"
-                                    aria-label="Other discount"
+                                    aria-label="Round off"
                                 >
                             </div>
                         </div>
@@ -649,7 +663,8 @@
                         ref: ''
                     },
                     cashIsExact: true,
-                    billDiscount: '',
+                    roundOff: '0.00',
+                    isManualRoundOff: false,
                     couponCode: '',
                     selectedCouponCode: '',
                     manualCouponMode: false,
@@ -696,9 +711,13 @@
                             } catch (e) {}
                         }
 
-                        const savedBillDiscount = localStorage.getItem('pos_billDiscount') ?? localStorage.getItem('pos_globalDiscount');
-                        if (savedBillDiscount !== null && savedBillDiscount !== '') {
-                            this.billDiscount = savedBillDiscount;
+                        const savedRoundOff = localStorage.getItem('pos_roundOff') ?? localStorage.getItem('pos_billDiscount');
+                        const savedIsManual = localStorage.getItem('pos_isManualRoundOff');
+                        if (savedRoundOff !== null && savedRoundOff !== '') {
+                            this.roundOff = savedRoundOff;
+                            this.isManualRoundOff = savedIsManual === 'true';
+                        } else {
+                            this.autoCalculateRoundOff();
                         }
 
                         const savedAppliedCoupon = localStorage.getItem('pos_applied_coupon');
@@ -725,13 +744,16 @@
                         });
                         this.$watch('customer', (val) => localStorage.setItem('pos_customer', JSON.stringify(val)));
                         this.$watch('payment', (val) => localStorage.setItem('pos_payment', JSON.stringify(val)));
-                        this.$watch('billDiscount', (val) => {
+                        this.$watch('roundOff', (val) => {
                             if (val !== '' && val !== null && val !== undefined) {
-                                localStorage.setItem('pos_billDiscount', String(val));
+                                localStorage.setItem('pos_roundOff', String(val));
                             } else {
-                                localStorage.removeItem('pos_billDiscount');
+                                localStorage.removeItem('pos_roundOff');
                             }
                             this.syncCashReceived();
+                        });
+                        this.$watch('isManualRoundOff', (val) => {
+                            localStorage.setItem('pos_isManualRoundOff', String(val));
                         });
                         this.$watch('appliedCoupon', (val) => {
                             if (val) {
@@ -1137,7 +1159,11 @@
                         const toSave = (this.cart || []).filter(item => !!item.id);
                         localStorage.setItem('pos_cart', JSON.stringify(toSave));
                         this.recalculateCouponDiscount();
-                        this.clampBillDiscount();
+                        if (!this.isManualRoundOff) {
+                            this.autoCalculateRoundOff();
+                        } else {
+                            this.clampRoundOff();
+                        }
                         this.syncCashReceived();
                     },
 
@@ -1211,6 +1237,8 @@
                         localStorage.removeItem('pos_payment');
                         localStorage.removeItem('pos_globalDiscount');
                         localStorage.removeItem('pos_billDiscount');
+                        localStorage.removeItem('pos_roundOff');
+                        localStorage.removeItem('pos_isManualRoundOff');
                         localStorage.removeItem('pos_applied_coupon');
                     },
 
@@ -1247,8 +1275,6 @@
                         const percent = this.clampDiscountPercent(value);
                         this.cart[index].discountPercent = value !== '' && Number(value) === percent ? value : percent;
                         this.persistCart();
-                        this.recalculateCouponDiscount();
-                        this.clampBillDiscount();
                     },
 
                     filterDiscountKeydown(e) {
@@ -1290,11 +1316,11 @@
                             }
                         }
 
-                        // Allow minus sign at index 0 if not already present or if selected text covers it
-                        if (e.key === '-') {
-                            const hasMinus = val.includes('-');
-                            const selectedCoversMinus = hasMinus && val.slice(selStart, selEnd).includes('-');
-                            if (selStart === 0 && (!hasMinus || selectedCoversMinus)) {
+                        // Allow minus sign or plus sign at index 0 if not already present or if selected text covers it
+                        if (e.key === '-' || e.key === '+') {
+                            const hasSign = val.includes('-') || val.includes('+');
+                            const selectedCoversSign = hasSign && (val.slice(selStart, selEnd).includes('-') || val.slice(selStart, selEnd).includes('+'));
+                            if (selStart === 0 && (!hasSign || selectedCoversSign)) {
                                 return;
                             }
                         }
@@ -1303,15 +1329,17 @@
                         e.preventDefault();
                     },
 
-                    onBillDiscountInput(val) {
+                    onRoundOffInput(val) {
+                        this.isManualRoundOff = true;
                         if (val === '' || val === null || val === undefined) {
-                            this.billDiscount = '';
+                            this.roundOff = '';
                             this.syncCashReceived();
                             return;
                         }
 
                         let raw = String(val).trim();
                         const isNegative = raw.startsWith('-');
+                        const isPositive = raw.startsWith('+');
 
                         // Retain ONLY digits and at most one decimal point
                         let digitsAndDot = raw.replace(/[^0-9.]/g, '');
@@ -1320,48 +1348,91 @@
                             digitsAndDot = parts[0] + '.' + parts.slice(1).join('');
                         }
 
-                        let cleaned = (isNegative ? '-' : '') + digitsAndDot;
+                        let prefix = '';
+                        if (isNegative) prefix = '-';
+                        else if (isPositive) prefix = '+';
 
-                        // Handle intermediate typing states like "-", ".", "-."
-                        if (cleaned === '-' || cleaned === '.' || cleaned === '-.') {
-                            this.billDiscount = cleaned;
+                        let cleaned = prefix + digitsAndDot;
+
+                        // Handle intermediate typing states like "-", "+", ".", "-.", "+."
+                        if (['-', '+', '.', '-.', '+.'].includes(cleaned)) {
+                            this.roundOff = cleaned;
                             this.syncCashReceived();
                             return;
                         }
 
                         if (cleaned === '') {
-                            this.billDiscount = '';
+                            this.roundOff = '';
                             this.syncCashReceived();
                             return;
                         }
 
-                        const absVal = Math.abs(parseFloat(cleaned));
-                        if (isNaN(absVal)) {
-                            this.billDiscount = '';
+                        const num = parseFloat(cleaned);
+                        if (isNaN(num)) {
+                            this.roundOff = '';
                             this.syncCashReceived();
                             return;
                         }
 
-                        const max = this.maxBillDiscount;
-                        if (absVal > max) {
-                            this.billDiscount = isNegative ? ('-' + max) : String(max);
+                        const unrounded = this.unroundedPayable;
+                        if (num < -unrounded) {
+                            const minRoundOff = -unrounded;
+                            this.roundOff = minRoundOff === 0 ? '0.00' : minRoundOff.toFixed(2);
                             this.$dispatch('toast', {
-                                message: 'Other discount cannot exceed remaining subtotal (' + this.formatCurrency(max) + ')',
+                                message: 'Round off discount cannot exceed remaining bill (' + this.formatCurrency(unrounded) + ')',
                                 type: 'warning'
                             });
                             this.syncCashReceived();
                             return;
                         }
 
-                        this.billDiscount = cleaned;
+                        this.roundOff = cleaned;
                         this.syncCashReceived();
                     },
 
+                    onBillDiscountInput(val) {
+                        this.onRoundOffInput(val);
+                    },
+
+                    resetRoundOffToAuto() {
+                        this.isManualRoundOff = false;
+                        this.autoCalculateRoundOff();
+                        this.syncCashReceived();
+                    },
+
+                    clampRoundOff() {
+                        const unrounded = this.unroundedPayable;
+                        if (this.numericRoundOff < -unrounded) {
+                            const minRoundOff = -unrounded;
+                            this.roundOff = minRoundOff === 0 ? '0.00' : minRoundOff.toFixed(2);
+                        }
+                    },
+
                     clampBillDiscount() {
-                        const max = this.maxBillDiscount;
-                        if (this.numericBillDiscount > max) {
-                            const isNegative = String(this.billDiscount).startsWith('-');
-                            this.billDiscount = max > 0 ? (isNegative ? ('-' + max) : String(max)) : '';
+                        this.clampRoundOff();
+                    },
+
+                    autoCalculateRoundOff() {
+                        if (this.isManualRoundOff) {
+                            return;
+                        }
+                        if (this.validCartItems.length === 0) {
+                            this.roundOff = '0.00';
+                            return;
+                        }
+                        const unrounded = this.unroundedPayable;
+                        if (unrounded <= 0) {
+                            this.roundOff = '0.00';
+                            return;
+                        }
+                        const rounded = Math.round(unrounded);
+                        const diff = Math.round((rounded - unrounded) * 100) / 100;
+                        if (diff === 0) {
+                            this.roundOff = '0.00';
+                        } else if (diff > 0) {
+                            this.roundOff = '+' + diff.toFixed(2);
+                        } else {
+                            this.roundOff = diff.toFixed(2);
                         }
                     },
 
@@ -1453,7 +1524,11 @@
                                 this.couponCode = '';
                                 this.selectedCouponCode = '';
                                 this.manualCouponMode = false;
-                                this.clampBillDiscount();
+                                if (!this.isManualRoundOff) {
+                                    this.autoCalculateRoundOff();
+                                } else {
+                                    this.clampRoundOff();
+                                }
                                 this.syncCashReceived();
                                 this.$dispatch('toast', { message: data.message || 'Coupon applied successfully!', type: 'success' });
                             } else {
@@ -1475,7 +1550,11 @@
                         this.appliedCoupon = null;
                         this.couponCode = '';
                         this.selectedCouponCode = '';
-                        this.clampBillDiscount();
+                        if (!this.isManualRoundOff) {
+                            this.autoCalculateRoundOff();
+                        } else {
+                            this.clampRoundOff();
+                        }
                         this.syncCashReceived();
                         this.$dispatch('toast', { message: 'Coupon removed.', type: 'info' });
                     },
@@ -1485,7 +1564,11 @@
 
                         if (this.validCartItems.length === 0) {
                             this.appliedCoupon = null;
-                            this.clampBillDiscount();
+                            if (!this.isManualRoundOff) {
+                                this.autoCalculateRoundOff();
+                            } else {
+                                this.clampRoundOff();
+                            }
                             this.syncCashReceived();
                             return;
                         }
@@ -1495,7 +1578,11 @@
                         if (this.appliedCoupon.min_purchase_amount && eligibleSubtotal < this.appliedCoupon.min_purchase_amount) {
                             const code = this.appliedCoupon.code;
                             this.appliedCoupon = null;
-                            this.clampBillDiscount();
+                            if (!this.isManualRoundOff) {
+                                this.autoCalculateRoundOff();
+                            } else {
+                                this.clampRoundOff();
+                            }
                             this.syncCashReceived();
                             this.$dispatch('toast', {
                                 message: 'Cart subtotal fell below minimum purchase for coupon ' + code + '. Coupon removed.',
@@ -1517,7 +1604,11 @@
 
                         discount = Math.round(discount * 100) / 100;
                         this.appliedCoupon.discount_amount = discount;
-                        this.clampBillDiscount();
+                        if (!this.isManualRoundOff) {
+                            this.autoCalculateRoundOff();
+                        } else {
+                            this.clampRoundOff();
+                        }
                         this.syncCashReceived();
                     },
 
@@ -1562,11 +1653,29 @@
                         return this.cart.reduce((sum, item) => sum + (item.id ? (this.lineDiscountAmount(item) * item.quantity) : 0), 0);
                     },
 
+                    get unroundedPayable() {
+                        return Math.max(0, Math.round((this.subtotal - this.totalDiscount - this.couponDiscount) * 100) / 100);
+                    },
+
+                    get numericRoundOff() {
+                        if (!this.roundOff) return 0;
+                        const str = String(this.roundOff).trim();
+                        if (['', '-', '+', '.', '-.', '+.'].includes(str)) return 0;
+                        const val = parseFloat(str);
+                        if (isNaN(val)) return 0;
+                        return Math.round(val * 100) / 100;
+                    },
+
                     get numericBillDiscount() {
-                        if (!this.billDiscount) return 0;
-                        const val = parseFloat(this.billDiscount);
-                        if (isNaN(val) || val === 0) return 0;
-                        return Math.abs(val);
+                        return -this.numericRoundOff;
+                    },
+
+                    get billDiscount() {
+                        return this.roundOff;
+                    },
+
+                    set billDiscount(val) {
+                        this.roundOff = val;
                     },
 
                     get couponDiscount() {
@@ -1574,16 +1683,15 @@
                     },
 
                     get maxBillDiscount() {
-                        const remaining = Math.max(0, this.subtotal - this.totalDiscount - this.couponDiscount);
-                        return Math.round(remaining * 100) / 100;
+                        return this.unroundedPayable;
                     },
 
                     get globalDiscount() {
-                        return Math.round((this.couponDiscount + this.numericBillDiscount) * 100) / 100;
+                        return Math.round((this.couponDiscount - this.numericRoundOff) * 100) / 100;
                     },
 
                     get total() {
-                        return Math.max(0, Math.round((this.subtotal - this.totalDiscount - this.globalDiscount) * 100) / 100);
+                        return Math.max(0, Math.round((this.unroundedPayable + this.numericRoundOff) * 100) / 100);
                     },
 
                     get change() {
@@ -1752,7 +1860,8 @@
                                 payment_method: this.payment.method,
                                 cash_received: this.payment.method === 'cash' ? this.payment.cash_received : this.total,
                                 notes: notes || null,
-                                bill_discount: this.numericBillDiscount,
+                                round_off: this.numericRoundOff,
+                                bill_discount: -this.numericRoundOff,
                                 global_discount: this.globalDiscount,
                                 coupon_id: this.appliedCoupon ? this.appliedCoupon.id : null,
                                 coupon_code: this.appliedCoupon ? this.appliedCoupon.code : null,
@@ -1807,7 +1916,8 @@
                             notes: '',
                             ref: ''
                         };
-                        this.billDiscount = '';
+                        this.roundOff = '0.00';
+                        this.isManualRoundOff = false;
                         this.appliedCoupon = null;
                         this.couponCode = '';
                         this.selectedCouponCode = '';
@@ -1884,9 +1994,9 @@
                         <span x-text="'- ' + formatCurrency(appliedCoupon ? appliedCoupon.discount_amount : 0)"></span>
                     </div>
 
-                    <div class="flex items-center justify-between text-red-600" x-show="numericBillDiscount > 0">
-                        <span>Other Discount</span>
-                        <span class="font-semibold" x-text="'- ' + formatCurrency(numericBillDiscount)"></span>
+                    <div class="flex items-center justify-between" :class="numericRoundOff < 0 ? 'text-red-600' : 'text-emerald-700'" x-show="numericRoundOff !== 0">
+                        <span>Round Off</span>
+                        <span class="font-semibold" x-text="(numericRoundOff < 0 ? '- ' : '+ ') + formatCurrency(Math.abs(numericRoundOff))"></span>
                     </div>
 
                     <!-- Total -->

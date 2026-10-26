@@ -108,7 +108,7 @@ class InventoryWorkflowTest extends TestCase
         $this->assertStringContainsString(format_money(450), $html);
     }
 
-    public function test_inventory_table_and_print_exclude_items_with_zero_count(): void
+    public function test_inventory_table_and_print_include_items_with_zero_count(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
@@ -150,15 +150,15 @@ class InventoryWorkflowTest extends TestCase
         $stocks = $table->datasource()->get();
 
         $this->assertTrue($stocks->contains('sku', 'SKU-IN-STOCK'));
-        $this->assertFalse($stocks->contains('sku', 'SKU-ZERO-COUNT'));
+        $this->assertTrue($stocks->contains('sku', 'SKU-ZERO-COUNT'));
 
         // 2. Livewire component rendering check
         Livewire::actingAs($admin)
             ->test(InventoryTable::class)
             ->assertSee('SKU-IN-STOCK')
             ->assertSee('Available Item')
-            ->assertDontSee('SKU-ZERO-COUNT')
-            ->assertDontSee('Out Of Stock Item');
+            ->assertSee('SKU-ZERO-COUNT')
+            ->assertSee('Out Of Stock Item');
 
         // 3. Print report check
         $printResponse = $this->actingAs($admin)->get(route('inventory.print'));

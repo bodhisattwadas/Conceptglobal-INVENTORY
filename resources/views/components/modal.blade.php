@@ -37,7 +37,7 @@ $maxWidth = $maxWidthClasses[$maxWidth] ?? $maxWidthClasses['2xl'];
     <div
         x-show="show"
         class="fixed inset-0 transform transition-all"
-        x-on:click="show = false"
+        @if($closeOnOutside) x-on:click="show = false" @endif
         x-transition:enter="ease-out duration-300"
         x-transition:enter-start="opacity-0"
         x-transition:enter-end="opacity-100"
@@ -49,7 +49,7 @@ $maxWidth = $maxWidthClasses[$maxWidth] ?? $maxWidthClasses['2xl'];
     </div>
 
     <!-- Modal Content -->
-    <div class="fixed inset-0 z-10 w-screen overflow-y-auto" x-on:click="@if($closeOnOutside) show = false @endif">
+    <div class="fixed inset-0 z-10 w-screen overflow-y-auto" @if($closeOnOutside) x-on:click="show = false" @endif>
         <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
             <div
                 x-show="show"

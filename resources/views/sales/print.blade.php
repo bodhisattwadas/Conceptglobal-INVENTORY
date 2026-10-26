@@ -329,10 +329,22 @@
                     <span class="amount-label">Subtotal</span>
                     <span class="amount-value">@money($sale->total + $sale->global_discount)</span>
                 </div>
-                @if($sale->global_discount > 0)
+                @php
+                    $hasCoupon = ($sale->coupon_discount > 0) || ($sale->coupon_code && $sale->coupon_discount == 0 && $sale->global_discount > 0 && $sale->round_off == 0);
+                    $couponDiscountAmount = $sale->coupon_discount > 0 ? $sale->coupon_discount : ($hasCoupon ? $sale->global_discount : 0);
+                    $hasRoundOff = ($sale->round_off != 0) || (!$sale->coupon_code && $sale->global_discount != 0 && $sale->round_off == 0);
+                    $roundOffAmount = $sale->round_off != 0 ? $sale->round_off : ($hasRoundOff ? -$sale->global_discount : 0);
+                @endphp
+                @if($hasCoupon && $couponDiscountAmount > 0)
                 <div class="amount-row">
-                    <span class="amount-label">{{ $sale->coupon_code ? 'Discount (incl. Coupon ' . $sale->coupon_code . ')' : 'Other Discount' }}</span>
-                    <span class="amount-value">- @money($sale->global_discount)</span>
+                    <span class="amount-label">Coupon ({{ $sale->coupon_code }})</span>
+                    <span class="amount-value">- @money($couponDiscountAmount)</span>
+                </div>
+                @endif
+                @if($hasRoundOff && $roundOffAmount != 0)
+                <div class="amount-row">
+                    <span class="amount-label">Round Off</span>
+                    <span class="amount-value">{{ $roundOffAmount < 0 ? '- ' : '+ ' }}@money(abs($roundOffAmount))</span>
                 </div>
                 @endif
                 <div class="amount-row">

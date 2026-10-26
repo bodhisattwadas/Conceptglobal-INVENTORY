@@ -454,18 +454,18 @@ class SalesWorkflowTest extends TestCase
         $response->assertDontSee('x-ref="productSelect"', false);
     }
 
-    public function test_pos_create_view_renders_final_bill_discount_input(): void
+    public function test_pos_create_view_renders_final_round_off_input(): void
     {
         $user = User::factory()->create(['role' => 'sales']);
 
         $response = $this->actingAs($user)->get(route('sales.create'));
         $response->assertOk();
-        $response->assertSee('Other Discount');
+        $response->assertSee('Round Off');
         $response->assertSee('inputmode="decimal"', false);
         $response->assertSee('filterDiscountKeydown($event)', false);
-        $response->assertSee('onBillDiscountInput($event.target.value)', false);
+        $response->assertSee('onRoundOffInput($event.target.value)', false);
         $response->assertSee('placeholder="0.00"', false);
-        $response->assertSee('aria-label="Other discount"', false);
+        $response->assertSee('aria-label="Round off"', false);
     }
 
     public function test_sale_can_be_created_with_decimal_bill_discount(): void
@@ -601,6 +601,292 @@ class SalesWorkflowTest extends TestCase
             ->where('reference_id', $sale->id)
             ->where('amount', 184.50)
             ->exists());
+    }
+
+    public function test_sale_can_be_created_with_negative_round_off_for_176_12_to_176(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+        $category = Category::create(['name' => 'Round Off 1', 'slug' => 'round-off-1-'.uniqid()]);
+        $unit = Unit::factory()->create();
+
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 100.00,
+            'selling_price' => 176.12,
+            'quantity' => 5,
+        ]);
+        $this->receiveStock($product, $user);
+
+        // 176.12 -> 176 (round_off = -0.12)
+        $payload = [
+            'customer_id' => null,
+            'sale_date' => now()->toDateString(),
+            'payment_method' => PaymentMethod::CASH->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 176.12,
+                    'discount' => 0,
+                ],
+            ],
+            'round_off' => -0.12,
+            'cash_received' => 176.00,
+        ];
+
+        $response = $this->actingAs($user)->postJson(route('sales.store'), $payload);
+        $response->assertCreated()->assertJson(['success' => true]);
+
+        $sale = Sale::latest('id')->first();
+        $this->assertNotNull($sale);
+        $this->assertEquals(176.12, (float) $sale->subtotal);
+        $this->assertEquals(176.00, (float) $sale->total);
+        $this->assertEquals(0.12, (float) $sale->global_discount);
+        $this->assertEquals(176.00, (float) $sale->cash_received);
+        $this->assertEquals(0.00, (float) $sale->change);
+
+        $this->assertTrue(FinanceTransaction::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->where('amount', 176.00)
+            ->exists());
+
+        // Verify show & print views render Round Off
+        $showResponse = $this->actingAs($user)->get(route('sales.show', $sale));
+        $showResponse->assertOk()->assertSee('Round Off');
+
+        $printResponse = $this->actingAs($user)->get(route('sales.print', $sale));
+        $printResponse->assertOk()->assertSee('Round Off');
+    }
+
+    public function test_sale_can_be_created_with_positive_round_off_for_176_89_to_177(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+        $category = Category::create(['name' => 'Round Off 2', 'slug' => 'round-off-2-'.uniqid()]);
+        $unit = Unit::factory()->create();
+
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 100.00,
+            'selling_price' => 176.89,
+            'quantity' => 5,
+        ]);
+        $this->receiveStock($product, $user);
+
+        // 176.89 -> 177 (round_off = +0.11)
+        $payload = [
+            'customer_id' => null,
+            'sale_date' => now()->toDateString(),
+            'payment_method' => PaymentMethod::CASH->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 176.89,
+                    'discount' => 0,
+                ],
+            ],
+            'round_off' => 0.11,
+            'cash_received' => 180.00,
+        ];
+
+        $response = $this->actingAs($user)->postJson(route('sales.store'), $payload);
+        $response->assertCreated()->assertJson(['success' => true]);
+
+        $sale = Sale::latest('id')->first();
+        $this->assertNotNull($sale);
+        $this->assertEquals(176.89, (float) $sale->subtotal);
+        $this->assertEquals(177.00, (float) $sale->total);
+        $this->assertEquals(-0.11, (float) $sale->global_discount);
+        $this->assertEquals(180.00, (float) $sale->cash_received);
+        $this->assertEquals(3.00, (float) $sale->change);
+
+        $this->assertTrue(FinanceTransaction::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->where('amount', 177.00)
+            ->exists());
+
+        $showResponse = $this->actingAs($user)->get(route('sales.show', $sale));
+        $showResponse->assertOk()->assertSee('Round Off');
+    }
+
+    public function test_sale_can_be_created_with_positive_round_off_for_176_50_to_177(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+        $category = Category::create(['name' => 'Round Off 3', 'slug' => 'round-off-3-'.uniqid()]);
+        $unit = Unit::factory()->create();
+
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 100.00,
+            'selling_price' => 176.50,
+            'quantity' => 5,
+        ]);
+        $this->receiveStock($product, $user);
+
+        // 176.50 -> 177 (round_off = +0.50)
+        $payload = [
+            'customer_id' => null,
+            'sale_date' => now()->toDateString(),
+            'payment_method' => PaymentMethod::CASH->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 176.50,
+                    'discount' => 0,
+                ],
+            ],
+            'round_off' => 0.50,
+            'cash_received' => 177.00,
+        ];
+
+        $response = $this->actingAs($user)->postJson(route('sales.store'), $payload);
+        $response->assertCreated()->assertJson(['success' => true]);
+
+        $sale = Sale::latest('id')->first();
+        $this->assertNotNull($sale);
+        $this->assertEquals(176.50, (float) $sale->subtotal);
+        $this->assertEquals(177.00, (float) $sale->total);
+        $this->assertEquals(-0.50, (float) $sale->global_discount);
+        $this->assertEquals(177.00, (float) $sale->cash_received);
+        $this->assertEquals(0.00, (float) $sale->change);
+
+        $this->assertTrue(FinanceTransaction::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->where('amount', 177.00)
+            ->exists());
+    }
+
+    public function test_sale_with_manual_user_edited_round_off(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+        $category = Category::create(['name' => 'Round Off Manual', 'slug' => 'round-off-m-'.uniqid()]);
+        $unit = Unit::factory()->create();
+
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 100.00,
+            'selling_price' => 176.12,
+            'quantity' => 5,
+        ]);
+        $this->receiveStock($product, $user);
+
+        // User manually edited round off to -5.12, giving total 171.00
+        $payload = [
+            'customer_id' => null,
+            'sale_date' => now()->toDateString(),
+            'payment_method' => PaymentMethod::CASH->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 176.12,
+                    'discount' => 0,
+                ],
+            ],
+            'round_off' => -5.12,
+            'cash_received' => 200.00,
+        ];
+
+        $response = $this->actingAs($user)->postJson(route('sales.store'), $payload);
+        $response->assertCreated()->assertJson(['success' => true]);
+
+        $sale = Sale::latest('id')->first();
+        $this->assertNotNull($sale);
+        $this->assertEquals(176.12, (float) $sale->subtotal);
+        $this->assertEquals(171.00, (float) $sale->total);
+        $this->assertEquals(5.12, (float) $sale->global_discount);
+        $this->assertEquals(29.00, (float) $sale->change);
+
+        $this->assertTrue(FinanceTransaction::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->where('amount', 171.00)
+            ->exists());
+    }
+
+    public function test_bill_and_pdf_separate_coupon_discount_and_round_off(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+        $category = Category::create(['name' => 'Beauty Category', 'slug' => 'beauty-'.uniqid()]);
+        $unit = Unit::factory()->create();
+
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 100.00,
+            'selling_price' => 226.12,
+            'quantity' => 10,
+        ]);
+        $this->receiveStock($product, $user);
+
+        $coupon = DiscountCoupon::create([
+            'code' => 'BEAUTY50',
+            'type' => 'fixed',
+            'value' => 50.00,
+            'min_purchase_amount' => 100.00,
+            'is_active' => true,
+        ]);
+
+        // Subtotal: 226.12
+        // Coupon: 50.00
+        // Net before round off: 176.12
+        // Round off: -0.12
+        // Total: 176.00
+        $payload = [
+            'customer_id' => null,
+            'sale_date' => now()->toDateString(),
+            'payment_method' => PaymentMethod::CASH->value,
+            'status' => SaleStatus::COMPLETED->value,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 226.12,
+                    'discount' => 0,
+                ],
+            ],
+            'coupon_id' => $coupon->id,
+            'coupon_code' => 'BEAUTY50',
+            'round_off' => -0.12,
+            'cash_received' => 176.00,
+        ];
+
+        $response = $this->actingAs($user)->postJson(route('sales.store'), $payload);
+        $response->assertCreated()->assertJson(['success' => true]);
+
+        $sale = Sale::latest('id')->first();
+        $this->assertNotNull($sale);
+        $this->assertEquals(226.12, (float) $sale->subtotal);
+        $this->assertEquals(50.00, (float) $sale->coupon_discount);
+        $this->assertEquals(-0.12, (float) $sale->round_off);
+        $this->assertEquals(50.12, (float) $sale->global_discount);
+        $this->assertEquals(176.00, (float) $sale->total);
+
+        // Check show / bill view
+        $showResponse = $this->actingAs($user)->get(route('sales.show', $sale));
+        $showResponse->assertOk();
+        $showResponse->assertSee('Coupon (BEAUTY50)');
+        $showResponse->assertSee('Round Off');
+        $showResponse->assertDontSee('Discount (incl. Coupon');
+
+        // Check print / PDF invoice view
+        $printResponse = $this->actingAs($user)->get(route('sales.print', $sale));
+        $printResponse->assertOk();
+        $printResponse->assertSee('Coupon (BEAUTY50)');
+        $printResponse->assertSee('Round Off');
+        $printResponse->assertDontSee('Discount (incl. Coupon');
     }
 
     private function receiveStock(Product $product, User $user): void

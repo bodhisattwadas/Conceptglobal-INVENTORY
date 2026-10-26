@@ -36,8 +36,9 @@ class StoreSaleRequest extends FormRequest
         $this->merge([
             'cash_received' => $this->normalizeMoney($this->input('cash_received')),
             'change' => $this->normalizeMoney($this->input('change')),
-            'bill_discount' => $this->normalizeDiscount($this->input('bill_discount')),
-            'global_discount' => $this->normalizeDiscount($this->input('global_discount')),
+            'bill_discount' => $this->normalizeMoney($this->input('bill_discount')),
+            'global_discount' => $this->normalizeMoney($this->input('global_discount')),
+            'round_off' => $this->normalizeMoney($this->input('round_off')),
             'items' => $items,
         ]);
     }
@@ -65,8 +66,9 @@ class StoreSaleRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:2000'],
             'cash_received' => ['nullable', 'numeric', 'min:0'],
             'change' => ['nullable', 'numeric', 'min:0'],
-            'bill_discount' => ['nullable', 'numeric', 'min:0'],
-            'global_discount' => ['nullable', 'numeric', 'min:0'],
+            'bill_discount' => ['nullable', 'numeric'],
+            'global_discount' => ['nullable', 'numeric'],
+            'round_off' => ['nullable', 'numeric'],
             'coupon_id' => ['nullable', 'integer', 'exists:discount_coupons,id'],
             'coupon_code' => ['nullable', 'string', 'max:50'],
 
@@ -96,19 +98,6 @@ class StoreSaleRequest extends FormRequest
 
         if (is_numeric($value)) {
             return round((float) $value, 2);
-        }
-
-        return $value;
-    }
-
-    private function normalizeDiscount(mixed $value): mixed
-    {
-        if ($value === null || $value === '') {
-            return $value;
-        }
-
-        if (is_numeric($value)) {
-            return round(abs((float) $value), 2);
         }
 
         return $value;

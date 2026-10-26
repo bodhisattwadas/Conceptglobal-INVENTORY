@@ -235,4 +235,59 @@ class ProductBarcodeMigrationTest extends TestCase
         $this->assertEquals('Rose Water Toner 200ml', $created->name);
         $this->assertEquals(320, $created->mrp);
     }
+
+    public function test_livewire_product_form_shows_warning_when_duplicate_barcode_is_entered(): void
+    {
+        $this->actingAs($this->user);
+
+        // Pre-existing product with barcode
+        Product::create([
+            'category_id' => $this->category->id,
+            'unit_id' => $this->unit->id,
+            'company_id' => $this->company->id,
+            'sku' => 'SKU-ORIGINAL',
+            'product_code' => '8906036215017',
+            'name' => 'Original Strawberry Wash',
+            'mrp' => 500,
+            'purchase_price' => 500,
+            'selling_price' => 500,
+            'quantity' => 10,
+            'min_stock' => 2,
+            'is_active' => true,
+        ]);
+
+        Livewire::test(ProductForm::class)
+            ->set('product_code', '8906036215017')
+            ->assertSet('duplicateBarcodeWarning', "Warning: Barcode '8906036215017' is already assigned to 'Original Strawberry Wash' (SKU: SKU-ORIGINAL).")
+            ->assertSee('Warning: Barcode')
+            ->assertSee('Original Strawberry Wash')
+            ->set('product_code', '8906036219999')
+            ->assertSet('duplicateBarcodeWarning', null)
+            ->assertDontSee('Warning: Barcode');
+    }
+
+    public function test_product_form_modal_has_cross_button_and_does_not_close_on_outside_click(): void
+    {
+        $this->actingAs($this->user);
+
+        $test = Livewire::test(ProductForm::class);
+
+        // 1. Cross button at top right is present and configured with close-modal
+        $test->assertSee('aria-label="Close"', false);
+        $test->assertSee('$dispatch(\'close-modal\', { name: \'product-form-modal\' })', false);
+
+        // 2. Modal does not have outside-click close handlers
+        $html = $test->html();
+        $this->assertStringNotContainsString('x-on:click="show = false"', $html);
+
+        // 3. Submitting the form successfully dispatches close-modal
+        $test->set('name', 'Organic Aloe Gel 150ml')
+            ->set('category_id', $this->category->id)
+            ->set('unit_id', $this->unit->id)
+            ->set('company_id', $this->company->id)
+            ->set('mrp', 199)
+            ->set('min_stock', 5)
+            ->call('save')
+            ->assertDispatched('close-modal', name: 'product-form-modal');
+    }
 }

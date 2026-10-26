@@ -36,7 +36,6 @@ final class InventoryTable extends PowerGridComponent
     public function datasource(): Builder
     {
         return InventoryStock::query()
-            ->where('inventory_stocks.quantity', '>', 0)
             ->leftJoin('products', 'inventory_stocks.product_id', '=', 'products.id')
             ->leftJoin('companies', 'products.company_id', '=', 'companies.id')
             ->leftJoin('categories', 'products.category_id', '=', 'categories.id')

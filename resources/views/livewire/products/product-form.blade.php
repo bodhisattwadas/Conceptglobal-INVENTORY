@@ -1,13 +1,23 @@
-<x-modal name="product-form-modal" :title="''" maxWidth="2xl">
+<x-modal name="product-form-modal" :title="''" maxWidth="2xl" :close-on-outside="false" :close-on-escape="false">
     <div class="p-6">
         <!-- Custom Header -->
-        <div class="mb-6 space-y-1.5 text-center sm:text-left border-b border-gray-200 pb-4">
-            <h3 class="text-lg font-semibold leading-none tracking-tight text-foreground">
-                {{ $isEditing ? 'Edit Product' : 'Create Product' }}
-            </h3>
-            <p class="text-sm text-muted-foreground">
-                {{ $isEditing ? 'Make changes to your product here. Click save when you\'re done.' : 'Add a new product to your inventory.' }}
-            </p>
+        <div class="mb-6 flex items-start justify-between gap-4 border-b border-gray-200 pb-4">
+            <div class="space-y-1.5 text-center sm:text-left">
+                <h3 class="text-lg font-semibold leading-none tracking-tight text-foreground">
+                    {{ $isEditing ? 'Edit Product' : 'Create Product' }}
+                </h3>
+                <p class="text-sm text-muted-foreground">
+                    {{ $isEditing ? 'Make changes to your product here. Click save when you\'re done.' : 'Add a new product to your inventory.' }}
+                </p>
+            </div>
+            <button
+                type="button"
+                class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                x-on:click="$dispatch('close-modal', { name: 'product-form-modal' })"
+                aria-label="{{ __('Close') }}"
+            >
+                <x-heroicon-o-x-mark class="h-4 w-4" />
+            </button>
         </div>
 
         <form method="POST" wire:submit.prevent="save" class="space-y-6">
@@ -91,15 +101,28 @@
                 @endif
 
                 <!-- Product Code / Barcode -->
-                <x-form-input
-                    name="product_code"
-                    label="Product Code / Barcode (UPC/EAN)"
-                    placeholder="Scan barcode or enter code (e.g. 8906036215017)"
-                    type="text"
-                    wire:model="product_code"
-                    class="{{ !$isEditing ? 'col-span-1' : '' }}"
-                    hint="Barcode or UPC scanned via barcode reader. Example: 8906036215017."
-                />
+                <div class="{{ !$isEditing ? 'col-span-1' : '' }} space-y-2">
+                    <x-input-label for="product_code" :value="__('Product Code / Barcode (UPC/EAN)')" hint="Barcode or UPC scanned via barcode reader. Example: 8906036215017." />
+                    <x-text-input
+                        id="product_code"
+                        name="product_code"
+                        placeholder="Scan barcode or enter code (e.g. 8906036215017)"
+                        type="text"
+                        wire:model.live.debounce.300ms="product_code"
+                        x-on:keydown.enter.prevent="document.getElementById('name')?.focus()"
+                        class="block w-full {{ $duplicateBarcodeWarning ? 'border-amber-400 focus:border-amber-500 focus:ring-amber-500 bg-amber-50/20' : '' }}"
+                    />
+                    <x-input-error :messages="$errors->get('product_code')" class="mt-1" />
+
+                    @if($duplicateBarcodeWarning)
+                        <div class="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 shadow-sm" role="alert">
+                            <svg class="h-4 w-4 shrink-0 text-amber-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                            </svg>
+                            <span class="font-medium leading-relaxed">{{ $duplicateBarcodeWarning }}</span>
+                        </div>
+                    @endif
+                </div>
 
                 <!-- Name -->
                 <x-form-input

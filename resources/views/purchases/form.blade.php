@@ -155,7 +155,7 @@
             money(value) {
                 return Number((parseFloat(value) || 0).toFixed(2));
             },
-            defaultDiscountPercent: 17,
+            defaultDiscountPercent: 0,
             items: [],
             supplier_id: initialData.supplier_id || '',
             purchase_date: initialData.purchase_date || '{{ old('purchase_date', $purchase->purchase_date ? \Carbon\Carbon::parse($purchase->purchase_date)->format('Y-m-d') : date('Y-m-d')) }}',
@@ -388,6 +388,17 @@
                 document.getElementById(`product_search_${item.key}`)?.tomselect?.destroy();
             },
 
+            formatProductDisplay(productCode, productName) {
+                if (!productName) return '';
+                if (!productCode) return productName;
+                const codeStr = String(productCode).trim();
+                const nameStr = String(productName).trim();
+                if (nameStr.startsWith(codeStr + ' - ') || nameStr.startsWith(codeStr + ' – ')) {
+                    return nameStr;
+                }
+                return `${codeStr} - ${nameStr}`;
+            },
+
             clearRowProduct(item) {
                 item.product_id = '';
                 item.product_name = '';
@@ -407,7 +418,7 @@
                 const unitPrice = this.money(mrp * (1 - discount / 100));
 
                 item.product_id = product.value || product.id;
-                item.product_name = product.text || product.name;
+                item.product_name = product.name || product.text;
                 item.product_code = product.product_code || product.sku || '';
                 item.brand = product.brand || item.brand || '';
                 item.company_id = product.brand_id || product.company_id || item.company_id || '';
@@ -477,12 +488,15 @@
                 select.wrapper?.classList.remove('preloaded');
 
                 if (item.product_id && item.product_name) {
+                    const displayText = this.formatProductDisplay(item.product_code, item.product_name);
+
                     select.addOption({
                         value: item.product_id,
                         id: item.product_id,
-                        text: item.product_name,
+                        text: displayText,
                         name: item.product_name,
                         sku: item.product_code,
+                        product_code: item.product_code,
                         mrp: item.mrp,
                         price: item.mrp,
                         brand: item.brand,
@@ -501,7 +515,7 @@
                 }
 
                 select.enable();
-                select.settings.placeholder = 'Search product name, SKU or scan barcode...';
+                select.settings.placeholder = 'Search product name, barcode or SKU...';
                 const placeholderEl = select.control?.querySelector('.items-placeholder');
                 if (placeholderEl) placeholderEl.placeholder = select.settings.placeholder;
                 select.inputState();
@@ -517,12 +531,15 @@
                     select.loadedSearches[''] = true;
 
                     if (item.product_id && item.product_name) {
+                        const displayText = this.formatProductDisplay(item.product_code, item.product_name);
+
                         select.addOption({
                             value: item.product_id,
                             id: item.product_id,
-                            text: item.product_name,
+                            text: displayText,
                             name: item.product_name,
                             sku: item.product_code,
+                            product_code: item.product_code,
                             mrp: item.mrp,
                             price: item.mrp,
                             brand: item.brand,
@@ -573,6 +590,7 @@
                 }
 
                 const exactMatch = Object.values(select.options).find(opt => 
+                    (opt.product_code && opt.product_code.toLowerCase() === qLower) ||
                     (opt.sku && opt.sku.toLowerCase() === qLower) ||
                     (opt.text && opt.text.toLowerCase() === qLower) ||
                     (opt.name && opt.name.toLowerCase() === qLower)
@@ -602,6 +620,7 @@
 
                 if (available.length === 0) {
                     const existingProduct = products.find(p => 
+                        (p.product_code && p.product_code.toLowerCase() === qLower) ||
                         (p.sku && p.sku.toLowerCase() === qLower) ||
                         (p.text && p.text.toLowerCase() === qLower) ||
                         (p.name && p.name.toLowerCase() === qLower)
@@ -634,7 +653,9 @@
                     return;
                 }
 
-                const match = available.find(p => p.sku && p.sku.toLowerCase() === qLower) ||
+                const match = available.find(p => p.product_code && p.product_code.toLowerCase() === qLower) ||
+                              available.find(p => p.sku && p.sku.toLowerCase() === qLower) ||
+                              available.find(p => p.product_code && p.product_code.toLowerCase().startsWith(qLower)) ||
                               available.find(p => p.sku && p.sku.toLowerCase().startsWith(qLower)) ||
                               available.find(p => (p.text || p.name || '').toLowerCase() === qLower) ||
                               available[0];
@@ -663,13 +684,13 @@
                 this.waitForTomSelect(() => {
                     const select = new TomSelect(el, {
                         placeholder: this.supplier_id
-                            ? 'Search product name, SKU or scan barcode...'
+                            ? 'Search product name, barcode or SKU...'
                             : 'Select vendor first...',
                         preload: 'focus',
                         maxOptions: 500,
                         valueField: 'value',
                         labelField: 'text',
-                        searchField: ['text', 'name', 'sku', 'brand'],
+                        searchField: ['text', 'name', 'product_code', 'sku', 'brand'],
                         plugins: ['dropdown_input', 'clear_button'],
                         openOnFocus: true,
                         loadThrottle: 150,
@@ -708,11 +729,21 @@
                         render: {
                             option: (data, escape) => {
                                 const brandHtml = data.brand ? `<span class="shrink-0 text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 font-medium">${escape(data.brand)}</span>` : '';
+                                const codeParts = [];
+                                if (data.product_code) {
+                                    codeParts.push(`Barcode: ${escape(data.product_code)}`);
+                                }
+                                if (data.sku) {
+                                    codeParts.push(`SKU: ${escape(data.sku)}`);
+                                }
+                                const codeHtml = codeParts.length > 0 ? `<span class="text-xs font-mono text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">${codeParts.join(' | ')}</span>` : '';
+                                const displayText = data.text || this.formatProductDisplay(data.product_code, data.name || '');
+
                                 return `<div class="flex items-center justify-between gap-3 w-full py-1.5 px-1">
                                     <div class="min-w-0 pr-2">
-                                        <div class="truncate font-medium text-gray-900">${escape(data.text || data.name || '')}</div>
+                                        <div class="truncate font-medium text-gray-900">${escape(displayText)}</div>
                                         <div class="flex items-center gap-1.5 mt-0.5">
-                                            <span class="text-xs font-mono text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">${escape(data.sku || '')}</span>
+                                            ${codeHtml}
                                             ${brandHtml}
                                         </div>
                                     </div>
@@ -722,7 +753,8 @@
                                 </div>`;
                             },
                             item: (data, escape) => {
-                                return `<div class="truncate font-medium text-gray-900">${escape(data.text || data.name || '')}</div>`;
+                                const displayText = data.text || this.formatProductDisplay(data.product_code, data.name || '');
+                                return `<div class="truncate font-medium text-gray-900">${escape(displayText)}</div>`;
                             },
                             no_results: (data, escape) => {
                                 return `<div class="no-results px-3 py-2 text-sm text-gray-500">No available products found</div>`;
@@ -731,10 +763,10 @@
                     });
 
                     if (select.control_input) {
-                        select.control_input.placeholder = 'Search product name, SKU or brand...';
+                        select.control_input.placeholder = 'Search product name, barcode or SKU...';
                     }
                     if (select.dropdown_input) {
-                        select.dropdown_input.placeholder = 'Search product name, SKU or brand...';
+                        select.dropdown_input.placeholder = 'Search product name, barcode or SKU...';
                     }
 
                     const handleScannerKeyDown = (e) => {
@@ -748,6 +780,7 @@
                             const activeVal = select.activeOption?.dataset?.value;
                             const activeData = activeVal ? select.options[activeVal] : null;
                             const activeMatches = activeData && (
+                                (activeData.product_code && activeData.product_code.toLowerCase() === qLower) ||
                                 (activeData.sku && activeData.sku.toLowerCase() === qLower) ||
                                 (activeData.text && activeData.text.toLowerCase() === qLower) ||
                                 (activeData.name && activeData.name.toLowerCase() === qLower)
@@ -798,12 +831,14 @@
                     }
 
                     if (item.product_id && item.product_name) {
+                        const displayText = this.formatProductDisplay(item.product_code, item.product_name);
                         select.addOption({
                             value: item.product_id,
                             id: item.product_id,
-                            text: item.product_name,
+                            text: displayText,
                             name: item.product_name,
                             sku: item.product_code,
+                            product_code: item.product_code,
                             mrp: item.mrp,
                             price: item.mrp,
                             brand: item.brand,
