@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\DTOs\ProductData;
+use App\Livewire\Products\ProductDetail;
 use App\Livewire\Products\ProductForm;
 use App\Models\Category;
 use App\Models\Company;
@@ -289,5 +290,90 @@ class ProductBarcodeMigrationTest extends TestCase
             ->set('min_stock', 5)
             ->call('save')
             ->assertDispatched('close-modal', name: 'product-form-modal');
+    }
+
+    public function test_product_detail_modal_shows_barcode_prominently_at_top(): void
+    {
+        $product = Product::factory()->create([
+            'name' => 'Strawberry Hydrating Body Lotion',
+            'sku' => 'SKU-SHBL-01',
+            'product_code' => '8906036215017',
+            'category_id' => $this->category->id,
+            'unit_id' => $this->unit->id,
+            'company_id' => $this->company->id,
+            'mrp' => 350.00,
+            'min_stock' => 5,
+        ]);
+
+        Livewire::actingAs($this->user)
+            ->test(ProductDetail::class)
+            ->dispatch('show-product', product: $product->id)
+            ->assertDispatched('open-modal', name: 'product-detail-modal')
+            ->assertSee('Product Barcode / Code')
+            ->assertSee('8906036215017')
+            ->assertSee('Strawberry Hydrating Body Lotion')
+            ->assertSee('Clone Product');
+    }
+
+    public function test_clone_product_copies_details_without_product_code_or_sku_and_creates_new_product(): void
+    {
+        $this->actingAs($this->user);
+
+        $original = Product::create([
+            'category_id' => $this->category->id,
+            'unit_id' => $this->unit->id,
+            'company_id' => $this->company->id,
+            'sku' => 'SKU-ORIG-100',
+            'product_code' => '8906036215017',
+            'name' => 'Velvet Matte Lipstick - Ruby Red',
+            'mrp' => 650,
+            'purchase_price' => 650,
+            'selling_price' => 650,
+            'quantity' => 12,
+            'min_stock' => 4,
+            'is_active' => true,
+            'description' => 'Long-lasting hydrating matte lipstick.',
+            'notes' => 'Bestseller shade.',
+        ]);
+
+        Livewire::test(ProductForm::class)
+            ->dispatch('clone-product', product: $original->id)
+            ->assertDispatched('open-modal', name: 'product-form-modal')
+            ->assertSet('isEditing', false)
+            ->assertSet('isCloning', true)
+            ->assertSet('product', null)
+            ->assertSet('sku', null)
+            ->assertSet('product_code', null)
+            ->assertSet('name', 'Velvet Matte Lipstick - Ruby Red')
+            ->assertSet('description', 'Long-lasting hydrating matte lipstick.')
+            ->assertSet('notes', 'Bestseller shade.')
+            ->assertSet('category_id', $this->category->id)
+            ->assertSet('unit_id', $this->unit->id)
+            ->assertSet('company_id', $this->company->id)
+            ->assertSet('mrp', 650)
+            ->assertSet('min_stock', 4)
+            ->assertSet('is_active', true)
+            ->assertSee('Clone Product')
+            ->set('name', 'Velvet Matte Lipstick - Coral Pink')
+            ->set('product_code', '8906036215024')
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertDispatched('close-modal', name: 'product-form-modal');
+
+        $this->assertEquals(2, Product::count());
+
+        $cloned = Product::where('id', '!=', $original->id)->firstOrFail();
+        $this->assertEquals('Velvet Matte Lipstick - Coral Pink', $cloned->name);
+        $this->assertEquals('Long-lasting hydrating matte lipstick.', $cloned->description);
+        $this->assertEquals('Bestseller shade.', $cloned->notes);
+        $this->assertEquals('8906036215024', $cloned->product_code);
+        $this->assertNotEquals($original->sku, $cloned->sku);
+        $this->assertEquals(0, $cloned->quantity);
+
+        // Ensure original product was untouched
+        $original->refresh();
+        $this->assertEquals('Velvet Matte Lipstick - Ruby Red', $original->name);
+        $this->assertEquals('8906036215017', $original->product_code);
+        $this->assertEquals('SKU-ORIG-100', $original->sku);
     }
 }

@@ -18,6 +18,10 @@ class ProductForm extends Component
 
     public bool $isEditing = false;
 
+    public bool $isCloning = false;
+
+    public int $formKey = 0;
+
     public ?Product $product = null;
 
     // Form Fields
@@ -73,8 +77,10 @@ class ProductForm extends Component
     #[On('create-product')]
     public function create(): void
     {
-        $this->reset(['sku', 'product_code', 'duplicateBarcodeWarning', 'name', 'category_id', 'unit_id', 'company_id', 'brandName', 'mrp', 'purchase_price', 'selling_price', 'min_stock', 'description', 'notes', 'image', 'currentImagePath', 'product', 'isEditing', 'categoryName', 'unitName']);
+        $this->reset(['sku', 'product_code', 'duplicateBarcodeWarning', 'name', 'category_id', 'unit_id', 'company_id', 'brandName', 'mrp', 'purchase_price', 'selling_price', 'min_stock', 'description', 'notes', 'image', 'currentImagePath', 'product', 'isEditing', 'isCloning', 'categoryName', 'unitName']);
         $this->is_active = true;
+        $this->formKey++;
+        $this->resetValidation();
 
         $this->dispatch('open-modal', name: 'product-form-modal');
     }
@@ -90,9 +96,9 @@ class ProductForm extends Component
         $this->category_id = $product->category_id;
         $this->unit_id = $product->unit_id;
         $this->company_id = $product->company_id;
-        $this->mrp = $product->mrp;
-        $this->purchase_price = $product->mrp;
-        $this->selling_price = $product->mrp;
+        $this->mrp = (int) $product->mrp;
+        $this->purchase_price = (int) $product->mrp;
+        $this->selling_price = (int) $product->mrp;
         $this->min_stock = $product->min_stock;
         $this->is_active = $product->is_active;
         $this->description = $product->description ?? '';
@@ -106,6 +112,43 @@ class ProductForm extends Component
         $this->brandName = $product->company ? ($product->company->short_name ?: $product->company->company_name) : null;
 
         $this->isEditing = true;
+        $this->isCloning = false;
+        $this->formKey++;
+        $this->resetValidation();
+
+        $this->dispatch('open-modal', name: 'product-form-modal');
+    }
+
+    #[On('clone-product')]
+    public function cloneProduct(Product $product): void
+    {
+        $this->product = null;
+        $this->sku = null;
+        $this->product_code = null;
+        $this->duplicateBarcodeWarning = null;
+        $this->name = $product->name;
+        $this->category_id = $product->category_id;
+        $this->unit_id = $product->unit_id;
+        $this->company_id = $product->company_id;
+        $this->mrp = (int) $product->mrp;
+        $this->purchase_price = (int) $product->mrp;
+        $this->selling_price = (int) $product->mrp;
+        $this->min_stock = $product->min_stock;
+        $this->is_active = $product->is_active;
+        $this->description = $product->description ?? '';
+        $this->notes = $product->notes ?? '';
+        $this->image = null;
+        $this->currentImagePath = null;
+
+        // Set initial labels for TomSelect
+        $this->categoryName = $product->category ? $product->category->name : null;
+        $this->unitName = $product->unit ? "{$product->unit->name} ({$product->unit->symbol})" : null;
+        $this->brandName = $product->company ? ($product->company->short_name ?: $product->company->company_name) : null;
+
+        $this->isEditing = false;
+        $this->isCloning = true;
+        $this->formKey++;
+        $this->resetValidation();
 
         $this->dispatch('open-modal', name: 'product-form-modal');
     }

@@ -2,7 +2,7 @@
     $availableCoupons = $availableCoupons ?? collect();
 @endphp
 <x-app-layout title="POS">
-    <div class="mx-auto sm:px-6 lg:px-8 py-4 space-y-4 max-w-7xl"
+    <div class="w-[92%] mx-auto py-4 space-y-4 px-2 sm:px-3 lg:px-0"
          x-data="pos()"
          x-init="init()"
          @keydown.window.f1.prevent="focusProductSelect()"
@@ -136,7 +136,7 @@
             <!-- Cart Table -->
             <div class="overflow-hidden rounded-lg border border-gray-200">
                 <div class="overflow-x-auto" style="min-height: 280px;">
-                    <table class="w-full min-w-[950px] table-fixed divide-y divide-gray-200">
+                    <table class="w-full min-w-[800px] table-fixed divide-y divide-gray-200">
                         <colgroup>
                             <col class="w-[32%]">
                             <col class="w-[11%]">
@@ -162,7 +162,7 @@
                         <tbody class="bg-white divide-y divide-gray-200">
                             <template x-for="(item, index) in cart" :key="item.key">
                                 <tr :class="index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'" class="hover:bg-indigo-50/40 transition-colors">
-                                    <td class="px-4 py-3 align-top min-w-[280px]">
+                                    <td class="px-4 py-3 align-top min-w-[220px]">
                                         <div class="w-full">
                                             <select
                                                 :id="`product_search_${item.key}`"
@@ -212,7 +212,7 @@
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-right align-top pt-3">
                                         <template x-if="item.id">
-                                            <div class="relative rounded-md shadow-sm w-full min-w-[90px] ml-auto">
+                                            <div class="relative rounded-md shadow-sm w-full min-w-[80px] ml-auto">
                                                 <input
                                                     type="number"
                                                     min="0"

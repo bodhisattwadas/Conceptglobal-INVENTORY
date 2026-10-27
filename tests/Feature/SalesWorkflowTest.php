@@ -468,6 +468,19 @@ class SalesWorkflowTest extends TestCase
         $response->assertSee('aria-label="Round off"', false);
     }
 
+    public function test_pos_create_view_renders_wide_container_with_max_five_percent_margins(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+
+        $response = $this->actingAs($user)->get(route('sales.create'));
+        $response->assertOk();
+        $response->assertSee('w-[92%]', false);
+        $response->assertSee('mx-auto', false);
+        $response->assertDontSee('mx-auto sm:px-6 lg:px-8 py-4 space-y-4 max-w-7xl', false);
+        $response->assertSee('min-w-[800px]', false);
+        $response->assertDontSee('min-w-[950px]', false);
+    }
+
     public function test_sale_can_be_created_with_decimal_bill_discount(): void
     {
         $user = User::factory()->create(['role' => 'sales']);

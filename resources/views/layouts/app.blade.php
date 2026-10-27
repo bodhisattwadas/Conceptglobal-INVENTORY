@@ -16,7 +16,7 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
     </head>
-    <body class="font-sans antialiased bg-background text-foreground">
+    <body class="font-sans antialiased bg-background text-foreground overflow-x-hidden">
         <div class="min-h-screen bg-background flex flex-col">
             <div class="flex-1">
                 @include('layouts.navigation')

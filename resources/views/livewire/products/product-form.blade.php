@@ -4,10 +4,10 @@
         <div class="mb-6 flex items-start justify-between gap-4 border-b border-gray-200 pb-4">
             <div class="space-y-1.5 text-center sm:text-left">
                 <h3 class="text-lg font-semibold leading-none tracking-tight text-foreground">
-                    {{ $isEditing ? 'Edit Product' : 'Create Product' }}
+                    {{ $isEditing ? 'Edit Product' : ($isCloning ? 'Clone Product' : 'Create Product') }}
                 </h3>
                 <p class="text-sm text-muted-foreground">
-                    {{ $isEditing ? 'Make changes to your product here. Click save when you\'re done.' : 'Add a new product to your inventory.' }}
+                    {{ $isEditing ? 'Make changes to your product here. Click save when you\'re done.' : ($isCloning ? 'Product details have been copied without the barcode or SKU. Scan a new barcode or adjust details and save.' : 'Add a new product to your inventory.') }}
                 </p>
             </div>
             <button
@@ -142,7 +142,7 @@
                 <!-- Brand -->
                 <div class="space-y-2">
                     <x-input-label for="company_id" :value="__('Brand')" required hint="Brand or company this product belongs to. Example: Colorbar." />
-                    <div wire:ignore>
+                    <div wire:key="product-form-company-{{ $formKey }}">
                         <x-tom-select
                             id="company_id"
                             name="company_id"
@@ -159,7 +159,7 @@
                 <!-- Category -->
                 <div class="space-y-2">
                     <x-input-label for="category_id" :value="__('Category')" required hint="Product grouping for filtering and reports. Example: Lip Makeup." />
-                    <div wire:ignore>
+                    <div wire:key="product-form-category-{{ $formKey }}">
                         <x-tom-select
                             id="category_id"
                             name="category_id"
@@ -176,7 +176,7 @@
                 <!-- Unit -->
                 <div class="space-y-2">
                     <x-input-label for="unit_id" :value="__('Unit')" required hint="Measurement unit used for quantities. Example: pcs." />
-                    <div wire:ignore>
+                    <div wire:key="product-form-unit-{{ $formKey }}">
                         <x-tom-select
                             id="unit_id"
                             name="unit_id"
