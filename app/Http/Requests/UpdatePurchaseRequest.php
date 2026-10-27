@@ -3,7 +3,9 @@
 namespace App\Http\Requests;
 
 use App\Enums\PurchaseLocation;
+use App\Enums\PurchaseStatus;
 use App\Models\Product;
+use App\Models\Purchase;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -17,10 +19,17 @@ class UpdatePurchaseRequest extends FormRequest
                 return $item;
             }
 
-            $mrp = Product::query()->whereKey($item['product_id'] ?? null)->value('mrp');
+            $submittedMrp = $item['mrp'] ?? $item['selling_price'] ?? null;
+            if ($submittedMrp !== null && is_numeric($submittedMrp)) {
+                $mrp = (float) $submittedMrp;
+            } else {
+                $mrp = Product::query()->whereKey($item['product_id'] ?? null)->value('mrp');
+            }
+
             $discount = max(0, min(100, (float) ($item['discount_percent'] ?? 0)));
 
             if ($mrp !== null) {
+                $item['mrp'] = number_format(((float) $mrp), 2, '.', '');
                 $item['unit_price'] = number_format(((float) $mrp) * (1 - $discount / 100), 2, '.', '');
                 $item['selling_price'] = number_format((float) $mrp, 2, '.', '');
             }
@@ -77,6 +86,7 @@ class UpdatePurchaseRequest extends FormRequest
             'items.*.discount_percent' => ['required', 'numeric', 'between:0,100'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'items.*.selling_price' => ['nullable', 'numeric', 'min:0'],
+            'items.*.mrp' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 
@@ -97,6 +107,57 @@ class UpdatePurchaseRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
+            $purchase = $this->route('purchase');
+            if (! $purchase instanceof Purchase && is_numeric($purchase)) {
+                $purchase = Purchase::find($purchase);
+            }
+
+            if ($purchase instanceof Purchase && $purchase->status === PurchaseStatus::RECEIVED) {
+                if ((int) $this->input('supplier_id') !== (int) $purchase->supplier_id) {
+                    $validator->errors()->add('supplier_id', 'Supplier cannot be changed on an already received purchase order.');
+                }
+
+                $existingItems = $purchase->items->keyBy('product_id');
+                $incomingItems = collect($this->input('items', []));
+                $incomingProductIds = $incomingItems->pluck('product_id')->filter()->map(fn ($id) => (int) $id)->sort()->values();
+                $existingProductIds = $existingItems->keys()->map(fn ($id) => (int) $id)->sort()->values();
+
+                if ($incomingProductIds->count() !== $existingProductIds->count() || $incomingProductIds->all() !== $existingProductIds->all()) {
+                    $validator->errors()->add('items', 'Products cannot be added or removed from an already received purchase order.');
+                } else {
+                    foreach ($incomingItems as $index => $item) {
+                        $productId = (int) ($item['product_id'] ?? 0);
+                        if (! $productId || ! $existingItems->has($productId)) {
+                            continue;
+                        }
+
+                        $existingItem = $existingItems->get($productId);
+                        $oldQty = (int) $existingItem->quantity;
+                        $currentBatchStock = (int) ($existingItem->received_quantity ?? $oldQty);
+                        $unitsSold = max(0, $oldQty - $currentBatchStock);
+                        $newQty = (int) ($item['quantity'] ?? 0);
+
+                        if ($newQty < $unitsSold) {
+                            $validator->errors()->add(
+                                "items.{$index}.quantity",
+                                "Cannot reduce quantity below {$unitsSold} because {$unitsSold} unit(s) have already been sold from this batch."
+                            );
+                        }
+
+                        $quantityDelta = $newQty - $oldQty;
+                        if ($quantityDelta < 0) {
+                            $product = Product::find($productId);
+                            if ($product && ($product->quantity + $quantityDelta) < 0) {
+                                $validator->errors()->add(
+                                    "items.{$index}.quantity",
+                                    'Cannot reduce quantity by '.abs($quantityDelta)." because only {$product->quantity} unit(s) remain in inventory."
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
             $supplierCompanyIds = collect(
                 DB::table('supplier_companies')
                     ->where('supplier_id', $this->input('supplier_id'))

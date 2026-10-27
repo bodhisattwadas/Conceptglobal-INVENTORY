@@ -9,6 +9,7 @@ class PurchaseItemData
         public int $quantity,
         public float $unit_price,
         public ?float $selling_price,
+        public ?float $discount_percent = null,
     ) {}
 
     public static function fromArray(array $data): self
@@ -18,6 +19,7 @@ class PurchaseItemData
             quantity: (int) $data['quantity'],
             unit_price: (float) $data['unit_price'],
             selling_price: isset($data['selling_price']) ? (float) $data['selling_price'] : null,
+            discount_percent: isset($data['discount_percent']) ? (float) $data['discount_percent'] : null,
         );
     }
 
@@ -28,6 +30,7 @@ class PurchaseItemData
             'quantity' => $this->quantity,
             'unit_price' => $this->unit_price,
             'selling_price' => $this->selling_price,
+            'discount_percent' => $this->discount_percent,
         ];
     }
 }

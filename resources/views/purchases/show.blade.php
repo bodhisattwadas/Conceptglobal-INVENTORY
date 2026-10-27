@@ -6,6 +6,7 @@
         $storeEmail = \App\Models\Setting::get('store_email', '-');
         $isDraft = $purchase->status === \App\Enums\PurchaseStatus::DRAFT || $purchase->status === \App\Enums\PurchaseStatus::DRAFT->value;
         $isOrdered = $purchase->status === \App\Enums\PurchaseStatus::ORDERED || $purchase->status === \App\Enums\PurchaseStatus::ORDERED->value;
+        $isReceived = $purchase->status === \App\Enums\PurchaseStatus::RECEIVED || $purchase->status === \App\Enums\PurchaseStatus::RECEIVED->value;
         $vendorInvoice = $purchase->vendorInvoice;
         $vendorDiscount = (float) ($vendorInvoice?->vendor_additional_discount ?? 0);
         $hasVendorDiscount = $vendorDiscount != 0.0;
@@ -34,7 +35,7 @@
                     <x-heroicon-o-arrow-left class="h-4 w-4" />
                     {{ __('Back') }}
                 </a>
-                @if($isDraft || $isOrdered)
+                @if($isDraft || $isOrdered || $isReceived)
                     <a href="{{ route('purchases.edit', $purchase) }}" class="inline-flex h-8 items-center justify-center gap-1.5 rounded bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700">
                         <x-heroicon-o-pencil-square class="h-4 w-4" />
                         {{ __('Edit') }}

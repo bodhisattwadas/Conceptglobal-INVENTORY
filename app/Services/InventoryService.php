@@ -45,6 +45,45 @@ class InventoryService
     }
 
     /**
+     * Adjust inventory stock when a received purchase order's quantity is edited.
+     * Positive $quantityDelta increases stock, negative decreases it.
+     */
+    public function adjustPurchaseItemStock(Purchase $purchase, PurchaseItem $item, int $quantityDelta): void
+    {
+        if ($quantityDelta === 0) {
+            return;
+        }
+
+        $stock = InventoryStock::query()
+            ->where('product_id', $item->product_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $stock) {
+            $stock = InventoryStock::create([
+                'product_id' => $item->product_id,
+                'quantity' => 0,
+            ]);
+        }
+
+        $stock->increment('quantity', $quantityDelta);
+        $stock->refresh();
+
+        InventoryMovement::create([
+            'product_id' => $item->product_id,
+            'purchase_id' => $purchase->id,
+            'purchase_item_id' => $item->id,
+            'type' => 'purchase_adjustment',
+            'quantity' => $quantityDelta,
+            'balance_after' => $stock->quantity,
+            'reference' => $purchase->invoice_number,
+            'notes' => $quantityDelta > 0
+                ? "PO adjustment: received quantity increased by {$quantityDelta}."
+                : 'PO adjustment: received quantity reduced by '.abs($quantityDelta).'.',
+        ]);
+    }
+
+    /**
      * Adjust inventory stock for a sale-related event (sale, cancellation, restore).
      * Positive $quantityDelta increases stock, negative decreases it.
      */

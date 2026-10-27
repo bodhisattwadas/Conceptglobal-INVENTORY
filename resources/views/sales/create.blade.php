@@ -788,6 +788,7 @@
                                 const parsed = JSON.parse(savedCart);
                                 const mapped = (Array.isArray(parsed) ? parsed : []).map((item) => this.prepareCartItem(item));
                                 this.cart = mapped.length ? mapped : [this.blankItem()];
+                                this.refreshCartPrices();
                             } catch (e) {
                                 this.cart = [this.blankItem()];
                             }
@@ -1035,46 +1036,54 @@
                         this.syncAllProductDropdowns(item);
                     },
 
+                    refreshCartPrices() {
+                        const itemIds = (this.cart || []).map(item => item.id).filter(Boolean);
+                        if (!itemIds.length) return;
+
+                        fetch('{{ route("ajax.products.search") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                            },
+                            body: JSON.stringify({ q: '' })
+                        })
+                        .then(r => r.json())
+                        .then(products => {
+                            if (!Array.isArray(products) || !products.length) return;
+                            const map = {};
+                            products.forEach(p => { map[p.id] = p; });
+
+                            let updated = false;
+                            this.cart.forEach(item => {
+                                if (item.id && map[item.id]) {
+                                    const fresh = map[item.id];
+                                    const freshPrice = parseFloat(fresh.selling_price || fresh.price) || 0;
+                                    if (freshPrice > 0 && Math.abs(item.price - freshPrice) > 0.001) {
+                                        item.price = freshPrice;
+                                        updated = true;
+                                    }
+                                    if (fresh.quantity !== undefined) {
+                                        item.max_stock = fresh.quantity;
+                                        if (item.quantity > item.max_stock) {
+                                            item.quantity = item.max_stock;
+                                            updated = true;
+                                        }
+                                    }
+                                }
+                            });
+
+                            if (updated) {
+                                this.persistCart();
+                            }
+                        })
+                        .catch(() => {});
+                    },
+
                     handleProductScan(select, item, query) {
                         const qLower = query.trim().toLowerCase();
                         if (!qLower) return;
-
-                        const existingRow = this.cart.find(row => 
-                            row.key !== item.key && row.id && (
-                                (row.sku && row.sku.toLowerCase() === qLower) ||
-                                (row.name && row.name.toLowerCase() === qLower)
-                            )
-                        );
-
-                        if (existingRow) {
-                            if (existingRow.quantity < existingRow.max_stock) {
-                                existingRow.quantity += 1;
-                                this.persistCart();
-                                this.$dispatch('toast', { message: `Increased quantity for "${existingRow.name}" to ${existingRow.quantity}`, type: 'info' });
-                            } else {
-                                this.$dispatch('toast', { message: `Maximum stock (${existingRow.max_stock}) reached for "${existingRow.name}"`, type: 'warning' });
-                            }
-                            select.clear(true);
-                            select.close();
-                            if (select.dropdown_input) select.dropdown_input.value = '';
-                            if (select.control_input) select.control_input.value = '';
-                            this.focusRowSelect(item);
-                            return;
-                        }
-
-                        const exactMatch = Object.values(select.options).find(opt => 
-                            (opt.sku && opt.sku.toLowerCase() === qLower) ||
-                            (opt.text && opt.text.toLowerCase() === qLower) ||
-                            (opt.name && opt.name.toLowerCase() === qLower)
-                        );
-
-                        if (exactMatch) {
-                            select.addOption(exactMatch);
-                            select.setValue(exactMatch.value || exactMatch.id);
-                            this.setRowProduct(item, exactMatch);
-                            select.close();
-                            return;
-                        }
 
                         fetch('{{ route("ajax.products.search") }}', {
                             method: 'POST',
@@ -1088,17 +1097,40 @@
                         .then(r => r.json())
                         .then(products => {
                             const list = Array.isArray(products) ? products : [];
-                            const available = this.filterAvailableProducts(list, item);
-
-                            if (available.length === 0) {
+                            if (list.length === 0) {
                                 this.$dispatch('toast', { message: `No available product found matching "${query}"`, type: 'warning' });
                                 return;
                             }
 
-                            const match = available.find(p => p.sku && p.sku.toLowerCase() === qLower) ||
-                                          available.find(p => p.sku && p.sku.toLowerCase().startsWith(qLower)) ||
-                                          available.find(p => (p.text || p.name || '').toLowerCase() === qLower) ||
-                                          available[0];
+                            const match = list.find(p => (p.product_code && p.product_code.toLowerCase() === qLower) || (p.sku && p.sku.toLowerCase() === qLower)) ||
+                                          list.find(p => (p.product_code && p.product_code.toLowerCase().startsWith(qLower)) || (p.sku && p.sku.toLowerCase().startsWith(qLower))) ||
+                                          list.find(p => (p.text || p.name || '').toLowerCase() === qLower) ||
+                                          list[0];
+
+                            // Check if matched product is already in another cart row
+                            const existingRow = this.cart.find(row => 
+                                row.key !== item.key && row.id && String(row.id) === String(match.id || match.value)
+                            );
+
+                            if (existingRow) {
+                                const freshPrice = parseFloat(match.selling_price || match.price) || existingRow.price;
+                                existingRow.price = freshPrice;
+                                existingRow.max_stock = match.quantity !== undefined ? match.quantity : existingRow.max_stock;
+
+                                if (existingRow.quantity < existingRow.max_stock) {
+                                    existingRow.quantity += 1;
+                                    this.persistCart();
+                                    this.$dispatch('toast', { message: `Increased quantity for "${existingRow.name}" to ${existingRow.quantity}`, type: 'info' });
+                                } else {
+                                    this.$dispatch('toast', { message: `Maximum stock (${existingRow.max_stock}) reached for "${existingRow.name}"`, type: 'warning' });
+                                }
+                                select.clear(true);
+                                select.close();
+                                if (select.dropdown_input) select.dropdown_input.value = '';
+                                if (select.control_input) select.control_input.value = '';
+                                this.focusRowSelect(item);
+                                return;
+                            }
 
                             select.addOption(match);
                             select.setValue(match.value || match.id);

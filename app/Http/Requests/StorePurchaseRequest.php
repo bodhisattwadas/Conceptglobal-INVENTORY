@@ -17,10 +17,17 @@ class StorePurchaseRequest extends FormRequest
                 return $item;
             }
 
-            $mrp = Product::query()->whereKey($item['product_id'] ?? null)->value('mrp');
+            $submittedMrp = $item['mrp'] ?? $item['selling_price'] ?? null;
+            if ($submittedMrp !== null && is_numeric($submittedMrp)) {
+                $mrp = (float) $submittedMrp;
+            } else {
+                $mrp = Product::query()->whereKey($item['product_id'] ?? null)->value('mrp');
+            }
+
             $discount = max(0, min(100, (float) ($item['discount_percent'] ?? 0)));
 
             if ($mrp !== null) {
+                $item['mrp'] = number_format(((float) $mrp), 2, '.', '');
                 $item['unit_price'] = number_format(((float) $mrp) * (1 - $discount / 100), 2, '.', '');
                 $item['selling_price'] = number_format((float) $mrp, 2, '.', '');
             }
@@ -77,6 +84,7 @@ class StorePurchaseRequest extends FormRequest
             'items.*.discount_percent' => ['required', 'numeric', 'between:0,100'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'items.*.selling_price' => ['nullable', 'numeric', 'min:0'],
+            'items.*.mrp' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 

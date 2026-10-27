@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\DTOs\PurchaseData;
 use App\Enums\PurchaseStatus;
+use App\Enums\VendorInvoiceStatus;
 use App\Exceptions\PurchaseException;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -52,8 +53,12 @@ class PurchaseService
     {
         return DB::transaction(function () use ($purchase, $data) {
             try {
-                if (! in_array($purchase->status, [PurchaseStatus::DRAFT, PurchaseStatus::ORDERED])) {
+                if (! in_array($purchase->status, [PurchaseStatus::DRAFT, PurchaseStatus::ORDERED, PurchaseStatus::RECEIVED])) {
                     throw PurchaseException::invalidStatus('update', $purchase->status->label(), ['id' => $purchase->id]);
+                }
+
+                if ($purchase->status === PurchaseStatus::RECEIVED) {
+                    return $this->updateReceivedPurchase($purchase, $data);
                 }
 
                 $purchase->update([
@@ -79,6 +84,131 @@ class PurchaseService
                 throw PurchaseException::updateFailed($e->getMessage(), ['id' => $purchase->id]);
             }
         });
+    }
+
+    /**
+     * Safely update numbers, prices, and metadata on an already-received purchase order,
+     * synchronizing inventory stock, batch remaining quantities, movements, and vendor invoices.
+     */
+    protected function updateReceivedPurchase(Purchase $purchase, PurchaseData $data): Purchase
+    {
+        $purchase->update([
+            'supplier_id' => $data->supplier_id,
+            'company_id' => $data->company_id,
+            'location' => $data->location,
+            'purchase_date' => $data->purchase_date,
+            'due_date' => $data->due_date,
+            'notes' => $data->notes,
+            'proof_image' => $data->proof_image,
+        ]);
+
+        $submittedItemsByProductId = collect($data->items)->keyBy('product_id');
+
+        foreach ($purchase->items as $item) {
+            $submitted = $submittedItemsByProductId->get($item->product_id);
+            if (! $submitted) {
+                continue;
+            }
+
+            $oldQuantity = (int) $item->quantity;
+            $newQuantity = (int) $submitted->quantity;
+            $oldUnitPrice = (float) $item->unit_price;
+            $newUnitPrice = (float) $submitted->unit_price;
+            $newSellingPrice = $submitted->selling_price !== null ? (float) $submitted->selling_price : (float) $item->selling_price;
+
+            $quantityDelta = $newQuantity - $oldQuantity;
+
+            if ($quantityDelta !== 0) {
+                $currentBatchStock = (int) ($item->received_quantity ?? $oldQuantity);
+                $unitsSold = max(0, $oldQuantity - $currentBatchStock);
+
+                if ($newQuantity < $unitsSold) {
+                    $productName = $item->product?->name ?? "Product #{$item->product_id}";
+                    throw PurchaseException::updateFailed(
+                        "Cannot reduce quantity of {$productName} to {$newQuantity}. {$unitsSold} unit(s) have already been sold from this batch.",
+                        ['product_id' => $item->product_id, 'units_sold' => $unitsSold]
+                    );
+                }
+
+                $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
+                if ($product && ($product->quantity + $quantityDelta) < 0) {
+                    $productName = $item->product?->name ?? "Product #{$item->product_id}";
+                    throw PurchaseException::updateFailed(
+                        "Cannot reduce quantity of {$productName} by ".abs($quantityDelta).". Current inventory stock ({$product->quantity}) cannot become negative.",
+                        ['product_id' => $item->product_id, 'current_stock' => $product->quantity]
+                    );
+                }
+
+                if ($product) {
+                    $product->increment('quantity', $quantityDelta);
+                }
+
+                $this->inventoryService->adjustPurchaseItemStock($purchase, $item, $quantityDelta);
+
+                $newReceivedQty = max(0, $currentBatchStock + $quantityDelta);
+                $item->received_quantity = $newReceivedQty;
+                $item->quantity = $newQuantity;
+            }
+
+            $item->unit_price = $newUnitPrice;
+            $item->selling_price = $newSellingPrice;
+            $item->subtotal = number_format($newQuantity * $newUnitPrice, 2, '.', '');
+            $item->save();
+
+            $product = Product::where('id', $item->product_id)->first();
+            if ($product) {
+                $productUpdates = [];
+                if ($oldUnitPrice !== $newUnitPrice) {
+                    $productUpdates['purchase_price'] = $newUnitPrice;
+                }
+                if ($newSellingPrice && (float) $product->selling_price !== $newSellingPrice) {
+                    $productUpdates['selling_price'] = $newSellingPrice;
+                }
+                if ($newSellingPrice && (float) $product->mrp !== $newSellingPrice) {
+                    $oldMrp = (float) $product->mrp;
+                    $productUpdates['mrp'] = $newSellingPrice;
+                    $product->priceHistories()->create([
+                        'changed_by' => Auth::id(),
+                        'source' => 'purchase_edit',
+                        'reference' => $purchase->invoice_number ?: "PO #{$purchase->id}",
+                        'old_mrp' => $oldMrp,
+                        'new_mrp' => $newSellingPrice,
+                        'notes' => 'MRP updated while editing purchase order.',
+                    ]);
+                }
+                if (! empty($productUpdates)) {
+                    $product->update($productUpdates);
+                }
+            }
+        }
+
+        $newTotal = $purchase->items()->sum('subtotal');
+        $purchase->update(['total' => $newTotal]);
+
+        $vendorInvoice = $purchase->vendorInvoice;
+        if ($vendorInvoice) {
+            $discount = (float) ($vendorInvoice->vendor_additional_discount ?? 0);
+            $newInvoiceAmount = max(0, (float) $newTotal - $discount);
+            $paidAmount = (float) ($vendorInvoice->paid_amount ?? 0);
+
+            $status = $vendorInvoice->status;
+            if ($paidAmount >= $newInvoiceAmount && $newInvoiceAmount > 0) {
+                $status = VendorInvoiceStatus::PAID;
+            } elseif ($paidAmount > 0 && $paidAmount < $newInvoiceAmount) {
+                $status = VendorInvoiceStatus::PARTIALLY_PAID;
+            } elseif ($paidAmount == 0) {
+                $status = VendorInvoiceStatus::UNPAID;
+            }
+
+            $vendorInvoice->update([
+                'amount' => $newInvoiceAmount,
+                'status' => $status,
+                'supplier_id' => $data->supplier_id,
+                'company_id' => $data->company_id,
+            ]);
+        }
+
+        return $purchase->refresh()->load('items');
     }
 
     public function deletePurchase(Purchase $purchase): void
@@ -176,9 +306,9 @@ class PurchaseService
                     $priceChangeLog = '';
                     $hasPriceChange = false;
                     $ref = $purchase->invoice_number ? "PO #{$purchase->invoice_number}" : "Purchase #{$purchase->id}";
-                    $newProductMrp = isset($itemReceiptDates[$item->id]['product_mrp'])
+                    $newProductMrp = isset($itemReceiptDates[$item->id]['product_mrp']) && $itemReceiptDates[$item->id]['product_mrp'] !== ''
                         ? (float) $itemReceiptDates[$item->id]['product_mrp']
-                        : null;
+                        : ((float) ($item->selling_price ?: 0) ?: null);
 
                     if ($newProductMrp !== null && (float) $product->mrp !== $newProductMrp) {
                         $oldMrp = (float) $product->mrp;

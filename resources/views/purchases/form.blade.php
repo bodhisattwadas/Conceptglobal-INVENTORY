@@ -1,18 +1,40 @@
 <div class="space-y-6">
+    <div x-show="is_received" class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 flex items-start gap-3 shadow-sm">
+        <svg class="h-5 w-5 text-amber-600 mt-0.5 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <div>
+            <h4 class="font-bold text-amber-900">{{ __('Purchase Order Already Received') }}</h4>
+            <p class="mt-0.5 text-amber-700">
+                {{ __('Products cannot be added or deleted on a received purchase order. Adjusting numbers (quantity) will immediately update current inventory stock levels and inventory movements. Price or discount adjustments will update the order total and vendor invoice.') }}
+            </p>
+        </div>
+    </div>
+
     <div class="grid grid-cols-1 gap-6 rounded-lg border border-gray-200 bg-gray-50 p-4 md:grid-cols-2">
         <div class="space-y-2">
             <x-input-label for="supplier_id" :value="__('Supplier / Vendor')" required hint="Supplier for this purchase order. Example: Beauty World Distributors." />
-            <select id="supplier_id" name="supplier_id" x-init="initSupplierSelect($el)" x-model="supplier_id" autocomplete="off">
-                <option value=""></option>
-                @if(old('supplier_id'))
-                    @php($oldSupplier = \App\Models\Supplier::find(old('supplier_id')))
-                    @if($oldSupplier)
-                        <option value="{{ $oldSupplier->id }}" selected>{{ $oldSupplier->name }}</option>
-                    @endif
-                @elseif(isset($purchase) && $purchase->supplier)
-                    <option value="{{ $purchase->supplier_id }}" selected>{{ $purchase->supplier->name }}</option>
-                @endif
-            </select>
+            <template x-if="is_received">
+                <div>
+                    <input type="text" readonly class="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground font-medium cursor-not-allowed" value="{{ isset($purchase) && $purchase->supplier ? $purchase->supplier->name : '' }}">
+                    <input type="hidden" name="supplier_id" :value="supplier_id">
+                </div>
+            </template>
+            <template x-if="!is_received">
+                <div>
+                    <select id="supplier_id" name="supplier_id" x-init="initSupplierSelect($el)" x-model="supplier_id" autocomplete="off">
+                        <option value=""></option>
+                        @if(old('supplier_id'))
+                            @php($oldSupplier = \App\Models\Supplier::find(old('supplier_id')))
+                            @if($oldSupplier)
+                                <option value="{{ $oldSupplier->id }}" selected>{{ $oldSupplier->name }}</option>
+                            @endif
+                        @elseif(isset($purchase) && $purchase->supplier)
+                            <option value="{{ $purchase->supplier_id }}" selected>{{ $purchase->supplier->name }}</option>
+                        @endif
+                    </select>
+                </div>
+            </template>
             <x-input-error :messages="$errors->get('supplier_id')" />
         </div>
 
@@ -79,7 +101,7 @@
                             <th class="min-w-[340px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Product</th>
                             <th class="w-[200px] min-w-[180px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Brand</th>
                             <th class="w-16 px-2 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">Qty</th>
-                            <th class="w-28 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">MRP</th>
+                            <th class="w-32 px-3 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">MRP</th>
                             <th class="w-32 px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">MRP Discount %</th>
                             <th class="w-28 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">Subtotal</th>
                             <th class="w-14 px-2 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap"><span class="sr-only">Action</span></th>
@@ -89,17 +111,34 @@
                         <template x-for="(item, index) in items" :key="item.key">
                             <tr>
                                 <td class="min-w-[340px] px-4 py-3 align-top">
-                                    <select
-                                        :id="`product_search_${item.key}`"
-                                        x-init="initRowProductSelect($el, item)"
-                                        autocomplete="off"
-                                    ></select>
-                                    <input type="hidden" :name="item.product_id ? `items[${index}][product_id]` : null" :value="item.product_id">
-                                    <input type="hidden" :name="item.product_id ? `items[${index}][product_name]` : null" :value="item.product_name">
-                                    <input type="hidden" :name="item.product_id ? `items[${index}][product_code]` : null" :value="item.product_code">
-                                    <div x-show="item.product_code" class="mt-1">
-                                        <span class="inline-flex items-center rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium font-mono text-emerald-700 border border-emerald-200" x-text="item.product_code"></span>
-                                    </div>
+                                    <template x-if="is_received">
+                                        <div class="space-y-1 py-1">
+                                            <div class="font-semibold text-gray-900" x-text="item.product_name"></div>
+                                            <div class="flex flex-wrap items-center gap-1.5">
+                                                <span x-show="item.product_code" class="inline-flex items-center rounded bg-emerald-50 px-2 py-0.5 text-xs font-mono font-medium text-emerald-700 border border-emerald-200" x-text="item.product_code"></span>
+                                                <span x-show="item.batch_number" class="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-xs font-mono font-medium text-blue-700 border border-blue-200" x-text="'Batch: ' + item.batch_number"></span>
+                                                <span x-show="item.received_quantity !== undefined" class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600" x-text="'In Stock: ' + item.received_quantity"></span>
+                                            </div>
+                                            <input type="hidden" :name="`items[${index}][product_id]`" :value="item.product_id">
+                                            <input type="hidden" :name="`items[${index}][product_name]`" :value="item.product_name">
+                                            <input type="hidden" :name="`items[${index}][product_code]`" :value="item.product_code">
+                                        </div>
+                                    </template>
+                                    <template x-if="!is_received">
+                                        <div>
+                                            <select
+                                                :id="`product_search_${item.key}`"
+                                                x-init="initRowProductSelect($el, item)"
+                                                autocomplete="off"
+                                            ></select>
+                                            <input type="hidden" :name="item.product_id ? `items[${index}][product_id]` : null" :value="item.product_id">
+                                            <input type="hidden" :name="item.product_id ? `items[${index}][product_name]` : null" :value="item.product_name">
+                                            <input type="hidden" :name="item.product_id ? `items[${index}][product_code]` : null" :value="item.product_code">
+                                            <div x-show="item.product_code" class="mt-1">
+                                                <span class="inline-flex items-center rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium font-mono text-emerald-700 border border-emerald-200" x-text="item.product_code"></span>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </td>
                                 <td class="w-[200px] min-w-[180px] px-4 py-3 align-top">
                                     <div class="pt-2 text-sm font-medium text-gray-800" x-text="item.brand || '-'"></div>
@@ -107,9 +146,25 @@
                                     <input type="hidden" :name="item.product_id ? `items[${index}][brand]` : null" :value="item.brand">
                                 </td>
                                 <td class="w-16 px-2 py-3 text-center align-top whitespace-nowrap">
-                                    <input type="number" :name="item.product_id ? `items[${index}][quantity]` : null" x-model.number="item.quantity" @input="calculateLine(index)" class="w-12 rounded-md border-gray-300 px-1 py-1.5 text-center text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" min="1">
+                                    <input type="number" :name="item.product_id ? `items[${index}][quantity]` : null" x-model.number="item.quantity" @input="calculateLine(index)" class="w-16 rounded-md border-gray-300 px-1 py-1.5 text-center text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" :min="is_received ? (item.min_quantity || 1) : 1">
+                                    <div x-show="is_received && item.min_quantity > 1" class="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap" x-text="'Min: ' + item.min_quantity"></div>
                                 </td>
-                                <td class="w-28 px-4 py-3 text-right text-sm align-top whitespace-nowrap" x-text="window.formatMoney(item.mrp || 0)"></td>
+                                <td class="w-32 px-3 py-3 text-right text-sm align-top whitespace-nowrap">
+                                    <div class="inline-flex items-center gap-1 justify-end">
+                                        <span class="text-xs text-gray-500 font-medium">₹</span>
+                                        <input
+                                            type="number"
+                                            :name="item.product_id ? `items[${index}][mrp]` : null"
+                                            x-model.number="item.mrp"
+                                            @input="calculateLine(index)"
+                                            @change="calculateLine(index)"
+                                            class="w-24 rounded-md border-gray-300 text-right text-sm py-1.5 px-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="0.00"
+                                        >
+                                    </div>
+                                </td>
                                 <td class="w-32 px-4 py-3 text-center align-top whitespace-nowrap">
                                     <div class="inline-flex items-center gap-1">
                                         <input type="number" :name="item.product_id ? `items[${index}][discount_percent]` : null" x-model.number="item.discount_percent" @input="calculateLine(index, $event.target.value)" @change="calculateLine(index, $event.target.value)" class="w-20 rounded-md border-gray-300 text-right text-sm" min="0" max="100" step="0.01">
@@ -121,15 +176,20 @@
                                 </td>
                                 <td class="w-28 px-4 py-3 text-right text-sm font-semibold align-top whitespace-nowrap" x-text="window.formatMoney(item.subtotal)"></td>
                                 <td class="w-14 px-2 py-3 text-center align-top whitespace-nowrap">
-                                    <button type="button" @click="removeItem(index)" class="inline-flex items-center justify-center rounded-md p-1.5 text-red-600 hover:bg-red-100 hover:text-red-700 focus:outline-none transition-colors" title="{{ __('Remove product') }}">
+                                    <button x-show="!is_received" type="button" @click="removeItem(index)" class="inline-flex items-center justify-center rounded-md p-1.5 text-red-600 hover:bg-red-100 hover:text-red-700 focus:outline-none transition-colors" title="{{ __('Remove product') }}">
                                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
                                     </button>
+                                    <span x-show="is_received" class="text-xs text-gray-400 font-mono" title="{{ __('Product locked on received order') }}">
+                                        <svg class="h-4 w-4 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                        </svg>
+                                    </span>
                                 </td>
                             </tr>
                         </template>
-                        <tr>
+                        <tr x-show="!is_received">
                             <td colspan="7" class="px-4 py-3 bg-white">
                                 <button
                                     type="button"
@@ -184,6 +244,7 @@
             location: initialData.location || '{{ old('location', $purchase->location?->value ?? $purchase->location ?? 'shop') }}',
             po_reference: initialData.po_reference || '',
             is_editing: initialData.is_editing || false,
+            is_received: initialData.is_received || false,
             loading: false,
             errors: initialData.errors || {},
 
@@ -220,7 +281,10 @@
                 const rawVal = explicitValue !== null ? explicitValue : item.discount_percent;
                 const discount = Math.max(0, Math.min(100, parseFloat(rawVal) || 0));
                 item.discount_percent = discount;
-                item.unit_price = this.money((parseFloat(item.mrp) || 0) * (1 - discount / 100));
+                const mrp = Math.max(0, parseFloat(item.mrp) || 0);
+                item.mrp = mrp;
+                item.selling_price = mrp;
+                item.unit_price = this.money(mrp * (1 - discount / 100));
                 item.subtotal = this.money((parseInt(item.quantity) || 0) * (parseFloat(item.unit_price) || 0));
             },
 
@@ -362,6 +426,7 @@
                     key: item.key || Math.random().toString(36).slice(2),
                     company_id: item.company_id || item.brand_id || '',
                     mrp,
+                    selling_price: mrp,
                     discount_percent: discount,
                     unit_price: unitPrice,
                     subtotal: this.money(item.subtotal || ((parseInt(item.quantity) || 0) * unitPrice))
@@ -382,6 +447,7 @@
             },
 
             addRow() {
+                if (this.is_received) return;
                 const existingBlank = this.items.find(item => !item.product_id);
                 if (existingBlank) {
                     this.focusRowSelect(existingBlank);
@@ -394,6 +460,7 @@
             },
 
             removeItem(index) {
+                if (this.is_received) return;
                 const item = this.items[index];
                 this.destroyRowSelects(item);
                 this.items.splice(index, 1);
@@ -445,6 +512,7 @@
                 item.brand = product.brand || item.brand || '';
                 item.company_id = product.brand_id || product.company_id || item.company_id || '';
                 item.mrp = mrp;
+                item.selling_price = mrp;
                 item.discount_percent = discount;
                 item.quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
                 item.unit_price = unitPrice;
@@ -900,6 +968,18 @@
                             const barcode = scanBuffer.trim();
                             scanBuffer = '';
                             e.preventDefault();
+
+                            if (this.is_received) {
+                                const existing = this.items.find(row => 
+                                    (row.product_code && row.product_code.toLowerCase() === barcode.toLowerCase())
+                                );
+                                if (existing) {
+                                    this.$dispatch('toast', { message: `Product "${existing.product_name}" is already in this received order.`, type: 'info' });
+                                } else {
+                                    this.$dispatch('toast', { message: 'Cannot add new products to an already received purchase order.', type: 'warning' });
+                                }
+                                return;
+                            }
 
                             if (!this.supplier_id) {
                                 this.$dispatch('toast', { message: 'Please select a vendor first before scanning.', type: 'warning' });

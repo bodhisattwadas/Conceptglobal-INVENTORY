@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\DiscountCoupon;
 use App\Models\FinanceTransaction;
+use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
@@ -984,6 +985,52 @@ class SalesWorkflowTest extends TestCase
         $printResponse->assertSee('Coupon (BEAUTY50)');
         $printResponse->assertSee('Round Off');
         $printResponse->assertDontSee('Discount (incl. Coupon');
+    }
+
+    public function test_pos_product_search_fetches_latest_updated_price_without_stale_cache(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+        $category = Category::create(['name' => 'Price Update Category', 'slug' => 'price-update-'.uniqid()]);
+        $unit = Unit::factory()->create();
+
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'name' => 'Aloe Vera Face Wash',
+            'product_code' => 'AVF-001',
+            'purchase_price' => 50.00,
+            'selling_price' => 100.00,
+            'mrp' => 100.00,
+            'quantity' => 10,
+        ]);
+        $this->receiveStock($product, $user);
+        InventoryStock::create([
+            'product_id' => $product->id,
+            'quantity' => 10,
+        ]);
+
+        // First search returns initial price
+        $response1 = $this->actingAs($user)->postJson(route('ajax.products.search'), ['q' => 'Aloe']);
+        $response1->assertOk();
+        $this->assertEquals(100.00, (float) $response1->json('0.price'));
+        $this->assertEquals(100.00, (float) $response1->json('0.selling_price'));
+
+        // Price is updated in the database
+        $product->update([
+            'selling_price' => 150.00,
+            'mrp' => 150.00,
+        ]);
+
+        // Subsequent search immediately reflects the new price without stale cache
+        $response2 = $this->actingAs($user)->postJson(route('ajax.products.search'), ['q' => 'Aloe']);
+        $response2->assertOk();
+        $this->assertEquals(150.00, (float) $response2->json('0.price'));
+        $this->assertEquals(150.00, (float) $response2->json('0.selling_price'));
+
+        // POS create view includes cart price refresh function
+        $viewResponse = $this->actingAs($user)->get(route('sales.create'));
+        $viewResponse->assertOk();
+        $viewResponse->assertSee('refreshCartPrices()', false);
     }
 
     private function receiveStock(Product $product, User $user): void

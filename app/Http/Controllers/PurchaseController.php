@@ -110,8 +110,8 @@ class PurchaseController extends Controller
 
     public function edit(Purchase $purchase)
     {
-        if (! in_array($purchase->status, [PurchaseStatus::DRAFT, PurchaseStatus::ORDERED])) {
-            abort(403, 'Only draft or ordered purchases can be edited.');
+        if (! in_array($purchase->status, [PurchaseStatus::DRAFT, PurchaseStatus::ORDERED, PurchaseStatus::RECEIVED])) {
+            abort(403, 'Only draft, ordered, or received purchases can be edited.');
         }
 
         // Load relationships needed for the form

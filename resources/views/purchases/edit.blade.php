@@ -17,9 +17,9 @@
                         items: {{ Js::from(old('items', $purchase->items->map(function($item) {
                             $mrp = (float) ($item->product->mrp ?? $item->selling_price ?? 0);
                             $unitPrice = (float) $item->unit_price;
-                            $discountPercent = $mrp > 0
-                                ? round((1 - ($unitPrice / $mrp)) * 100, 2)
-                                : 0;
+                            $discountPercent = $item->discount_percent !== null
+                                ? (float) $item->discount_percent
+                                : ($mrp > 0 ? round((1 - ($unitPrice / $mrp)) * 100, 2) : 0);
                             return [
                                 'product_id' => $item->product_id,
                                 'quantity' => $item->quantity,
@@ -33,6 +33,9 @@
                                 'company_id' => $item->product->company_id ?? null,
                                 'brand' => $item->product->company ? ($item->product->company->short_name ?: $item->product->company->company_name) : '',
                                 'mrp' => $mrp ?: $item->unit_price ?: 0,
+                                'batch_number' => $item->batch_number ?? '',
+                                'received_quantity' => (int) ($item->received_quantity ?? $item->quantity),
+                                'min_quantity' => max(1, (int) $item->quantity - (int) ($item->received_quantity ?? $item->quantity)),
                             ];
                         }))) }},
                         supplier_id: {{ Js::from(old('supplier_id', $purchase->supplier_id)) }},
@@ -42,6 +45,7 @@
                         location: {{ Js::from(old('location', $purchase->location?->value ?? $purchase->location ?? 'shop')) }},
                         po_reference: {{ Js::from($purchase->invoice_number) }},
                         is_editing: true,
+                        is_received: {{ Js::from($purchase->status === \App\Enums\PurchaseStatus::RECEIVED) }},
                         status: {{ Js::from(old('status', $purchase->status->value)) }},
                         errors: {{ Js::from($errors->any() ? $errors->toArray() : []) }}
                     })"
