@@ -36,8 +36,10 @@
                         <label for="pos_sale_date" class="text-xs font-bold text-gray-700 uppercase tracking-wider">Date:</label>
                         <input
                             id="pos_sale_date"
+                            name="pos_sale_date"
                             type="date"
                             x-model="saleDate"
+                            autocomplete="off"
                             class="py-0.5 px-2 text-xs font-semibold text-gray-800 bg-white rounded border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                         >
                     </div>
@@ -67,11 +69,24 @@
                         </div>
                         <input
                             type="text"
+                            name="pos_cust_phone"
+                            id="pos_cust_phone"
                             x-ref="phoneInput"
                             x-model="customer.phone"
                             @input.debounce.300ms="lookupCustomerByPhone()"
                             @blur="lookupCustomerByPhone()"
                             placeholder="Enter 10-digit phone..."
+                            autocomplete="one-time-code"
+                            autocorrect="off"
+                            autocapitalize="off"
+                            spellcheck="false"
+                            data-lpignore="true"
+                            data-1p-ignore="true"
+                            data-bwignore="true"
+                            data-form-type="other"
+                            readonly
+                            onfocus="this.removeAttribute('readonly')"
+                            onpointerdown="this.removeAttribute('readonly')"
                             class="block w-full pl-9 pr-8 text-sm rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-medium"
                         >
                         <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
@@ -93,9 +108,22 @@
                     </label>
                     <input
                         type="text"
+                        name="pos_cust_name"
+                        id="pos_cust_name"
                         x-ref="nameInput"
                         x-model="customer.name"
                         placeholder="Customer name..."
+                        autocomplete="off"
+                        autocorrect="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        data-bwignore="true"
+                        data-form-type="other"
+                        readonly
+                        onfocus="this.removeAttribute('readonly')"
+                        onpointerdown="this.removeAttribute('readonly')"
                         class="block w-full text-sm rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                     >
                     <p class="text-[11px] text-gray-400 mt-1" x-text="customerFound ? 'Linked to existing record' : 'Saved for new customer'"></p>
@@ -108,8 +136,21 @@
                     </label>
                     <input
                         type="text"
+                        name="pos_cust_address"
+                        id="pos_cust_address"
                         x-model="customer.address"
                         placeholder="Customer address..."
+                        autocomplete="off"
+                        autocorrect="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        data-bwignore="true"
+                        data-form-type="other"
+                        readonly
+                        onfocus="this.removeAttribute('readonly')"
+                        onpointerdown="this.removeAttribute('readonly')"
                         class="block w-full text-sm rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                     >
                     <p class="text-[11px] text-gray-400 mt-1">Delivery or billing address</p>
@@ -121,9 +162,23 @@
                         Email <span class="text-xs text-gray-400 font-normal">(Optional)</span>
                     </label>
                     <input
-                        type="email"
+                        type="text"
+                        inputmode="email"
+                        name="pos_cust_email"
+                        id="pos_cust_email"
                         x-model="customer.email"
                         placeholder="customer@example.com"
+                        autocomplete="off"
+                        autocorrect="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        data-bwignore="true"
+                        data-form-type="other"
+                        readonly
+                        onfocus="this.removeAttribute('readonly')"
+                        onpointerdown="this.removeAttribute('readonly')"
                         class="block w-full text-sm rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                     >
                     <p class="text-[11px] text-gray-400 mt-1">For digital invoice / records</p>
@@ -185,10 +240,12 @@
                                                 <div class="flex items-center justify-center">
                                                     <input
                                                         type="number"
+                                                        name="pos_item_qty"
                                                         x-model.number="item.quantity"
                                                         min="1"
                                                         :max="item.max_stock"
                                                         @input="validateQty(index)"
+                                                        autocomplete="off"
                                                         class="w-20 text-center border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm shadow-sm font-semibold"
                                                         placeholder="1"
                                                     >
@@ -215,9 +272,11 @@
                                             <div class="relative rounded-md shadow-sm w-full min-w-[80px] ml-auto">
                                                 <input
                                                     type="number"
+                                                    name="pos_item_discount_pct"
                                                     min="0"
                                                     max="100"
                                                     step="0.01"
+                                                    autocomplete="off"
                                                     :value="item.discountPercent"
                                                     @input="setItemDiscountPercent(index, $event.target.value)"
                                                     @blur="item.discountPercent = clampDiscountPercent(item.discountPercent)"
@@ -336,6 +395,16 @@
                                         </div>
                                         <input
                                             type="text"
+                                            name="pos_cash_tendered"
+                                            id="pos_cash_tendered"
+                                            autocomplete="off"
+                                            autocorrect="off"
+                                            autocapitalize="off"
+                                            spellcheck="false"
+                                            data-lpignore="true"
+                                            data-1p-ignore="true"
+                                            data-bwignore="true"
+                                            data-form-type="other"
                                             :value="formatNumber(payment.cash_received)"
                                             @input="onCashReceivedInput(unformatNumber($event.target.value))"
                                             class="block w-full py-1.5 text-sm font-bold text-gray-900 border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
@@ -392,6 +461,13 @@
                                 </div>
                                 <input
                                     type="text"
+                                    name="pos_upi_ref"
+                                    id="pos_upi_ref"
+                                    autocomplete="off"
+                                    autocorrect="off"
+                                    autocapitalize="off"
+                                    spellcheck="false"
+                                    data-lpignore="true"
                                     x-model="payment.ref"
                                     placeholder="UPI UTR / Reference ID (Optional)..."
                                     class="block w-full text-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-1.5"
@@ -408,6 +484,13 @@
                                 </div>
                                 <input
                                     type="text"
+                                    name="pos_card_ref"
+                                    id="pos_card_ref"
+                                    autocomplete="off"
+                                    autocorrect="off"
+                                    autocapitalize="off"
+                                    spellcheck="false"
+                                    data-lpignore="true"
                                     x-model="payment.ref"
                                     placeholder="Card 4 Digits / Auth Ref (Optional)..."
                                     class="block w-full text-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-1.5"
@@ -420,6 +503,13 @@
                     <div>
                         <input
                             type="text"
+                            name="pos_payment_notes"
+                            id="pos_payment_notes"
+                            autocomplete="off"
+                            autocorrect="off"
+                            autocapitalize="off"
+                            spellcheck="false"
+                            data-lpignore="true"
                             x-model="payment.notes"
                             placeholder="Transaction notes / remarks (optional)..."
                             class="block w-full text-xs border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 py-1.5"
@@ -512,6 +602,13 @@
                                     </div>
                                     <input
                                         type="text"
+                                        name="pos_coupon_code"
+                                        id="pos_coupon_code"
+                                        autocomplete="off"
+                                        autocorrect="off"
+                                        autocapitalize="characters"
+                                        spellcheck="false"
+                                        data-lpignore="true"
                                         x-ref="manualCouponInput"
                                         x-model="couponCode"
                                         @keydown.enter.prevent="applyCoupon(couponCode)"
@@ -562,8 +659,17 @@
                                 </div>
                                 <input
                                     type="text"
+                                    name="pos_round_off"
+                                    id="pos_round_off"
                                     inputmode="decimal"
                                     autocomplete="off"
+                                    autocorrect="off"
+                                    autocapitalize="off"
+                                    spellcheck="false"
+                                    data-lpignore="true"
+                                    data-1p-ignore="true"
+                                    data-bwignore="true"
+                                    data-form-type="other"
                                     :value="roundOff"
                                     @input="onRoundOffInput($event.target.value)"
                                     @keydown="filterDiscountKeydown($event)"
@@ -764,6 +870,9 @@
                             this.clampBillDiscount();
                             this.syncCashReceived();
                         });
+
+                        // Prevent browser autofill across all inputs in POS
+                        this.disableAutofill();
                     },
 
                     waitForTomSelect(callback) {
@@ -1167,9 +1276,25 @@
                         this.syncCashReceived();
                     },
 
+                    disableAutofill() {
+                        this.$nextTick(() => {
+                            const root = this.$el;
+                            if (!root) return;
+                            const inputs = root.querySelectorAll('input:not([type="hidden"]), select, textarea');
+                            inputs.forEach(el => {
+                                if (!el.hasAttribute('autocomplete')) {
+                                    el.setAttribute('autocomplete', 'off');
+                                }
+                                el.setAttribute('data-lpignore', 'true');
+                                el.setAttribute('data-1p-ignore', 'true');
+                            });
+                        });
+                    },
+
                     focusPhoneInput() {
                         this.$nextTick(() => {
                             if (this.$refs.phoneInput) {
+                                this.$refs.phoneInput.removeAttribute('readonly');
                                 this.$refs.phoneInput.focus();
                                 this.$refs.phoneInput.select();
                             }

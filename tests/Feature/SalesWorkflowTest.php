@@ -481,6 +481,36 @@ class SalesWorkflowTest extends TestCase
         $response->assertDontSee('min-w-[950px]', false);
     }
 
+    public function test_pos_create_view_disables_browser_autofill_on_inputs(): void
+    {
+        $user = User::factory()->create(['role' => 'sales']);
+
+        $response = $this->actingAs($user)->get(route('sales.create'));
+        $response->assertOk();
+
+        // Phone input has one-time-code and anti-autofill attributes
+        $response->assertSee('name="pos_cust_phone"', false);
+        $response->assertSee('autocomplete="one-time-code"', false);
+        $response->assertSee('data-lpignore="true"', false);
+        $response->assertSee('data-1p-ignore="true"', false);
+        $response->assertSee('data-bwignore="true"', false);
+        $response->assertSee('onfocus="this.removeAttribute(\'readonly\')"', false);
+
+        // Name, address, email inputs have autocomplete off and readonly onfocus
+        $response->assertSee('name="pos_cust_name"', false);
+        $response->assertSee('name="pos_cust_address"', false);
+        $response->assertSee('name="pos_cust_email"', false);
+
+        // Tender, coupon, and notes inputs have autocomplete off
+        $response->assertSee('name="pos_cash_tendered"', false);
+        $response->assertSee('name="pos_upi_ref"', false);
+        $response->assertSee('name="pos_card_ref"', false);
+        $response->assertSee('name="pos_payment_notes"', false);
+        $response->assertSee('name="pos_coupon_code"', false);
+        $response->assertSee('name="pos_round_off"', false);
+        $response->assertSee('disableAutofill()', false);
+    }
+
     public function test_sale_can_be_created_with_decimal_bill_discount(): void
     {
         $user = User::factory()->create(['role' => 'sales']);
