@@ -74,7 +74,7 @@
                             x-ref="phoneInput"
                             x-model="customer.phone"
                             @input.debounce.300ms="lookupCustomerByPhone()"
-                            @blur="lookupCustomerByPhone()"
+                            @blur="lookupCustomerByPhone(true)"
                             placeholder="Enter 10-digit phone..."
                             autocomplete="one-time-code"
                             autocorrect="off"
@@ -761,6 +761,7 @@
                     },
                     customerFound: false,
                     isLookingUpCustomer: false,
+                    lastLookedUpPhone: null,
 
                     payment: {
                         method: 'cash', // 'upi', 'cash', 'card'
@@ -1302,15 +1303,32 @@
                     },
 
                     // Customer Phone Lookup
-                    lookupCustomerByPhone() {
+                    lookupCustomerByPhone(isBlur = false) {
                         const rawPhone = (this.customer.phone || '').trim();
-                        if (!rawPhone || rawPhone.length < 5) {
-                            this.customerFound = false;
-                            this.customer.id = null;
+                        const digits = rawPhone.replace(/\D+/g, '');
+
+                        // If phone is cleared or has fewer digits than a full 10-digit phone number
+                        if (!rawPhone || digits.length < 10) {
+                            // On blur, allow lookup if at least 7 digits (for landlines/non-standard numbers)
+                            if (isBlur && digits.length >= 7) {
+                                // Proceed to lookup below
+                            } else {
+                                // Incomplete phone: if an existing customer was loaded, clear their details
+                                if (this.customerFound || this.customer.id) {
+                                    this.clearAutoFilledCustomer();
+                                }
+                                return;
+                            }
+                        }
+
+                        // Don't repeat lookup if already found for this exact phone
+                        if (this.customerFound && this.lastLookedUpPhone === rawPhone) {
                             return;
                         }
 
+                        const currentSearch = rawPhone;
                         this.isLookingUpCustomer = true;
+
                         fetch('{{ route("ajax.customers.by-phone") }}', {
                             method: 'POST',
                             headers: {
@@ -1322,6 +1340,11 @@
                         })
                         .then(res => res.json())
                         .then(data => {
+                            // Discard stale result if user modified phone while request was in flight
+                            if ((this.customer.phone || '').trim() !== currentSearch) {
+                                return;
+                            }
+
                             if (data.found && data.customer) {
                                 this.customer.id = data.customer.id;
                                 this.customer.name = data.customer.name || '';
@@ -1329,30 +1352,42 @@
                                 this.customer.email = data.customer.email || '';
                                 this.customer.notes = data.customer.notes || '';
                                 this.customerFound = true;
+                                this.lastLookedUpPhone = currentSearch;
                                 this.$dispatch('toast', { message: 'Existing customer found: ' + data.customer.name, type: 'success' });
                             } else {
-                                this.customer.id = null;
-                                this.customerFound = false;
+                                // Whole number does not match an existing customer
+                                if (this.customerFound || this.customer.id) {
+                                    this.clearAutoFilledCustomer();
+                                } else {
+                                    this.customer.id = null;
+                                    this.customerFound = false;
+                                }
+                                this.lastLookedUpPhone = currentSearch;
                             }
                         })
                         .catch(err => {
                             console.error('Customer lookup error:', err);
                         })
                         .finally(() => {
-                            this.isLookingUpCustomer = false;
+                            if ((this.customer.phone || '').trim() === currentSearch) {
+                                this.isLookingUpCustomer = false;
+                            }
                         });
                     },
 
-                    resetCustomer() {
-                        this.customer = {
-                            id: null,
-                            phone: '',
-                            name: '',
-                            address: '',
-                            email: '',
-                            notes: ''
-                        };
+                    clearAutoFilledCustomer() {
+                        this.customer.id = null;
+                        this.customer.name = '';
+                        this.customer.address = '';
+                        this.customer.email = '';
+                        this.customer.notes = '';
                         this.customerFound = false;
+                        this.lastLookedUpPhone = null;
+                    },
+
+                    resetCustomer() {
+                        this.clearAutoFilledCustomer();
+                        this.customer.phone = '';
                         this.focusPhoneInput();
                     },
 

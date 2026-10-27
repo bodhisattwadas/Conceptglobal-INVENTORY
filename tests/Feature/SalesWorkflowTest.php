@@ -300,6 +300,60 @@ class SalesWorkflowTest extends TestCase
             ]);
     }
 
+    public function test_customer_lookup_by_phone_does_not_match_partial_five_digits(): void
+    {
+        $user = User::factory()->create();
+        $customer = Customer::create([
+            'name' => 'Kavita Roy',
+            'phone' => '+91 99034 12345',
+            'address' => 'Salt Lake, Kolkata',
+            'email' => 'kavita@example.com',
+        ]);
+
+        // Partial 5-digit prefix should not match
+        $prefixResponse = $this->actingAs($user)->postJson(route('ajax.customers.by-phone'), [
+            'phone' => '99034',
+        ]);
+        $prefixResponse->assertOk()
+            ->assertJson([
+                'found' => false,
+                'customer' => null,
+            ]);
+
+        // Partial 5-digit suffix should not match
+        $suffixResponse = $this->actingAs($user)->postJson(route('ajax.customers.by-phone'), [
+            'phone' => '12345',
+        ]);
+        $suffixResponse->assertOk()
+            ->assertJson([
+                'found' => false,
+                'customer' => null,
+            ]);
+
+        // Full 10-digit number matching Kavita
+        $fullResponse = $this->actingAs($user)->postJson(route('ajax.customers.by-phone'), [
+            'phone' => '9903412345',
+        ]);
+        $fullResponse->assertOk()
+            ->assertJson([
+                'found' => true,
+                'customer' => [
+                    'id' => $customer->id,
+                    'name' => 'Kavita Roy',
+                ],
+            ]);
+
+        // Whole 10-digit number differing by even one digit should not match
+        $unmatchedResponse = $this->actingAs($user)->postJson(route('ajax.customers.by-phone'), [
+            'phone' => '9903412340',
+        ]);
+        $unmatchedResponse->assertOk()
+            ->assertJson([
+                'found' => false,
+                'customer' => null,
+            ]);
+    }
+
     public function test_sale_can_be_created_with_custom_sale_date(): void
     {
         $user = User::factory()->create();

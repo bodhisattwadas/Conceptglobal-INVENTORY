@@ -61,15 +61,12 @@ class CustomerController extends Controller
                     $q->orWhere('phone', $formatted);
                 }
 
-                if (! empty($digits)) {
-                    $q->orWhere('phone', 'like', "%{$digits}%");
-
-                    if (strlen($digits) >= 10) {
-                        $last10 = substr($digits, -10);
-                        $part1 = substr($last10, 0, 5);
-                        $part2 = substr($last10, 5);
-                        $q->orWhere('phone', 'like', "%{$part1}%{$part2}%");
-                    }
+                if (! empty($digits) && strlen($digits) >= 10) {
+                    $last10 = substr($digits, -10);
+                    $part1 = substr($last10, 0, 5);
+                    $part2 = substr($last10, 5);
+                    $q->orWhere('phone', 'like', "%{$last10}%")
+                        ->orWhere('phone', 'like', "%{$part1}%{$part2}%");
                 }
             })
             ->first();
