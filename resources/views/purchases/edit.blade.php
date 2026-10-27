@@ -39,6 +39,7 @@
                         company_id: {{ Js::from(old('company_id', $purchase->company_id)) }},
                         purchase_date: {{ Js::from(old('purchase_date', $purchase->purchase_date->format('Y-m-d'))) }},
                         due_date: {{ Js::from(old('due_date', $purchase->due_date?->format('Y-m-d'))) }},
+                        location: {{ Js::from(old('location', $purchase->location?->value ?? $purchase->location ?? 'shop')) }},
                         po_reference: {{ Js::from($purchase->invoice_number) }},
                         is_editing: true,
                         status: {{ Js::from(old('status', $purchase->status->value)) }},

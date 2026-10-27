@@ -78,6 +78,7 @@
 
                     <div class="grid grid-cols-1 gap-5 text-sm sm:grid-cols-2 {{ $product?->image_url ? 'lg:col-span-2' : 'lg:col-span-3' }}">
                         <x-detail-item label="SKU" :value="$product?->sku ?: '-'" />
+                        <x-detail-item label="Product Code" :value="$product?->product_code ?: '-'" />
                         <x-detail-item label="Category" :value="$product?->category?->name ?: '-'" />
                         <x-detail-item label="Unit" :value="$product?->unit ? (($product->unit->name ?? '-') . ($product->unit->symbol ? ' (' . $product->unit->symbol . ')' : '')) : '-'" />
                         <x-detail-item label="Minimum Quantity" :value="$product?->min_stock ?? 0" />

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Purchases;
 
+use App\Enums\PurchaseLocation;
 use App\Enums\PurchaseStatus;
 use App\Exceptions\PurchaseException;
 use App\Models\Purchase;
@@ -66,6 +67,12 @@ final class PurchaseTable extends PowerGridComponent
             ->add('supplier_link', fn (Purchase $model) => $this->supplierLink($model))
             ->add('company_name', fn (Purchase $model) => $model->company ? ($model->company->short_name ?: $model->company->company_name) : '-')
             ->add('company_link', fn (Purchase $model) => $this->companyLink($model))
+            ->add('location_badge', function (Purchase $model) {
+                $location = $model->location instanceof PurchaseLocation ? $model->location : (PurchaseLocation::tryFrom((string) $model->location) ?? PurchaseLocation::SHOP);
+
+                return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border '.$location->color().'">'.$location->label().'</span>';
+            })
+            ->add('location_label', fn (Purchase $model) => $model->location instanceof PurchaseLocation ? $model->location->label() : ($model->location ? ucfirst((string) $model->location) : 'Shop'))
             ->add('purchase_date_formatted', fn (Purchase $model) => Carbon::parse($model->purchase_date)->format('d/m/Y'))
             ->add('total_formatted', fn (Purchase $model) => format_money((float) $model->total))
             ->add('status_badge', function (Purchase $model) {
@@ -103,6 +110,14 @@ final class PurchaseTable extends PowerGridComponent
                 ->visibleInExport(false),
 
             Column::make('Brand / Company', 'company_name', 'company_id')
+                ->hidden()
+                ->visibleInExport(true),
+
+            Column::make('Location', 'location_badge', 'location')
+                ->sortable()
+                ->visibleInExport(false),
+
+            Column::make('Location', 'location_label', 'location')
                 ->hidden()
                 ->visibleInExport(true),
 
@@ -197,6 +212,14 @@ final class PurchaseTable extends PowerGridComponent
                     'label' => $status->label(),
                 ]))
                 ->optionLabel('label')
+                ->optionValue('value'),
+
+            Filter::select('location', 'location')
+                ->dataSource([
+                    ['name' => 'Shop', 'value' => 'shop'],
+                    ['name' => 'Parlour', 'value' => 'parlour'],
+                ])
+                ->optionLabel('name')
                 ->optionValue('value'),
 
             Filter::multiSelectAsync('creator_name', 'created_by')

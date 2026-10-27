@@ -229,12 +229,13 @@
             <table class="inventory">
                 <thead>
                     <tr>
-                        <th style="width: 18%;">SKU</th>
-                        <th style="width: 28%;">Product</th>
+                        <th style="width: 13%;">SKU</th>
+                        <th style="width: 14%;">Product Code</th>
+                        <th style="width: 25%;">Product</th>
                         <th style="width: 15%;">Brand / Company</th>
-                        <th style="width: 15%;">Category</th>
-                        <th style="width: 9%;" class="right">Qty</th>
-                        <th style="width: 9%;" class="right">Min Qty</th>
+                        <th style="width: 14%;">Category</th>
+                        <th style="width: 7%;" class="right">Qty</th>
+                        <th style="width: 6%;" class="right">Min Qty</th>
                         <th style="width: 6%;">Status</th>
                     </tr>
                 </thead>
@@ -247,6 +248,9 @@
                         <tr>
                             <td>
                                 <div class="product-name">{{ $stock->product?->sku ?: '-' }}</div>
+                            </td>
+                            <td>
+                                <div class="product-name">{{ $stock->product?->product_code ?: '-' }}</div>
                             </td>
                             <td>
                                 <div class="product-name">{{ $stock->product?->name ?: '-' }}</div>

@@ -2,6 +2,7 @@
 
 namespace App\DTOs;
 
+use App\Enums\PurchaseLocation;
 use App\Enums\PurchaseStatus;
 use Illuminate\Support\Carbon;
 
@@ -17,6 +18,7 @@ class PurchaseData
         public ?string $notes = null,
         public ?string $proof_image = null,
         public PurchaseStatus $status = PurchaseStatus::DRAFT,
+        public PurchaseLocation $location = PurchaseLocation::SHOP,
     ) {}
 
     public static function fromArray(array $data): self
@@ -25,6 +27,13 @@ class PurchaseData
             fn (array $item) => PurchaseItemData::fromArray($item),
             $data['items'] ?? []
         );
+
+        $location = PurchaseLocation::SHOP;
+        if (! empty($data['location'])) {
+            $location = $data['location'] instanceof PurchaseLocation
+                ? $data['location']
+                : (PurchaseLocation::tryFrom((string) $data['location']) ?? PurchaseLocation::SHOP);
+        }
 
         return new self(
             supplier_id: (int) $data['supplier_id'],
@@ -36,6 +45,7 @@ class PurchaseData
             notes: ! empty($data['notes']) ? $data['notes'] : null,
             proof_image: ! empty($data['proof_image']) ? $data['proof_image'] : null,
             status: isset($data['status']) ? PurchaseStatus::from($data['status']) : PurchaseStatus::DRAFT,
+            location: $location,
         );
     }
 
@@ -51,6 +61,7 @@ class PurchaseData
             'notes' => $this->notes,
             'proof_image' => $this->proof_image,
             'status' => $this->status->value,
+            'location' => $this->location->value,
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\PurchaseLocation;
 use App\Models\Product;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\DB;
@@ -35,9 +36,15 @@ class UpdatePurchaseRequest extends FormRequest
             }
         }
 
+        $location = strtolower(trim((string) $this->input('location', '')));
+        if (! in_array($location, [PurchaseLocation::SHOP->value, PurchaseLocation::PARLOUR->value], true)) {
+            $location = PurchaseLocation::SHOP->value;
+        }
+
         $this->merge([
             'items' => $items,
             'company_id' => $companyId,
+            'location' => $location,
         ]);
     }
 
@@ -55,6 +62,7 @@ class UpdatePurchaseRequest extends FormRequest
                 Rule::exists('supplier_companies', 'company_id')
                     ->where('supplier_id', $this->input('supplier_id')),
             ],
+            'location' => ['required', Rule::enum(PurchaseLocation::class)],
             'purchase_date' => ['required', 'date'],
             'due_date' => ['nullable', 'date', 'after:purchase_date'],
             'notes' => ['nullable', 'string'],

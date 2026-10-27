@@ -104,7 +104,7 @@
                 @csrf
                 @method('PATCH')
 
-                <div class="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 md:grid-cols-4">
+                <div class="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 md:grid-cols-5">
                     <div>
                         <div class="text-xs font-medium uppercase text-gray-500">PO Reference</div>
                         <div class="mt-1 text-sm font-semibold text-gray-900">{{ $purchase->invoice_number ?: '-' }}</div>
@@ -112,6 +112,10 @@
                     <div>
                         <div class="text-xs font-medium uppercase text-gray-500">Supplier / Vendor</div>
                         <div class="mt-1 text-sm font-semibold text-gray-900">{{ $purchase->supplier->name ?? '-' }}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-medium uppercase text-gray-500">Location</div>
+                        <div class="mt-1 text-sm font-semibold text-gray-900">{{ $purchase->location?->label() ?? 'Shop' }}</div>
                     </div>
                     <div>
                         <div class="text-xs font-medium uppercase text-gray-500">PO Date</div>

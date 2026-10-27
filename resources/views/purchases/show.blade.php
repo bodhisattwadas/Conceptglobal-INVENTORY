@@ -151,6 +151,21 @@
                             <x-heroicon-o-calendar class="w-4 h-4 text-gray-400" />
                         </x-detail-item>
 
+                        <!-- Location -->
+                        <div>
+                            <label class="text-sm font-medium leading-none text-gray-500">{{ __('Location') }}</label>
+                            <div class="mt-1">
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border {{ $purchase->location?->color() ?? 'text-blue-700 bg-blue-50 border-blue-200' }}">
+                                    @if(($purchase->location?->value ?? $purchase->location) === 'parlour')
+                                        <x-heroicon-o-sparkles class="w-3.5 h-3.5" />
+                                    @else
+                                        <x-heroicon-o-building-storefront class="w-3.5 h-3.5" />
+                                    @endif
+                                    {{ $purchase->location?->label() ?? 'Shop' }}
+                                </span>
+                            </div>
+                        </div>
+
                         <!-- Status -->
                         <div>
                             <label class="text-sm font-medium leading-none text-gray-500">Status</label>

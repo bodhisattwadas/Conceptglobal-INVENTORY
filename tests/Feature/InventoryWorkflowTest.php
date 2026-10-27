@@ -164,4 +164,73 @@ class InventoryWorkflowTest extends TestCase
         $printResponse = $this->actingAs($admin)->get(route('inventory.print'));
         $printResponse->assertOk();
     }
+
+    public function test_inventory_table_and_print_include_product_code(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $category = Category::create([
+            'name' => 'Haircare',
+            'slug' => 'haircare-'.uniqid(),
+        ]);
+        $unit = Unit::create([
+            'name' => 'Bottle',
+            'symbol' => 'btl',
+        ]);
+
+        $product = Product::factory()->create([
+            'name' => 'Hair Oil',
+            'sku' => 'SKU-HO-01',
+            'product_code' => '8906036215017',
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'quantity' => 20,
+        ]);
+
+        $stock = InventoryStock::create([
+            'product_id' => $product->id,
+            'quantity' => 20,
+        ]);
+
+        // 1. Datasource query check
+        $table = new InventoryTable;
+        $stocks = $table->datasource()->get();
+
+        $matchingStock = $stocks->firstWhere('product_id', $product->id);
+        $this->assertNotNull($matchingStock);
+        $this->assertSame('8906036215017', $matchingStock->product_code);
+
+        // 2. Livewire component rendering check
+        Livewire::actingAs($admin)
+            ->test(InventoryTable::class)
+            ->assertSee('Product Code')
+            ->assertSee('8906036215017');
+
+        // 3. Print report check (PDF binary response check and view content check)
+        $printResponse = $this->actingAs($admin)->get(route('inventory.print'));
+        $printResponse->assertOk();
+
+        $printView = $this->view('inventory.print', [
+            'stocks' => collect([$stock]),
+            'storeName' => 'Test Store',
+            'storeAddress' => 'Test Address',
+            'storePhone' => '1234567890',
+            'storeEmail' => 'test@store.com',
+            'generatedAt' => now(),
+            'reportCode' => 'INV-TEST',
+            'summary' => [
+                'totalProducts' => 1,
+                'lowStockCount' => 0,
+                'inStockCount' => 1,
+            ],
+        ]);
+        $printView->assertSee('Product Code');
+        $printView->assertSee('8906036215017');
+
+        // 4. Show view check
+        $showResponse = $this->actingAs($admin)->get(route('inventory.show', $stock));
+        $showResponse->assertOk();
+        $showResponse->assertSee('Product Code');
+        $showResponse->assertSee('8906036215017');
+    }
 }

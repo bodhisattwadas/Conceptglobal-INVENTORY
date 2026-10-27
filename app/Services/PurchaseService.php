@@ -31,6 +31,7 @@ class PurchaseService
                     'purchase_date' => $data->purchase_date,
                     'due_date' => $data->due_date,
                     'status' => $data->status,
+                    'location' => $data->location,
                     'notes' => $data->notes,
                     'proof_image' => $data->proof_image,
                     'created_by' => $userId,
@@ -58,6 +59,7 @@ class PurchaseService
                 $purchase->update([
                     'supplier_id' => $data->supplier_id,
                     'company_id' => $data->company_id,
+                    'location' => $data->location,
                     'purchase_date' => $data->purchase_date,
                     'due_date' => $data->due_date,
                     'notes' => $data->notes,

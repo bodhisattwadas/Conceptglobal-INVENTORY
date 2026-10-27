@@ -102,6 +102,10 @@
                 <div class="label">Expected Delivery</div>
                 <div class="value">{{ $purchase->due_date?->format('d M Y') ?? '-' }}</div>
             </td>
+            <td>
+                <div class="label">Location</div>
+                <div class="value">{{ $purchase->location?->label() ?? 'Shop' }}</div>
+            </td>
         </tr>
         <tr>
             <td>

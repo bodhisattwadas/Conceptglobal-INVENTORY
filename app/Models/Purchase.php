@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PurchaseLocation;
 use App\Enums\PurchaseStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ class Purchase extends Model
         'invoice_number',
         'supplier_id',
         'company_id',
+        'location',
         'purchase_date',
         'due_date',
         'total',
@@ -33,6 +35,7 @@ class Purchase extends Model
         'company_id' => 'integer',
         'created_by' => 'integer',
         'status' => PurchaseStatus::class,
+        'location' => PurchaseLocation::class,
     ];
 
     public function supplier(): BelongsTo

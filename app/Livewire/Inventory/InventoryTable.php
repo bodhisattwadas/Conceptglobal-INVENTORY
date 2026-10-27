@@ -42,6 +42,7 @@ final class InventoryTable extends PowerGridComponent
             ->select([
                 'inventory_stocks.*',
                 'products.sku as sku',
+                'products.product_code as product_code',
                 'products.name as product_name',
                 'companies.company_name as company_name',
                 'companies.short_name as brand_short_name',
@@ -56,6 +57,7 @@ final class InventoryTable extends PowerGridComponent
             ->add('id')
             ->add('action_buttons', fn (InventoryStock $model) => $this->actionButtons($model))
             ->add('sku', fn (InventoryStock $model) => $model->product?->sku ?: '-')
+            ->add('product_code', fn (InventoryStock $model) => $model->product?->product_code ?: '-')
             ->add('product_name', fn (InventoryStock $model) => $model->product?->name ?: '-')
             ->add('brand_name', fn (InventoryStock $model) => $model->product?->company?->short_name ?: $model->product?->company?->company_name ?: '-')
             ->add('category_name', fn (InventoryStock $model) => $model->product?->category?->name ?: '-')
@@ -77,6 +79,7 @@ final class InventoryTable extends PowerGridComponent
         return [
             Column::make('Action', 'action_buttons')->visibleInExport(false),
             Column::make('SKU', 'sku', 'products.sku')->searchable()->sortable()->headerAttribute('text-center'),
+            Column::make('Product Code', 'product_code', 'products.product_code')->searchable()->sortable()->headerAttribute('text-center'),
             Column::make('Product', 'product_name', 'products.name')->searchable()->sortable()->headerAttribute('text-center'),
             Column::make('Brand / Company', 'brand_name', 'companies.company_name')->searchable()->sortable()->headerAttribute('text-center'),
             Column::make('Category', 'category_name', 'categories.name')->searchable()->sortable()->headerAttribute('text-center'),

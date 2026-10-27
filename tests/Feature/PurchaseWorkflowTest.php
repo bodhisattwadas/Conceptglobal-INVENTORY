@@ -135,6 +135,7 @@ class PurchaseWorkflowTest extends TestCase
         $this->assertSame('PO-20261018-0001', $row['PO Reference']);
         $this->assertSame('Acme Supplies', $row['Supplier / Vendor']);
         $this->assertSame('AB', $row['Brand / Company']);
+        $this->assertSame('Shop', $row['Location']);
         $this->assertSame('18/10/2026', $row['PO Date']);
         $this->assertSame('Received', $row['Status']);
         $this->assertSame('John Admin', $row['Created By']);
@@ -503,5 +504,199 @@ class PurchaseWorkflowTest extends TestCase
         $response->assertSee('searchField: [\'text\', \'name\', \'product_code\', \'sku\', \'brand\']', false);
         $response->assertSee('formatProductDisplay', false);
         $response->assertSee('Search product name, barcode or SKU...', false);
+    }
+
+    public function test_purchase_create_view_renders_location_selection_with_shop_as_default(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($user)->get(route('purchases.create'));
+
+        $response->assertOk();
+        $response->assertSee('Location');
+        $response->assertSee('value="shop"', false);
+        $response->assertSee('value="parlour"', false);
+        $response->assertSee('location: \'shop\'', false);
+    }
+
+    public function test_purchase_can_be_created_with_shop_location_by_default(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $supplier = Supplier::create([
+            'name' => 'Supplier Loc',
+            'contact_person' => 'Contact',
+            'email' => 'loc@test.com',
+            'phone' => '9988776655',
+        ]);
+
+        $brand = Company::create(['company_code' => 'BRD-LOC', 'company_name' => 'Brand Loc']);
+        $supplier->companies()->attach([$brand->id]);
+
+        $category = Category::create(['name' => 'Cosmetics', 'slug' => 'cosmetics-loc']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc-loc']);
+
+        $product = Product::factory()->create([
+            'company_id' => $brand->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'SKU-LOC-1',
+            'name' => 'Product Loc 1',
+            'mrp' => 500,
+            'is_active' => true,
+        ]);
+
+        // When location is not specified, it defaults to 'shop'
+        $response = $this->actingAs($user)->post(route('purchases.store'), [
+            'supplier_id' => $supplier->id,
+            'purchase_date' => now()->toDateString(),
+            'due_date' => now()->addDays(2)->toDateString(),
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'company_id' => $brand->id,
+                    'quantity' => 5,
+                    'discount_percent' => 0,
+                    'unit_price' => 500,
+                    'selling_price' => 500,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('purchases', [
+            'supplier_id' => $supplier->id,
+            'location' => 'shop',
+        ]);
+    }
+
+    public function test_purchase_can_be_created_with_parlour_location(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $supplier = Supplier::create([
+            'name' => 'Supplier Parlour',
+            'contact_person' => 'Contact',
+            'email' => 'parlour@test.com',
+            'phone' => '9988776654',
+        ]);
+
+        $brand = Company::create(['company_code' => 'BRD-PAR', 'company_name' => 'Brand Parlour']);
+        $supplier->companies()->attach([$brand->id]);
+
+        $category = Category::create(['name' => 'Parlour Items', 'slug' => 'parlour-items']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc-par']);
+
+        $product = Product::factory()->create([
+            'company_id' => $brand->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'SKU-PAR-1',
+            'name' => 'Facial Kit',
+            'mrp' => 1200,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($user)->post(route('purchases.store'), [
+            'supplier_id' => $supplier->id,
+            'location' => 'parlour',
+            'purchase_date' => now()->toDateString(),
+            'due_date' => now()->addDays(4)->toDateString(),
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'company_id' => $brand->id,
+                    'quantity' => 2,
+                    'discount_percent' => 10,
+                    'unit_price' => 1080,
+                    'selling_price' => 1200,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('purchases', [
+            'supplier_id' => $supplier->id,
+            'location' => 'parlour',
+        ]);
+    }
+
+    public function test_purchase_location_can_be_updated_and_reflected_in_views(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $supplier = Supplier::create([
+            'name' => 'Supplier Update Loc',
+            'contact_person' => 'Contact',
+            'email' => 'update@test.com',
+            'phone' => '9988776653',
+        ]);
+
+        $brand = Company::create(['company_code' => 'BRD-UPD', 'company_name' => 'Brand Upd']);
+        $supplier->companies()->attach([$brand->id]);
+
+        $category = Category::create(['name' => 'Category Upd', 'slug' => 'category-upd']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc-upd']);
+
+        $product = Product::factory()->create([
+            'company_id' => $brand->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'SKU-UPD-1',
+            'name' => 'Salon Shampoo',
+            'mrp' => 800,
+            'is_active' => true,
+        ]);
+
+        $purchase = Purchase::create([
+            'invoice_number' => 'PO-TEST-LOC',
+            'supplier_id' => $supplier->id,
+            'company_id' => $brand->id,
+            'location' => 'shop',
+            'purchase_date' => '2026-10-27',
+            'total' => 800,
+            'created_by' => $user->id,
+        ]);
+
+        // 1. Check edit page preselects existing location
+        $editResponse = $this->actingAs($user)->get(route('purchases.edit', $purchase));
+        $editResponse->assertOk();
+        $editResponse->assertSee('location: \'shop\'', false);
+
+        // 2. Update to parlour
+        $updateResponse = $this->actingAs($user)->put(route('purchases.update', $purchase), [
+            'supplier_id' => $supplier->id,
+            'company_id' => $brand->id,
+            'location' => 'parlour',
+            'purchase_date' => '2026-10-27',
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'company_id' => $brand->id,
+                    'quantity' => 1,
+                    'discount_percent' => 0,
+                    'unit_price' => 800,
+                    'selling_price' => 800,
+                ],
+            ],
+        ]);
+
+        $updateResponse->assertRedirect(route('purchases.show', $purchase));
+        $purchase->refresh();
+        $this->assertSame('parlour', $purchase->location->value);
+
+        // 3. Show view reflects parlour
+        $showResponse = $this->actingAs($user)->get(route('purchases.show', $purchase));
+        $showResponse->assertOk();
+        $showResponse->assertSee('Parlour');
+
+        // 4. Print view renders location and PDF download succeeds
+        $printHtml = view('purchases.print', ['purchase' => $purchase])->render();
+        $this->assertStringContainsString('Location', $printHtml);
+        $this->assertStringContainsString('Parlour', $printHtml);
+
+        $printResponse = $this->actingAs($user)->get(route('purchases.print', $purchase));
+        $printResponse->assertOk();
+        $printResponse->assertHeader('content-type', 'application/pdf');
     }
 }

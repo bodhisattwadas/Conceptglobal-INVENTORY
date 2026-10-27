@@ -39,6 +39,27 @@
             </div>
         </div>
 
+        <div class="space-y-2">
+            <x-input-label :value="__('Location')" required hint="Destination for this purchase order. Defaults to Shop." />
+            <div class="grid grid-cols-2 gap-3">
+                <label class="cursor-pointer">
+                    <input type="radio" name="location" value="shop" x-model="location" :checked="location === 'shop'" {{ old('location', $purchase->location?->value ?? $purchase->location ?? 'shop') === 'shop' ? 'checked' : '' }} class="peer sr-only">
+                    <div class="flex h-10 items-center justify-center gap-2 rounded-md border p-2 text-sm font-semibold transition-all peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 peer-checked:ring-2 peer-checked:ring-blue-500/20 border-gray-200 bg-white text-gray-700 hover:border-gray-300">
+                        <x-heroicon-o-building-storefront class="w-4 h-4" />
+                        <span>{{ __('Shop') }}</span>
+                    </div>
+                </label>
+                <label class="cursor-pointer">
+                    <input type="radio" name="location" value="parlour" x-model="location" :checked="location === 'parlour'" {{ old('location', $purchase->location?->value ?? $purchase->location ?? 'shop') === 'parlour' ? 'checked' : '' }} class="peer sr-only">
+                    <div class="flex h-10 items-center justify-center gap-2 rounded-md border p-2 text-sm font-semibold transition-all peer-checked:border-purple-600 peer-checked:bg-purple-50 peer-checked:text-purple-700 peer-checked:ring-2 peer-checked:ring-purple-500/20 border-gray-200 bg-white text-gray-700 hover:border-gray-300">
+                        <x-heroicon-o-sparkles class="w-4 h-4" />
+                        <span>{{ __('Parlour') }}</span>
+                    </div>
+                </label>
+            </div>
+            <x-input-error :messages="$errors->get('location')" />
+        </div>
+
         <div class="md:col-span-2 space-y-2">
             <x-input-label for="notes" :value="__('PO Notes / Terms')" hint="Purchase terms or delivery instructions. Example: Deliver before 5 PM." />
             <textarea id="notes" name="notes" rows="2" class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" placeholder="Terms, delivery instructions, or vendor notes...">{{ old('notes', $purchase->notes ?? '') }}</textarea>
@@ -160,6 +181,7 @@
             supplier_id: initialData.supplier_id || '',
             purchase_date: initialData.purchase_date || '{{ old('purchase_date', $purchase->purchase_date ? \Carbon\Carbon::parse($purchase->purchase_date)->format('Y-m-d') : date('Y-m-d')) }}',
             due_date: initialData.due_date || '{{ old('due_date', $purchase->due_date ? \Carbon\Carbon::parse($purchase->due_date)->format('Y-m-d') : '') }}',
+            location: initialData.location || '{{ old('location', $purchase->location?->value ?? $purchase->location ?? 'shop') }}',
             po_reference: initialData.po_reference || '',
             is_editing: initialData.is_editing || false,
             loading: false,
