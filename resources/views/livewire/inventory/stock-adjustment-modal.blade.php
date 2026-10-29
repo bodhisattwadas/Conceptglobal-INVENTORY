@@ -2,8 +2,8 @@
     @if($isOpen)
         <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
             <div class="flex min-h-screen items-center justify-center p-4 text-center sm:p-0">
-                <!-- Backdrop -->
-                <div class="fixed inset-0 bg-gray-500/75 transition-opacity" wire:click="closeModal"></div>
+                <!-- Backdrop (outside click disabled: close only via X or Cancel) -->
+                <div class="fixed inset-0 bg-gray-500/75 transition-opacity"></div>
 
                 <!-- Modal Panel -->
                 <div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
@@ -249,19 +249,19 @@
                                     @else
                                         <div>
                                             <label class="block text-xs font-medium text-gray-700 mb-1">{{ __('Select Destination Product') }} <span class="text-red-500">*</span></label>
-                                            <select
-                                                wire:model.live="target_product_id"
-                                                class="block w-full rounded-md border-gray-300 py-1.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                            <div
+                                                wire:ignore
+                                                x-data="stockAdjustmentTargetPicker($wire, @js($selectedTargetProductData), '{{ route('ajax.products.search') }}')"
+                                                class="w-full"
                                             >
-                                                <option value="">{{ __('-- Select Target Product --') }}</option>
-                                                @foreach($products as $p)
-                                                    @if($p->id !== $source_product_id)
-                                                        <option value="{{ $p->id }}">
-                                                            {{ $p->name }} ({{ $p->product_code ?: $p->sku }}) - Current Stock: {{ $p->quantity }}
-                                                        </option>
-                                                    @endif
-                                                @endforeach
-                                            </select>
+                                                <select
+                                                    x-ref="targetSelect"
+                                                    id="target_product_select"
+                                                    class="block w-full rounded-md border-gray-300 py-1.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                                >
+                                                    <option value="">{{ __('-- Search or Scan Destination Product --') }}</option>
+                                                </select>
+                                            </div>
                                             @error('target_product_id') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                                         </div>
 
@@ -586,6 +586,270 @@
                                 this.tom.addOption(match);
                                 this.tom.setValue(String(match.id || match.value), false);
                                 wire.set('source_product_id', parseInt(match.id || match.value, 10));
+                                this.tom.close();
+                                window.dispatchEvent(new CustomEvent('toast', {
+                                    detail: { message: 'Selected: ' + match.name, type: 'success' }
+                                }));
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Scan error:', err);
+                        });
+                    }
+                };
+            };
+        }
+
+        if (typeof window.stockAdjustmentTargetPicker !== 'function') {
+            window.stockAdjustmentTargetPicker = function(wire, initialData, searchUrl) {
+                return {
+                    tom: null,
+                    init() {
+                        const waitForTom = (cb) => {
+                            if (window.TomSelect) {
+                                cb();
+                            } else {
+                                setTimeout(() => waitForTom(cb), 50);
+                            }
+                        };
+
+                        waitForTom(() => {
+                            if (this.tom || this.$refs.targetSelect?.tomselect) return;
+
+                            const config = {
+                                placeholder: '{{ __('Search destination product name, barcode or SKU...') }}',
+                                preload: 'focus',
+                                maxOptions: 200,
+                                valueField: 'value',
+                                labelField: 'text',
+                                searchField: ['text', 'name', 'sku', 'product_code'],
+                                plugins: ['dropdown_input', 'clear_button'],
+                                openOnFocus: true,
+                                loadThrottle: 150,
+                                load: (query, callback) => {
+                                    fetch(searchUrl, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Accept': 'application/json',
+                                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                                        },
+                                        body: JSON.stringify({ q: query, all_stock: true })
+                                    })
+                                    .then(r => r.json())
+                                    .then(items => {
+                                        const list = Array.isArray(items) ? items : [];
+                                        const sourceId = wire.get('source_product_id');
+                                        const filtered = sourceId ? list.filter(p => String(p.id || p.value) !== String(sourceId)) : list;
+                                        callback(filtered);
+                                    })
+                                    .catch(() => callback([]));
+                                },
+                                closeAfterSelect: true,
+                                onItemAdd: (val) => {
+                                    const intVal = val ? parseInt(val, 10) : null;
+                                    const sourceId = wire.get('source_product_id');
+                                    if (intVal && sourceId && String(intVal) === String(sourceId)) {
+                                        this.tom.removeItem(val, true);
+                                        this.tom.removeOption(val);
+                                        window.dispatchEvent(new CustomEvent('toast', {
+                                            detail: { message: 'Destination product cannot be the same as source product.', type: 'warning' }
+                                        }));
+                                        return;
+                                    }
+                                    if (wire.get('target_product_id') !== intVal) {
+                                        wire.set('target_product_id', intVal);
+                                    }
+                                },
+                                onItemRemove: () => {
+                                    if (wire.get('target_product_id') !== null) {
+                                        wire.set('target_product_id', null);
+                                    }
+                                },
+                                onClear: () => {
+                                    if (wire.get('target_product_id') !== null) {
+                                        wire.set('target_product_id', null);
+                                    }
+                                },
+                                render: {
+                                    option: (data, escape) => {
+                                        const name = escape(data.text || data.name || '');
+                                        const sku = escape(data.sku || '');
+                                        const productCode = escape(data.product_code || '');
+                                        const qty = escape(String(data.quantity ?? 0));
+                                        const unit = escape(data.unit?.symbol || '');
+                                        const price = '₹' + Number(data.mrp || data.selling_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+                                        const codeParts = [];
+                                        if (productCode) {
+                                            codeParts.push('<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">Barcode: ' + productCode + '</span>');
+                                        }
+                                        if (sku) {
+                                            codeParts.push('<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-gray-100 text-gray-700 border border-gray-200">SKU: ' + sku + '</span>');
+                                        }
+                                        const codeInfo = codeParts.join(' ');
+
+                                        return '<div class="flex items-center justify-between gap-3 w-full py-1.5 px-2">' +
+                                            '<div class="min-w-0 pr-2">' +
+                                                '<div class="font-medium text-gray-900 truncate text-sm">' + name + '</div>' +
+                                                '<div class="flex items-center gap-1.5 mt-1 flex-wrap">' + codeInfo + '</div>' +
+                                            '</div>' +
+                                            '<div class="text-right shrink-0">' +
+                                                '<div class="font-bold text-gray-900 text-xs sm:text-sm">' + price + '</div>' +
+                                                '<div class="text-xs ' + (Number(data.quantity) > 0 ? 'text-emerald-600 font-semibold' : 'text-amber-600 font-medium') + '">Stock: ' + qty + ' ' + unit + '</div>' +
+                                            '</div>' +
+                                        '</div>';
+                                    },
+                                    item: (data, escape) => {
+                                        const displayText = data.text || data.name || '';
+                                        return '<div class="truncate font-medium text-gray-900 text-sm">' + escape(displayText) + '</div>';
+                                    },
+                                    no_results: (data, escape) => {
+                                        return '<div class="no-results px-3 py-2 text-xs text-gray-500">No products found</div>';
+                                    }
+                                }
+                            };
+
+                            this.tom = new TomSelect(this.$refs.targetSelect, config);
+
+                            if (initialData) {
+                                this.tom.addOption(initialData);
+                                this.tom.setValue(String(initialData.value), true);
+                            } else if (wire.get('target_product_id')) {
+                                this.loadAndSetProduct(wire.get('target_product_id'));
+                            }
+
+                            if (this.tom.control_input) {
+                                this.tom.control_input.placeholder = '{{ __('Search destination product name, barcode or SKU...') }}';
+                            }
+                            if (this.tom.dropdown_input) {
+                                this.tom.dropdown_input.placeholder = '{{ __('Search destination product name, barcode or SKU...') }}';
+                            }
+
+                            const handleScannerKeyDown = (e) => {
+                                if (e.key === 'Enter' || e.keyCode === 13) {
+                                    const input = e.target;
+                                    const query = (input.value || '').trim();
+                                    if (!query) return;
+
+                                    const qLower = query.toLowerCase();
+                                    const activeVal = this.tom.activeOption?.dataset?.value;
+                                    const activeData = activeVal ? this.tom.options[activeVal] : null;
+                                    const activeMatches = activeData && (
+                                        (activeData.product_code && activeData.product_code.toLowerCase() === qLower) ||
+                                        (activeData.sku && activeData.sku.toLowerCase() === qLower) ||
+                                        (activeData.text && activeData.text.toLowerCase() === qLower) ||
+                                        (activeData.name && activeData.name.toLowerCase() === qLower)
+                                    );
+
+                                    if (!activeMatches) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.stopImmediatePropagation();
+                                        this.handleBarcodeScan(query);
+                                    }
+                                }
+                            };
+
+                            this.tom.control_input?.addEventListener('keydown', handleScannerKeyDown, true);
+                            if (this.tom.dropdown_input) {
+                                this.tom.dropdown_input.addEventListener('keydown', handleScannerKeyDown, true);
+                            }
+                            this.tom.wrapper?.addEventListener('keydown', (e) => {
+                                if ((e.key === 'Enter' || e.keyCode === 13) && (e.target?.classList.contains('dropdown-input') || e.target?.classList.contains('ts-input'))) {
+                                    handleScannerKeyDown(e);
+                                }
+                            }, true);
+                        });
+
+                        this.$watch('$wire.target_product_id', (newVal) => {
+                            if (!this.tom) return;
+                            const currentVal = this.tom.getValue();
+                            if (!newVal) {
+                                if (currentVal) this.tom.clear(true);
+                            } else if (String(currentVal) !== String(newVal)) {
+                                if (this.tom.options[newVal]) {
+                                    this.tom.setValue(String(newVal), true);
+                                } else {
+                                    this.loadAndSetProduct(newVal);
+                                }
+                            }
+                        });
+
+                        this.$watch('$wire.source_product_id', (newSourceId) => {
+                            if (!this.tom) return;
+                            if (newSourceId) {
+                                if (String(this.tom.getValue()) === String(newSourceId)) {
+                                    this.tom.clear(true);
+                                    wire.set('target_product_id', null);
+                                }
+                                if (this.tom.options[newSourceId]) {
+                                    this.tom.removeOption(String(newSourceId));
+                                }
+                            }
+                        });
+                    },
+                    loadAndSetProduct(productId) {
+                        fetch(searchUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                            },
+                            body: JSON.stringify({ q: String(productId), all_stock: true })
+                        })
+                        .then(r => r.json())
+                        .then(items => {
+                            const match = (items || []).find(p => String(p.id || p.value) === String(productId));
+                            if (match && this.tom) {
+                                this.tom.addOption(match);
+                                this.tom.setValue(String(match.id || match.value), true);
+                            }
+                        })
+                        .catch(() => {});
+                    },
+                    handleBarcodeScan(query) {
+                        const qLower = query.trim().toLowerCase();
+                        if (!qLower) return;
+
+                        fetch(searchUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                            },
+                            body: JSON.stringify({ q: query, all_stock: true })
+                        })
+                        .then(r => r.json())
+                        .then(items => {
+                            const list = Array.isArray(items) ? items : [];
+                            const sourceId = wire.get('source_product_id');
+                            const filtered = sourceId ? list.filter(p => String(p.id || p.value) !== String(sourceId)) : list;
+
+                            if (filtered.length === 0) {
+                                if (sourceId && list.some(p => String(p.id || p.value) === String(sourceId))) {
+                                    window.dispatchEvent(new CustomEvent('toast', {
+                                        detail: { message: 'Destination product cannot be the same as source product.', type: 'warning' }
+                                    }));
+                                } else {
+                                    window.dispatchEvent(new CustomEvent('toast', {
+                                        detail: { message: 'No product found matching "' + query + '"', type: 'warning' }
+                                    }));
+                                }
+                                return;
+                            }
+
+                            const match = filtered.find(p => (p.product_code && p.product_code.toLowerCase() === qLower) || (p.sku && p.sku.toLowerCase() === qLower))
+                                || filtered.find(p => (p.product_code && p.product_code.toLowerCase().startsWith(qLower)) || (p.sku && p.sku.toLowerCase().startsWith(qLower)))
+                                || filtered.find(p => (p.text || p.name || '').toLowerCase() === qLower)
+                                || filtered[0];
+
+                            if (match && this.tom) {
+                                this.tom.addOption(match);
+                                this.tom.setValue(String(match.id || match.value), false);
+                                wire.set('target_product_id', parseInt(match.id || match.value, 10));
                                 this.tom.close();
                                 window.dispatchEvent(new CustomEvent('toast', {
                                     detail: { message: 'Selected: ' + match.name, type: 'success' }

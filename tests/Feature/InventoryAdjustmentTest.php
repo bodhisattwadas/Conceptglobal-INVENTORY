@@ -608,9 +608,14 @@ class InventoryAdjustmentTest extends TestCase
             ->assertSet('source_product_id', null)
             ->assertSee('Search product name, barcode or SKU...')
             ->assertSee('source_product_select')
+            ->assertSee('target_product_select')
+            ->assertSee('stockAdjustmentTargetPicker')
             ->assertSee('handleBarcodeScan')
+            ->assertDontSee('wire:click="closeModal" class="fixed inset-0', false)
             ->set('source_product_id', $product->id)
             ->assertSet('source_purchase_item_id', $batch->id)
-            ->assertSee('BATCH-BC-01');
+            ->assertSee('BATCH-BC-01')
+            ->set('target_product_id', $product->id)
+            ->assertSet('target_mrp', 899.0);
     }
 }
