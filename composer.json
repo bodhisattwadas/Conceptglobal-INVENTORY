@@ -57,6 +57,22 @@
             "@php artisan config:clear --ansi",
             "@php artisan test"
         ],
+        "cache:clear": [
+            "@php artisan optimize:clear --ansi"
+        ],
+        "deploy": [
+            "@php artisan down || true",
+            "@php artisan migrate --force --ansi",
+            "@php artisan optimize:clear --ansi",
+            "@php artisan optimize --ansi",
+            "@php artisan queue:restart --ansi || true",
+            "@php artisan up --ansi || true"
+        ],
+        "deploy:quick": [
+            "@php artisan migrate --force --ansi",
+            "@php artisan optimize:clear --ansi",
+            "@php artisan queue:restart --ansi || true"
+        ],
         "audit:agent": [
             "@php artisan agent:security-flow"
         ],
