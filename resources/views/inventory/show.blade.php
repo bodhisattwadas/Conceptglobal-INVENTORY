@@ -23,10 +23,25 @@
                 </h2>
                 <p class="mt-1 text-sm text-gray-500">{{ $product?->sku ?: __('Stock and expiry details for this product.') }}</p>
             </div>
-            <a href="{{ route('inventory.index') }}" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                <x-heroicon-o-arrow-left class="h-4 w-4" />
-                {{ __('Back') }}
-            </a>
+            <div class="flex items-center gap-2">
+                @if($product)
+                    <button
+                        type="button"
+                        x-data
+                        @click="$dispatch('open-adjustment-modal', { productId: {{ $product->id }} })"
+                        class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-500"
+                    >
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                        <span>{{ __('Adjust Stock') }}</span>
+                    </button>
+                @endif
+                <a href="{{ route('inventory.index') }}" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                    <x-heroicon-o-arrow-left class="h-4 w-4" />
+                    {{ __('Back') }}
+                </a>
+            </div>
         </div>
     </x-slot>
 
@@ -131,10 +146,10 @@
                                     <td class="px-4 py-3 text-center text-sm font-semibold {{ $item->expiry_date && $item->expiry_date->isPast() ? 'text-red-700' : 'text-gray-900' }}">
                                         {{ $item->expiry_date?->format('d/m/Y') ?: '-' }}
                                     </td>
-                                    <td class="px-4 py-3 text-center">
+                                    <td class="px-4 py-3 text-center whitespace-nowrap">
                                         <button
                                             type="button"
-                                            class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-amber-500 text-white hover:bg-amber-600"
+                                            class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-amber-500 text-white hover:bg-amber-600 mr-1"
                                             title="{{ __('Update Batch') }}"
                                             x-on:click="editBatch({
                                                 number: @js($item->batch_number ?: '-'),
@@ -144,6 +159,16 @@
                                             })"
                                         >
                                             <x-heroicon-o-pencil-square class="h-4 w-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                                            title="{{ __('Reallocate / Split Stock from this Batch') }}"
+                                            x-on:click="$dispatch('open-adjustment-modal', { productId: {{ $product->id }}, batchId: {{ $item->id }} })"
+                                        >
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                            </svg>
                                         </button>
                                     </td>
                                 </tr>
@@ -259,5 +284,17 @@
                 </div>
             </form>
         </x-modal>
+
+        <livewire:inventory.stock-adjustment-modal />
     </div>
+
+    @push('scripts')
+        <script>
+            window.addEventListener('inventory-adjusted', () => {
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+            });
+        </script>
+    @endpush
 </x-app-layout>
