@@ -204,7 +204,7 @@
                         </colgroup>
                         <thead class="bg-gray-50">
                             <tr>
-                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Product</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Product / Service</th>
                                 <th scope="col" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
                                 <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Qty</th>
                                 <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit</th>
@@ -225,14 +225,34 @@
                                                 autocomplete="off"
                                             ></select>
                                         </div>
-                                        <div x-show="item.sku" class="mt-1 flex items-center gap-2">
-                                            <span class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium font-mono text-gray-700 border border-gray-200" x-text="item.sku"></span>
-                                            <span class="text-xs text-gray-500 font-medium" x-show="item.max_stock !== undefined && item.max_stock !== null" x-text="'Stock: ' + item.max_stock + (item.unit ? ' ' + item.unit : '')"></span>
+                                        <div x-show="item.sku || item.product_code || item.type === 'service'" class="mt-1 flex items-center gap-2">
+                                            <template x-if="item.type === 'service'">
+                                                <span class="inline-flex items-center rounded bg-purple-50 px-1.5 py-0.5 text-xs font-semibold text-purple-700 border border-purple-200">
+                                                    Service
+                                                </span>
+                                            </template>
+                                            <span x-show="item.product_code || item.sku" class="inline-flex items-center rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-medium font-mono text-emerald-700 border border-emerald-200" x-text="item.product_code || item.sku"></span>
+                                            <span class="text-xs text-gray-500 font-medium" x-show="item.type !== 'service' && item.max_stock !== undefined && item.max_stock !== null" x-text="'Stock: ' + item.max_stock + (item.unit ? ' ' + item.unit : '')"></span>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-600 align-top pt-4">
-                                        <span x-show="item.id" x-text="formatCurrency(item.price)"></span>
-                                        <span x-show="!item.id" class="text-gray-300">—</span>
+                                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-600 align-top pt-3">
+                                        <template x-if="item.id">
+                                            <div class="relative rounded-md shadow-sm w-24 ml-auto">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    x-model.number="item.price"
+                                                    @input="persistCart()"
+                                                    title="{{ __('Edit Unit Price') }}"
+                                                    class="focus:ring-indigo-500 focus:border-indigo-500 block w-full text-right sm:text-xs border-gray-300 rounded-md font-semibold py-1 px-2"
+                                                    placeholder="0.00"
+                                                >
+                                            </div>
+                                        </template>
+                                        <template x-if="!item.id">
+                                            <span class="text-gray-300 pt-1 block">—</span>
+                                        </template>
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-center align-top pt-3">
                                         <template x-if="item.id">
@@ -243,14 +263,14 @@
                                                         name="pos_item_qty"
                                                         x-model.number="item.quantity"
                                                         min="1"
-                                                        :max="item.max_stock"
+                                                        :max="item.type === 'service' ? null : item.max_stock"
                                                         @input="validateQty(index)"
                                                         autocomplete="off"
                                                         class="w-20 text-center border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm shadow-sm font-semibold"
                                                         placeholder="1"
                                                     >
                                                 </div>
-                                                <div x-show="item.quantity > item.max_stock" class="text-xs text-red-600 mt-1">
+                                                <div x-show="item.type !== 'service' && item.quantity > item.max_stock" class="text-xs text-red-600 mt-1">
                                                     Max: <span x-text="item.max_stock"></span>
                                                 </div>
                                             </div>
@@ -260,7 +280,7 @@
                                         </template>
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500 align-top pt-4">
-                                        <span x-show="item.id" x-text="item.unit || '—'"></span>
+                                        <span x-show="item.id" x-text="item.unit || (item.type === 'service' ? 'srv' : '—')"></span>
                                         <span x-show="!item.id" class="text-gray-300">—</span>
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-semibold text-gray-900 align-top pt-4">
@@ -302,7 +322,7 @@
                                             type="button"
                                             @click="removeItem(index)"
                                             class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 focus:outline-none transition-colors mx-auto"
-                                            title="{{ __('Remove product') }}"
+                                            :title="item.type === 'service' ? '{{ __('Remove service') }}' : '{{ __('Remove product') }}'"
                                         >
                                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -313,21 +333,39 @@
                             </template>
                             <tr>
                                 <td colspan="8" class="px-4 py-3 bg-white border-t border-gray-200">
-                                    <button
-                                        type="button"
-                                        @click="addRow()"
-                                        :disabled="hasBlankRow"
-                                        class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                                        :class="hasBlankRow
-                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200 shadow-none'
-                                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm focus-visible:outline-emerald-600'"
-                                        :title="hasBlankRow ? 'Select a product in the blank row first' : 'Add another product row'"
-                                    >
-                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                        </svg>
-                                        <span>{{ __('Add Product') }}</span>
-                                    </button>
+                                    <div class="flex items-center gap-2.5 flex-wrap">
+                                        <button
+                                            type="button"
+                                            @click="addRow()"
+                                            :disabled="hasBlankRow"
+                                            class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                                            :class="hasBlankRow
+                                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200 shadow-none'
+                                                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm focus-visible:outline-emerald-600'"
+                                            :title="hasBlankRow ? 'Select an item in the blank row first' : 'Add another product row'"
+                                        >
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                            </svg>
+                                            <span>{{ __('Add Product') }}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            @click="addServiceRow()"
+                                            :disabled="hasBlankRow"
+                                            class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                                            :class="hasBlankRow
+                                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200 shadow-none'
+                                                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-sm focus-visible:outline-purple-600'"
+                                            :title="hasBlankRow ? 'Select an item in the blank row first' : 'Add a service (e.g. Facial, Hair Brow)'"
+                                        >
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879a3 3 0 11-4.242-4.242L7.757 7.757m0 0l7.071-7.071a3 3 0 114.243 4.243L12 12" />
+                                            </svg>
+                                            <span>{{ __('Add Service') }}</span>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>
@@ -525,9 +563,16 @@
                             <span class="font-semibold text-gray-900" x-text="formatCurrency(subtotal)"></span>
                         </div>
 
-                        <div class="flex justify-between items-center text-red-600" x-show="totalDiscount > 0">
-                            <span>Item Discounts</span>
-                            <span class="font-semibold" x-text="'- ' + formatCurrency(totalDiscount)"></span>
+                        <!-- Product Discount -->
+                        <div class="flex justify-between items-center text-red-600" x-show="productDiscount > 0">
+                            <span>Product Discount</span>
+                            <span class="font-semibold" x-text="'- ' + formatCurrency(productDiscount)"></span>
+                        </div>
+
+                        <!-- Service Discount -->
+                        <div class="flex justify-between items-center text-purple-600" x-show="serviceDiscount > 0">
+                            <span>Service Discount</span>
+                            <span class="font-semibold" x-text="'- ' + formatCurrency(serviceDiscount)"></span>
                         </div>
 
                         <!-- Coupon Section -->
@@ -787,13 +832,14 @@
                             try {
                                 const parsed = JSON.parse(savedCart);
                                 const mapped = (Array.isArray(parsed) ? parsed : []).map((item) => this.prepareCartItem(item));
-                                this.cart = mapped.length ? mapped : [this.blankItem()];
+                                mapped.sort((a, b) => (a.type === 'service' ? 1 : 0) - (b.type === 'service' ? 1 : 0));
+                                this.cart = mapped.length ? mapped : [this.blankItem('product')];
                                 this.refreshCartPrices();
                             } catch (e) {
-                                this.cart = [this.blankItem()];
+                                this.cart = [this.blankItem('product')];
                             }
                         } else {
-                            this.cart = [this.blankItem()];
+                            this.cart = [this.blankItem('product')];
                         }
 
                         const savedCustomer = localStorage.getItem('pos_customer');
@@ -882,30 +928,62 @@
                         else setTimeout(() => this.waitForTomSelect(callback), 50);
                     },
 
-                    blankItem() {
+                    blankItem(type = 'product') {
                         return {
                             key: Math.random().toString(36).slice(2),
                             id: null,
+                            type: type,
                             name: '',
                             sku: '',
+                            product_code: '',
                             price: 0,
                             quantity: 1,
-                            max_stock: 0,
-                            unit: '',
+                            max_stock: type === 'service' ? 999999 : 0,
+                            unit: type === 'service' ? 'srv' : '',
                             discountPercent: 0
                         };
                     },
 
-                    addRow() {
+                    addRow(type = 'product') {
                         const existingBlank = this.cart.find(item => !item.id);
                         if (existingBlank) {
+                            if (this.cart.length === 1 && !existingBlank.id && existingBlank.type !== type) {
+                                existingBlank.type = type;
+                                existingBlank.unit = type === 'service' ? 'srv' : '';
+                                existingBlank.max_stock = type === 'service' ? 999999 : 0;
+                                this.destroyRowSelect(existingBlank);
+                                this.$nextTick(() => {
+                                    const el = document.getElementById(`product_search_${existingBlank.key}`);
+                                    if (el) this.initRowProductSelect(el, existingBlank);
+                                    this.focusRowSelect(existingBlank);
+                                });
+                                return;
+                            }
+
                             this.focusRowSelect(existingBlank);
-                            this.$dispatch('toast', { message: 'Please select a product for the existing blank row first.', type: 'warning' });
+                            this.$dispatch('toast', {
+                                message: `Please select a ${existingBlank.type === 'service' ? 'service' : 'product'} for the existing blank row first.`,
+                                type: 'warning'
+                            });
                             return;
                         }
-                        const newItem = this.blankItem();
-                        this.cart.push(newItem);
+
+                        const newItem = this.blankItem(type);
+                        if (type === 'product') {
+                            const firstServiceIndex = this.cart.findIndex(row => row.type === 'service');
+                            if (firstServiceIndex !== -1) {
+                                this.cart.splice(firstServiceIndex, 0, newItem);
+                            } else {
+                                this.cart.push(newItem);
+                            }
+                        } else {
+                            this.cart.push(newItem);
+                        }
                         this.focusRowSelect(newItem);
+                    },
+
+                    addServiceRow() {
+                        this.addRow('service');
                     },
 
                     removeItem(index) {
@@ -954,24 +1032,37 @@
                         if (emptyRow) {
                             this.focusRowSelect(emptyRow);
                         } else {
-                            this.addRow();
+                            this.addRow('product');
                         }
                     },
 
                     selectedProductIds(exceptItem = null) {
                         const exceptKey = exceptItem?.key;
                         return this.cart
-                            .filter(row => row.key !== exceptKey)
+                            .filter(row => row.key !== exceptKey && row.type !== 'service')
                             .map(row => String(row.id || ''))
                             .filter(Boolean);
                     },
 
-                    filterAvailableProducts(products, item) {
-                        const selectedIds = this.selectedProductIds(item);
-                        return (Array.isArray(products) ? products : []).filter(product => {
-                            const id = String(product.value ?? product.id ?? '');
-                            return id && !selectedIds.includes(id);
+                    selectedServiceIds(exceptItem = null) {
+                        const exceptKey = exceptItem?.key;
+                        return this.cart
+                            .filter(row => row.key !== exceptKey && row.type === 'service')
+                            .map(row => String(row.id || ''))
+                            .filter(Boolean);
+                    },
+
+                    filterAvailableItems(items, item) {
+                        const isService = item.type === 'service';
+                        const forbiddenIds = isService ? this.selectedServiceIds(item) : this.selectedProductIds(item);
+                        return (Array.isArray(items) ? items : []).filter(entry => {
+                            const id = String(entry.value ?? entry.id ?? '');
+                            return id && !forbiddenIds.includes(id);
                         });
+                    },
+
+                    filterAvailableProducts(products, item) {
+                        return this.filterAvailableItems(products, item);
                     },
 
                     syncAllProductDropdowns(exceptItem = null) {
@@ -982,7 +1073,8 @@
                             const select = document.getElementById(`product_search_${row.key}`)?.tomselect;
                             if (!select) return;
 
-                            const forbiddenIds = this.selectedProductIds(row);
+                            const isService = row.type === 'service';
+                            const forbiddenIds = isService ? this.selectedServiceIds(row) : this.selectedProductIds(row);
                             let changed = false;
 
                             forbiddenIds.forEach(id => {
@@ -1006,15 +1098,15 @@
                     setRowProduct(item, product) {
                         item.id = product.id || product.value;
                         item.name = product.name || product.text;
-                        item.sku = product.sku || '';
-                        item.product_code = product.product_code || '';
-                        item.price = parseFloat(product.selling_price || product.price) || 0;
+                        item.sku = product.sku || product.code || '';
+                        item.product_code = product.product_code || product.code || '';
+                        item.price = parseFloat(product.selling_price || product.cost || product.price) || 0;
                         item.quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
-                        item.max_stock = product.quantity !== undefined ? product.quantity : 9999;
-                        item.unit = product.unit ? (typeof product.unit === 'object' ? (product.unit.symbol || product.unit.name || '') : product.unit) : '';
+                        item.max_stock = item.type === 'service' ? 999999 : (product.quantity !== undefined ? product.quantity : 9999);
+                        item.unit = item.type === 'service' ? 'srv' : (product.unit ? (typeof product.unit === 'object' ? (product.unit.symbol || product.unit.name || '') : product.unit) : '');
                         item.discountPercent = item.discountPercent || 0;
 
-                        if (item.quantity > item.max_stock) {
+                        if (item.type !== 'service' && item.quantity > item.max_stock) {
                             item.quantity = item.max_stock;
                         }
 
@@ -1027,65 +1119,106 @@
                         item.id = null;
                         item.name = '';
                         item.sku = '';
+                        item.product_code = '';
                         item.price = 0;
                         item.quantity = 1;
-                        item.max_stock = 0;
-                        item.unit = '';
+                        item.max_stock = item.type === 'service' ? 999999 : 0;
+                        item.unit = item.type === 'service' ? 'srv' : '';
                         item.discountPercent = 0;
                         this.persistCart();
                         this.syncAllProductDropdowns(item);
                     },
 
                     refreshCartPrices() {
-                        const itemIds = (this.cart || []).map(item => item.id).filter(Boolean);
-                        if (!itemIds.length) return;
+                        const productIds = (this.cart || []).filter(item => item.type !== 'service' && item.id).map(item => item.id);
+                        const serviceIds = (this.cart || []).filter(item => item.type === 'service' && item.id).map(item => item.id);
 
-                        fetch('{{ route("ajax.products.search") }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                            },
-                            body: JSON.stringify({ q: '' })
-                        })
-                        .then(r => r.json())
-                        .then(products => {
-                            if (!Array.isArray(products) || !products.length) return;
-                            const map = {};
-                            products.forEach(p => { map[p.id] = p; });
+                        if (productIds.length) {
+                            fetch('{{ route("ajax.products.search") }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                },
+                                body: JSON.stringify({ q: '' })
+                            })
+                            .then(r => r.json())
+                            .then(products => {
+                                if (!Array.isArray(products) || !products.length) return;
+                                const map = {};
+                                products.forEach(p => { map[p.id] = p; });
 
-                            let updated = false;
-                            this.cart.forEach(item => {
-                                if (item.id && map[item.id]) {
-                                    const fresh = map[item.id];
-                                    const freshPrice = parseFloat(fresh.selling_price || fresh.price) || 0;
-                                    if (freshPrice > 0 && Math.abs(item.price - freshPrice) > 0.001) {
-                                        item.price = freshPrice;
-                                        updated = true;
+                                let updated = false;
+                                this.cart.forEach(item => {
+                                    if (item.type !== 'service' && item.id && map[item.id]) {
+                                        const fresh = map[item.id];
+                                        const freshPrice = parseFloat(fresh.selling_price || fresh.price) || 0;
+                                        if (freshPrice > 0 && Math.abs(item.price - freshPrice) > 0.001) {
+                                            item.price = freshPrice;
+                                            updated = true;
+                                        }
+                                        if (fresh.quantity !== undefined) {
+                                            item.max_stock = fresh.quantity;
+                                            if (item.quantity > item.max_stock) {
+                                                item.quantity = item.max_stock;
+                                                updated = true;
+                                            }
+                                        }
                                     }
-                                    if (fresh.quantity !== undefined) {
-                                        item.max_stock = fresh.quantity;
-                                        if (item.quantity > item.max_stock) {
-                                            item.quantity = item.max_stock;
+                                });
+
+                                if (updated) {
+                                    this.persistCart();
+                                }
+                            })
+                            .catch(() => {});
+                        }
+
+                        if (serviceIds.length) {
+                            fetch('{{ route("ajax.services.search") }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                },
+                                body: JSON.stringify({ q: '' })
+                            })
+                            .then(r => r.json())
+                            .then(services => {
+                                if (!Array.isArray(services) || !services.length) return;
+                                const map = {};
+                                services.forEach(s => { map[s.id] = s; });
+
+                                let updated = false;
+                                this.cart.forEach(item => {
+                                    if (item.type === 'service' && item.id && map[item.id]) {
+                                        const fresh = map[item.id];
+                                        const freshPrice = parseFloat(fresh.cost || fresh.selling_price || fresh.price) || 0;
+                                        if (freshPrice > 0 && Math.abs(item.price - freshPrice) > 0.001) {
+                                            item.price = freshPrice;
                                             updated = true;
                                         }
                                     }
-                                }
-                            });
+                                });
 
-                            if (updated) {
-                                this.persistCart();
-                            }
-                        })
-                        .catch(() => {});
+                                if (updated) {
+                                    this.persistCart();
+                                }
+                            })
+                            .catch(() => {});
+                        }
                     },
 
                     handleProductScan(select, item, query) {
                         const qLower = query.trim().toLowerCase();
                         if (!qLower) return;
 
-                        fetch('{{ route("ajax.products.search") }}', {
+                        const isService = item.type === 'service';
+                        const searchUrl = isService ? '{{ route("ajax.services.search") }}' : '{{ route("ajax.products.search") }}';
+
+                        fetch(searchUrl, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -1095,34 +1228,39 @@
                             body: JSON.stringify({ q: query })
                         })
                         .then(r => r.json())
-                        .then(products => {
-                            const list = Array.isArray(products) ? products : [];
+                        .then(items => {
+                            const list = Array.isArray(items) ? items : [];
                             if (list.length === 0) {
-                                this.$dispatch('toast', { message: `No available product found matching "${query}"`, type: 'warning' });
+                                this.$dispatch('toast', { message: `No available ${isService ? 'service' : 'product'} found matching "${query}"`, type: 'warning' });
                                 return;
                             }
 
-                            const match = list.find(p => (p.product_code && p.product_code.toLowerCase() === qLower) || (p.sku && p.sku.toLowerCase() === qLower)) ||
-                                          list.find(p => (p.product_code && p.product_code.toLowerCase().startsWith(qLower)) || (p.sku && p.sku.toLowerCase().startsWith(qLower))) ||
+                            const match = list.find(p => ((p.product_code && p.product_code.toLowerCase() === qLower) || (p.code && p.code.toLowerCase() === qLower) || (p.sku && p.sku.toLowerCase() === qLower))) ||
+                                          list.find(p => ((p.product_code && p.product_code.toLowerCase().startsWith(qLower)) || (p.code && p.code.toLowerCase().startsWith(qLower)) || (p.sku && p.sku.toLowerCase().startsWith(qLower)))) ||
                                           list.find(p => (p.text || p.name || '').toLowerCase() === qLower) ||
                                           list[0];
 
-                            // Check if matched product is already in another cart row
+                            // Check if matched item is already in another cart row of same type
                             const existingRow = this.cart.find(row => 
-                                row.key !== item.key && row.id && String(row.id) === String(match.id || match.value)
+                                row.key !== item.key && row.id && row.type === item.type && String(row.id) === String(match.id || match.value)
                             );
 
                             if (existingRow) {
-                                const freshPrice = parseFloat(match.selling_price || match.price) || existingRow.price;
+                                const freshPrice = parseFloat(match.selling_price || match.cost || match.price) || existingRow.price;
                                 existingRow.price = freshPrice;
-                                existingRow.max_stock = match.quantity !== undefined ? match.quantity : existingRow.max_stock;
-
-                                if (existingRow.quantity < existingRow.max_stock) {
+                                if (isService) {
                                     existingRow.quantity += 1;
                                     this.persistCart();
                                     this.$dispatch('toast', { message: `Increased quantity for "${existingRow.name}" to ${existingRow.quantity}`, type: 'info' });
                                 } else {
-                                    this.$dispatch('toast', { message: `Maximum stock (${existingRow.max_stock}) reached for "${existingRow.name}"`, type: 'warning' });
+                                    existingRow.max_stock = match.quantity !== undefined ? match.quantity : existingRow.max_stock;
+                                    if (existingRow.quantity < existingRow.max_stock) {
+                                        existingRow.quantity += 1;
+                                        this.persistCart();
+                                        this.$dispatch('toast', { message: `Increased quantity for "${existingRow.name}" to ${existingRow.quantity}`, type: 'info' });
+                                    } else {
+                                        this.$dispatch('toast', { message: `Maximum stock (${existingRow.max_stock}) reached for "${existingRow.name}"`, type: 'warning' });
+                                    }
                                 }
                                 select.clear(true);
                                 select.close();
@@ -1144,16 +1282,20 @@
                         this.waitForTomSelect(() => {
                             if (el.tomselect) return;
 
+                            const isService = item.type === 'service';
+                            const searchUrl = isService ? '{{ route("ajax.services.search") }}' : '{{ route("ajax.products.search") }}';
+                            const placeholderText = isService ? 'Search service (Facial, Hair Brow, etc.)...' : 'Search product (Barcode, Name, or SKU)...';
+
                             const select = new TomSelect(el, {
-                                placeholder: 'Search product (Barcode, Name, or SKU)...',
+                                placeholder: placeholderText,
                                 preload: 'focus',
                                 valueField: 'value',
                                 labelField: 'text',
-                                searchField: ['text', 'name', 'sku', 'product_code'],
+                                searchField: isService ? ['text', 'name', 'code', 'description'] : ['text', 'name', 'sku', 'product_code'],
                                 plugins: ['dropdown_input', 'clear_button'],
                                 openOnFocus: true,
                                 load: (query, callback) => {
-                                    fetch('{{ route("ajax.products.search") }}', {
+                                    fetch(searchUrl, {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
@@ -1163,17 +1305,17 @@
                                         body: JSON.stringify({ q: query })
                                     })
                                     .then(r => r.json())
-                                    .then(products => callback(this.filterAvailableProducts(products, item)))
+                                    .then(items => callback(this.filterAvailableItems(items, item)))
                                     .catch(() => callback([]));
                                 },
                                 closeAfterSelect: true,
                                 onItemAdd: (value) => {
-                                    const forbiddenIds = this.selectedProductIds(item);
+                                    const forbiddenIds = isService ? this.selectedServiceIds(item) : this.selectedProductIds(item);
                                     if (forbiddenIds.includes(String(value))) {
                                         select.removeItem(value, true);
                                         select.removeOption(value);
                                         select.refreshOptions(false);
-                                        this.$dispatch('toast', { message: 'Product already added in another row.', type: 'warning' });
+                                        this.$dispatch('toast', { message: (isService ? 'Service' : 'Product') + ' already added in another row.', type: 'warning' });
                                         return;
                                     }
                                     const data = select.options[value];
@@ -1189,9 +1331,24 @@
                                 render: {
                                     option: (data, escape) => {
                                         const name = escape(data.text || data.name || '');
+                                        const code = escape(data.sku || data.product_code || data.code || '');
+                                        const price = this.formatCurrency(data.selling_price || data.cost || data.price || 0);
+
+                                        if (isService) {
+                                            return `<div class="flex items-center justify-between gap-3 w-full py-2 px-2.5">
+                                                <div class="min-w-0 pr-2">
+                                                    <div class="font-semibold text-gray-900 truncate">${name}</div>
+                                                    <div class="text-xs text-purple-600 font-mono mt-0.5">${code ? 'Code: ' + code : 'Service'}</div>
+                                                </div>
+                                                <div class="text-right shrink-0">
+                                                    <div class="font-bold text-purple-700">${price}</div>
+                                                    <div class="text-xs text-purple-500 font-semibold">Service</div>
+                                                </div>
+                                            </div>`;
+                                        }
+
                                         const sku = escape(data.sku || '');
                                         const productCode = escape(data.product_code || '');
-                                        const price = this.formatCurrency(data.selling_price || data.price || 0);
                                         const qty = escape(String(data.quantity || 0));
                                         const unit = escape(data.unit?.symbol || '');
 
@@ -1219,13 +1376,13 @@
                                         return `<div class="truncate font-semibold text-gray-900">${escape(data.text || data.name || '')}</div>`;
                                     },
                                     no_results: (data, escape) => {
-                                        return `<div class="no-results px-3 py-2 text-sm text-gray-500">No products found</div>`;
+                                        return `<div class="no-results px-3 py-2 text-sm text-gray-500">No ${isService ? 'services' : 'products'} found</div>`;
                                     }
                                 }
                             });
 
                             if (select.control_input) {
-                                select.control_input.placeholder = 'Search product (Barcode, Name, or SKU)...';
+                                select.control_input.placeholder = placeholderText;
                             }
 
                             const handleScannerKeyDown = (e) => {
@@ -1240,6 +1397,7 @@
                                     const activeData = activeVal ? select.options[activeVal] : null;
                                     const activeMatches = activeData && (
                                         (activeData.sku && activeData.sku.toLowerCase() === qLower) ||
+                                        (activeData.code && activeData.code.toLowerCase() === qLower) ||
                                         (activeData.text && activeData.text.toLowerCase() === qLower) ||
                                         (activeData.name && activeData.name.toLowerCase() === qLower)
                                     );
@@ -1264,7 +1422,7 @@
                             }, true);
 
                             select.on('dropdown_open', () => {
-                                const forbiddenIds = this.selectedProductIds(item);
+                                const forbiddenIds = isService ? this.selectedServiceIds(item) : this.selectedProductIds(item);
                                 let changed = false;
                                 forbiddenIds.forEach(id => {
                                     if (select.options[id] && String(select.getValue()) !== String(id)) {
@@ -1287,6 +1445,7 @@
                                     text: item.name,
                                     name: item.name,
                                     sku: item.sku,
+                                    code: item.sku,
                                     selling_price: item.price,
                                     price: item.price,
                                     quantity: item.max_stock,
@@ -1443,11 +1602,16 @@
                             discountPercent = price > 0 && discount > 0 ? (discount / price) * 100 : 0;
                         }
 
+                        const type = item.type || (item.service_id ? 'service' : 'product');
+
                         return {
                             ...item,
+                            type,
                             key: item.key || Math.random().toString(36).slice(2),
                             price,
                             quantity: parseInt(item.quantity) || 1,
+                            max_stock: type === 'service' ? 999999 : (item.max_stock ?? 0),
+                            unit: item.unit || (type === 'service' ? 'srv' : ''),
                             discountPercent: this.clampDiscountPercent(discountPercent),
                         };
                     },
@@ -1455,14 +1619,13 @@
                     validateQty(index) {
                         const item = this.cart[index];
                         if (!item || !item.id) return;
-                        if (item.quantity > item.max_stock) {
+                        if (item.type !== 'service' && item.quantity > item.max_stock) {
                             item.quantity = item.max_stock;
                             this.$dispatch('toast', { message: 'Maximum available stock reached', type: 'warning' });
                         }
                         if (item.quantity < 1 || isNaN(item.quantity)) item.quantity = 1;
                         this.persistCart();
                     },
-
                     setItemDiscountPercent(index, value) {
                         const percent = this.clampDiscountPercent(value);
                         this.cart[index].discountPercent = value !== '' && Number(value) === percent ? value : percent;
@@ -1841,8 +2004,22 @@
                         return this.cart.reduce((sum, item) => sum + (item.id ? (item.price * item.quantity) : 0), 0);
                     },
 
+                    get productDiscount() {
+                        return Math.round(this.cart.reduce((sum, item) => {
+                            if (!item.id || item.type === 'service') return sum;
+                            return sum + (this.lineDiscountAmount(item) * (parseInt(item.quantity) || 0));
+                        }, 0) * 100) / 100;
+                    },
+
+                    get serviceDiscount() {
+                        return Math.round(this.cart.reduce((sum, item) => {
+                            if (!item.id || item.type !== 'service') return sum;
+                            return sum + (this.lineDiscountAmount(item) * (parseInt(item.quantity) || 0));
+                        }, 0) * 100) / 100;
+                    },
+
                     get totalDiscount() {
-                        return this.cart.reduce((sum, item) => sum + (item.id ? (this.lineDiscountAmount(item) * item.quantity) : 0), 0);
+                        return Math.round((this.productDiscount + this.serviceDiscount) * 100) / 100;
                     },
 
                     get unroundedPayable() {
@@ -2021,9 +2198,16 @@
                                 }
                             }
 
-                            // Build items payload from valid selected products
-                            const items = this.validCartItems.map(item => ({
-                                product_id: item.id,
+                            // Build items payload from valid selected products and services (products at top, then services)
+                            const sortedItems = [...this.validCartItems].sort((a, b) => {
+                                const aRank = a.type === 'service' ? 1 : 0;
+                                const bRank = b.type === 'service' ? 1 : 0;
+                                return aRank - bRank;
+                            });
+
+                            const items = sortedItems.map(item => ({
+                                product_id: item.type === 'service' ? null : item.id,
+                                service_id: item.type === 'service' ? item.id : null,
                                 quantity: item.quantity,
                                 unit_price: item.price,
                                 discount: this.lineDiscountAmount(item)
@@ -2175,10 +2359,16 @@
                         <span class="font-semibold text-gray-800" x-text="formatCurrency(subtotal)"></span>
                     </div>
 
-                    <!-- Discounts -->
-                    <div class="flex items-center justify-between text-red-600" x-show="totalDiscount > 0">
-                        <span>Item Discounts</span>
-                        <span class="font-semibold" x-text="'- ' + formatCurrency(totalDiscount)"></span>
+                    <!-- Product Discount -->
+                    <div class="flex items-center justify-between text-red-600" x-show="productDiscount > 0">
+                        <span>Product Discount</span>
+                        <span class="font-semibold" x-text="'- ' + formatCurrency(productDiscount)"></span>
+                    </div>
+
+                    <!-- Service Discount -->
+                    <div class="flex items-center justify-between text-purple-600" x-show="serviceDiscount > 0">
+                        <span>Service Discount</span>
+                        <span class="font-semibold" x-text="'- ' + formatCurrency(serviceDiscount)"></span>
                     </div>
 
                     <div class="flex items-center justify-between text-emerald-600 font-semibold" x-show="appliedCoupon">

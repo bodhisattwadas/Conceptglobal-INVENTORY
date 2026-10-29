@@ -116,22 +116,26 @@ class DashboardStatsService
 
         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate, $limit) {
             return SaleItem::select('product_id', DB::raw('SUM(quantity) as total_qty'))
+                ->whereNotNull('product_id')
                 ->whereHas('sale', function ($query) use ($startDate, $endDate) {
                     $query->whereBetween('sale_date', [$startDate, $endDate])
                         ->where('status', 'completed');
                 })
+                ->whereHas('product')
                 ->with('product:id,name,sku')
                 ->groupBy('product_id')
                 ->orderByDesc('total_qty')
                 ->limit($limit)
                 ->get()
+                ->filter(fn ($item) => $item->product !== null)
                 ->map(function ($item) {
                     return [
-                        'product_name' => $item->product->name,
-                        'sku' => $item->product->sku,
-                        'total_sold' => $item->total_qty,
+                        'product_name' => $item->product->name ?? 'Unknown',
+                        'sku' => $item->product->sku ?? '—',
+                        'total_sold' => (int) $item->total_qty,
                     ];
                 })
+                ->values()
                 ->toArray();
         });
     }

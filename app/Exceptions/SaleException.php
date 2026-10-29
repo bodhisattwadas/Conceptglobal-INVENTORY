@@ -60,6 +60,14 @@ class SaleException extends Exception
         return new self($message);
     }
 
+    public static function serviceNotFound(int $serviceId): self
+    {
+        $message = "Service with ID {$serviceId} not found during sale processing.";
+        Log::error($message);
+
+        return new self($message);
+    }
+
     public static function invalidDiscount(string $reason): self
     {
         Log::warning("Invalid discount applied: {$reason}");

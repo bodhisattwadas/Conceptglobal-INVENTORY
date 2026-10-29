@@ -284,12 +284,15 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($sale->items as $item)
+                @php
+                    $sortedItems = $sale->items->sortBy(fn($item) => $item->service_id ? 1 : 0);
+                @endphp
+                @foreach($sortedItems as $item)
                 @php
                     $finalPrice = $item->unit_price - $item->discount;
                 @endphp
                 <tr>
-                    <td class="col-name">{{ $item->product->name }}</td>
+                    <td class="col-name">{{ $item->service?->name ?? $item->product?->name }}</td>
                     <td class="col-qty">{{ $item->quantity }}</td>
                     <td class="col-price">@money($item->unit_price)</td>
                     <td class="col-disc">{!! $item->discount > 0 ? "<span>" . format_money($item->discount) . "</span>" : '-' !!}</td>
@@ -329,6 +332,22 @@
                     <span class="amount-label">Subtotal</span>
                     <span class="amount-value">@money($sale->total + $sale->global_discount)</span>
                 </div>
+                @php
+                    $productItemDiscount = $sale->items->filter(fn($i) => empty($i->service_id))->sum(fn($i) => (float)$i->discount * (int)$i->quantity);
+                    $serviceItemDiscount = $sale->items->filter(fn($i) => !empty($i->service_id))->sum(fn($i) => (float)$i->discount * (int)$i->quantity);
+                @endphp
+                @if($productItemDiscount > 0)
+                <div class="amount-row">
+                    <span class="amount-label">Product Discount</span>
+                    <span class="amount-value">- @money($productItemDiscount)</span>
+                </div>
+                @endif
+                @if($serviceItemDiscount > 0)
+                <div class="amount-row">
+                    <span class="amount-label">Service Discount</span>
+                    <span class="amount-value">- @money($serviceItemDiscount)</span>
+                </div>
+                @endif
                 @php
                     $hasCoupon = ($sale->coupon_discount > 0) || ($sale->coupon_code && $sale->coupon_discount == 0 && $sale->global_discount > 0 && $sale->round_off == 0);
                     $couponDiscountAmount = $sale->coupon_discount > 0 ? $sale->coupon_discount : ($hasCoupon ? $sale->global_discount : 0);

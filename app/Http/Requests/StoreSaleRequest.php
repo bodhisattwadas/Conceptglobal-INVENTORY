@@ -73,17 +73,55 @@ class StoreSaleRequest extends FormRequest
             'coupon_code' => ['nullable', 'string', 'max:50'],
 
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
+            'items.*.product_id' => ['nullable', 'required_without:items.*.service_id', 'integer', 'exists:products,id'],
+            'items.*.service_id' => ['nullable', 'required_without:items.*.product_id', 'integer', 'exists:services,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'items.*.discount' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            $items = $this->input('items', []);
+            $productIndices = [];
+            $serviceIndices = [];
+
+            foreach ($items as $index => $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                $productId = $item['product_id'] ?? null;
+                $serviceId = $item['service_id'] ?? null;
+
+                if (! empty($productId)) {
+                    if (isset($productIndices[$productId])) {
+                        $validator->errors()->add("items.{$index}.product_id", 'The items.'.$index.'.product_id field has a duplicate value.');
+                        $validator->errors()->add("items.{$productIndices[$productId]}.product_id", 'The items.'.$productIndices[$productId].'.product_id field has a duplicate value.');
+                    } else {
+                        $productIndices[$productId] = $index;
+                    }
+                }
+
+                if (! empty($serviceId)) {
+                    if (isset($serviceIndices[$serviceId])) {
+                        $validator->errors()->add("items.{$index}.service_id", 'The items.'.$index.'.service_id field has a duplicate value.');
+                        $validator->errors()->add("items.{$serviceIndices[$serviceId]}.service_id", 'The items.{$serviceIndices[$serviceId]}.service_id field has a duplicate value.');
+                    } else {
+                        $serviceIndices[$serviceId] = $index;
+                    }
+                }
+            }
+        });
+    }
+
     public function messages(): array
     {
         return [
             'items.*.product_id.exists' => 'The selected product does not exist.',
+            'items.*.service_id.exists' => 'The selected service does not exist.',
             'items.*.quantity.min' => 'Quantity must be at least 1.',
             'items.*.unit_price.min' => 'Unit price must be at least 0.',
             'items.*.discount.min' => 'Discount must be at least 0.',

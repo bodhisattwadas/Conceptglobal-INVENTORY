@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             FinanceCategorySeeder::class,
             SettingSeeder::class,
             DiscountCouponSeeder::class,
+            ServiceSeeder::class,
 
             // Data that depends on the base records above.
             CustomerSeeder::class,

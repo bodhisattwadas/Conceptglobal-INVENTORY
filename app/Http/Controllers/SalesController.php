@@ -3,14 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\DTOs\SaleData;
+use App\Enums\PaymentMethod;
 use App\Exceptions\SaleException;
 use App\Http\Requests\CompleteSaleRequest;
 use App\Http\Requests\StoreSaleRequest;
+use App\Http\Requests\UpdateSaleRequest;
+use App\Models\Company;
 use App\Models\Sale;
 use App\Services\DiscountCouponService;
 use App\Services\SaleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class SalesController extends Controller
 {
@@ -22,8 +26,12 @@ class SalesController extends Controller
     public function create(DiscountCouponService $discountCouponService)
     {
         $availableCoupons = $discountCouponService->getAvailableCoupons();
+        $brands = Company::query()
+            ->select('id', 'company_name', 'short_name')
+            ->orderBy('company_name')
+            ->get();
 
-        return view('sales.create', compact('availableCoupons'));
+        return view('sales.create', compact('availableCoupons', 'brands'));
     }
 
     public function store(StoreSaleRequest $request, SaleService $saleService)
@@ -70,6 +78,55 @@ class SalesController extends Controller
         $sale->load(['items.product.unit', 'items.inventoryMovements.purchaseItem.purchase', 'customer', 'creator']);
 
         return view('sales.show', compact('sale'));
+    }
+
+    public function edit(Sale $sale, DiscountCouponService $discountCouponService)
+    {
+        $sale->load(['items.product.unit', 'items.service', 'customer', 'creator']);
+        $availableCoupons = $discountCouponService->getAvailableCoupons();
+
+        return view('sales.edit', compact('sale', 'availableCoupons'));
+    }
+
+    public function update(UpdateSaleRequest $request, Sale $sale, SaleService $saleService)
+    {
+        try {
+            $validated = $request->validated();
+            $validated['created_by'] = Auth::id() ?? $sale->created_by;
+            $validated['status'] = $sale->status->value;
+            $reason = $validated['reason'] ?? null;
+            $paymentRef = $validated['payment_ref'] ?? null;
+
+            $saleData = SaleData::fromArray($validated);
+
+            $updatedSale = $saleService->updateHistoricalSale($sale, $saleData, $reason, $paymentRef);
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Historical sale updated successfully.',
+                    'data' => $updatedSale,
+                    'redirect' => route('sales.show', $updatedSale->id),
+                ]);
+            }
+
+            return redirect()->route('sales.show', $updatedSale->id)
+                ->with('success', 'Sale updated successfully.');
+
+        } catch (SaleException $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['message' => $e->getMessage()], 400);
+            }
+
+            return back()->with('error', $e->getMessage())->withInput();
+
+        } catch (\Exception $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['message' => $e->getMessage()], 400);
+            }
+
+            return back()->with('error', $e->getMessage())->withInput();
+        }
     }
 
     public function destroy(Request $request, Sale $sale, SaleService $saleService)
@@ -134,6 +191,42 @@ class SalesController extends Controller
             }
 
             return redirect()->back()->with('success', 'Sale date updated successfully.');
+        } catch (\Exception $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function updatePaymentMethod(Request $request, Sale $sale, SaleService $saleService)
+    {
+        $validated = $request->validate([
+            'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
+            'cash_received' => ['nullable', 'numeric', 'min:0'],
+            'payment_ref' => ['nullable', 'string', 'max:100'],
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        try {
+            $saleService->updatePaymentMethod(
+                $sale,
+                $validated['payment_method'],
+                isset($validated['cash_received']) && $validated['cash_received'] !== '' ? (float) $validated['cash_received'] : null,
+                $validated['reason'] ?? null,
+                $validated['payment_ref'] ?? null
+            );
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Payment method updated successfully.',
+                    'payment_method' => $sale->fresh()->payment_method->value,
+                ]);
+            }
+
+            return redirect()->back()->with('success', 'Payment method updated successfully.');
         } catch (\Exception $e) {
             if ($request->wantsJson()) {
                 return response()->json(['message' => $e->getMessage()], 422);

@@ -192,6 +192,7 @@ class SalesWorkflowTest extends TestCase
             'purchase_price' => 100,
             'selling_price' => 150,
             'quantity' => 10,
+            'is_active' => true,
         ]);
         $this->receiveStock($product, $user);
 
@@ -225,6 +226,7 @@ class SalesWorkflowTest extends TestCase
             'purchase_price' => 200,
             'selling_price' => 250,
             'quantity' => 10,
+            'is_active' => true,
         ]);
         $this->receiveStock($product, $user);
 
@@ -578,6 +580,7 @@ class SalesWorkflowTest extends TestCase
             'purchase_price' => 40.00,
             'selling_price' => 100.00,
             'quantity' => 10,
+            'is_active' => true,
         ]);
         $this->receiveStock($product, $user);
 
@@ -926,6 +929,7 @@ class SalesWorkflowTest extends TestCase
             'purchase_price' => 100.00,
             'selling_price' => 226.12,
             'quantity' => 10,
+            'is_active' => true,
         ]);
         $this->receiveStock($product, $user);
 
@@ -1002,6 +1006,7 @@ class SalesWorkflowTest extends TestCase
             'selling_price' => 100.00,
             'mrp' => 100.00,
             'quantity' => 10,
+            'is_active' => true,
         ]);
         $this->receiveStock($product, $user);
         InventoryStock::create([

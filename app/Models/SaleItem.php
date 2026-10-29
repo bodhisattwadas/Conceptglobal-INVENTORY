@@ -14,6 +14,7 @@ class SaleItem extends Model
     protected $fillable = [
         'sale_id',
         'product_id',
+        'service_id',
         'quantity',
         'cost_price',
         'unit_price',
@@ -39,6 +40,26 @@ class SaleItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function service(): BelongsTo
+    {
+        return $this->belongsTo(Service::class);
+    }
+
+    public function isService(): bool
+    {
+        return ! empty($this->service_id);
+    }
+
+    public function isProduct(): bool
+    {
+        return ! empty($this->product_id);
+    }
+
+    public function getItemNameAttribute(): string
+    {
+        return $this->service?->name ?? $this->product?->name ?? 'Unknown Item';
     }
 
     public function inventoryMovements(): HasMany

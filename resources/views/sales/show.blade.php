@@ -12,6 +12,12 @@
                     <x-heroicon-o-calendar class="w-4 h-4 mr-2 text-indigo-600" />
                     {{ __('Edit Date') }}
                 </x-secondary-button>
+                @if(auth()->user()?->isAdmin() && $sale->status !== \App\Enums\SaleStatus::CANCELLED)
+                    <x-secondary-button href="{{ route('sales.edit', $sale) }}">
+                        <x-heroicon-o-pencil-square class="w-4 h-4 mr-2 text-amber-600" />
+                        {{ __('Edit Sale') }}
+                    </x-secondary-button>
+                @endif
                 <x-primary-button href="{{ route('sales.print', $sale) }}" target="_blank">
                     <x-heroicon-o-printer class="w-4 h-4 mr-2" />
                     {{ __('Print Invoice') }}
@@ -66,9 +72,23 @@
                         </div>
 
                         <!-- Payment Method -->
-                        <x-detail-item label="Payment Method" :value="$sale->payment_method->label()">
-                            <x-heroicon-o-credit-card class="w-4 h-4 text-gray-400" />
-                        </x-detail-item>
+                        <div class="flex items-start justify-between">
+                            <x-detail-item label="Payment Method" :value="$sale->payment_method->label()">
+                                <x-heroicon-o-credit-card class="w-4 h-4 text-gray-400" />
+                            </x-detail-item>
+                            @if(auth()->user()?->isAdmin() && $sale->status !== \App\Enums\SaleStatus::CANCELLED)
+                                <button
+                                    type="button"
+                                    x-data
+                                    x-on:click="$dispatch('open-modal', { name: 'edit-payment-modal' })"
+                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-xs transition mt-1"
+                                    title="{{ __('Edit Payment Method') }}"
+                                >
+                                    <x-heroicon-o-pencil-square class="w-3.5 h-3.5 text-indigo-600" />
+                                    {{ __('Edit Payment') }}
+                                </button>
+                            @endif
+                        </div>
 
                         <!-- Status -->
                         <div>
@@ -116,13 +136,19 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200">
-                                @foreach($sale->items as $item)
+                                @php
+                                    $sortedItems = $sale->items->sortBy(fn($item) => $item->service_id ? 1 : 0);
+                                @endphp
+                                @foreach($sortedItems as $item)
                                     <tr class="bg-white hover:bg-gray-50">
                                         <td class="px-6 py-4 text-sm text-gray-500">
-                                            {{ $item->product->product_code ?? $item->product->sku ?? '-' }}
+                                            {{ $item->isService() ? ($item->service?->code ?? '-') : ($item->product?->product_code ?? $item->product?->sku ?? '-') }}
                                         </td>
                                         <td class="px-6 py-4 font-medium text-gray-900">
-                                            {{ $item->product->name }}
+                                            {{ $item->isService() ? $item->service?->name : $item->product?->name }}
+                                            @if($item->isService())
+                                                <span class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-700">Service</span>
+                                            @endif
                                         </td>
                                         <td class="px-6 py-4 text-sm text-gray-700">
                                             @php
@@ -146,7 +172,7 @@
                                             @endforelse
                                         </td>
                                         <td class="px-6 py-4 text-sm text-gray-500">
-                                            {{ $item->product->unit->symbol ?? $item->product->unit->name ?? '-' }}
+                                            {{ $item->isService() ? 'srv' : ($item->product?->unit->symbol ?? $item->product?->unit->name ?? '-') }}
                                         </td>
                                         <td class="px-6 py-4 text-center">
                                             {{ number_format($item->quantity) }}
@@ -170,11 +196,23 @@
                                         @money($sale->subtotal)
                                     </td>
                                 </tr>
-                                @if(($sale->total_discount - $sale->global_discount) > 0)
+                                @php
+                                    $productItemDiscount = $sale->items->filter(fn($i) => empty($i->service_id))->sum(fn($i) => (float)$i->discount * (int)$i->quantity);
+                                    $serviceItemDiscount = $sale->items->filter(fn($i) => !empty($i->service_id))->sum(fn($i) => (float)$i->discount * (int)$i->quantity);
+                                @endphp
+                                @if($productItemDiscount > 0)
                                     <tr>
-                                        <td colspan="7" class="px-6 py-4 text-right text-red-600">Total Discount (Items)</td>
+                                        <td colspan="7" class="px-6 py-4 text-right text-red-600">Product Discount</td>
                                         <td class="px-6 py-4 text-right text-red-600">
-                                            - @money($sale->total_discount - $sale->global_discount)
+                                            - @money($productItemDiscount)
+                                        </td>
+                                    </tr>
+                                @endif
+                                @if($serviceItemDiscount > 0)
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-right text-purple-600">Service Discount</td>
+                                        <td class="px-6 py-4 text-right text-purple-600">
+                                            - @money($serviceItemDiscount)
                                         </td>
                                     </tr>
                                 @endif
@@ -381,6 +419,198 @@
                         </div>
                     </div>
                 </x-modal>
+
+                <!-- Edit Payment Method Modal -->
+                @if(auth()->user()?->isAdmin() && $sale->status !== \App\Enums\SaleStatus::CANCELLED)
+                @php
+                    $showPaymentRef = '';
+                    if (preg_match('/Ref:\s*([^\|\n\r]+)/i', $sale->notes ?? '', $m)) {
+                        $showPaymentRef = trim($m[1]);
+                    }
+                @endphp
+                <x-modal name="edit-payment-modal" maxWidth="md">
+                    <form
+                        action="{{ route('sales.update-payment-method', $sale) }}"
+                        method="POST"
+                        class="p-6"
+                        x-data="{
+                            method: '{{ $sale->payment_method->value }}',
+                            paymentRef: '{{ addslashes($showPaymentRef) }}',
+                            cashReceived: {{ (float) ($sale->cash_received ?: $sale->total) }},
+                            total: {{ (float) $sale->total }}
+                        }"
+                    >
+                        @csrf
+                        @method('PATCH')
+
+                        <div class="flex items-start justify-between border-b border-gray-100 pb-4 mb-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">{{ __('Edit Payment Method') }}</h3>
+                                <p class="text-xs text-gray-500 mt-0.5">Invoice: <span class="font-mono font-bold">{{ $sale->invoice_number ?: '#'.$sale->id }}</span> (Total: <span class="font-mono font-bold text-indigo-700">₹{{ number_format((float) $sale->total, 2) }}</span>)</p>
+                            </div>
+                            <button
+                                type="button"
+                                x-on:click="$dispatch('close-modal', { name: 'edit-payment-modal' })"
+                                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                            >
+                                <x-heroicon-o-x-mark class="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <label class="block text-xs font-bold uppercase tracking-wider text-gray-700">{{ __('Payment Method') }}</label>
+                                    <span class="text-xs text-gray-400 font-medium">Selected: <strong class="text-indigo-600 capitalize" x-text="method"></strong></span>
+                                </div>
+
+                                <!-- 3-4 Payment Method Buttons: UPI / Cash / Card / Transfer -->
+                                <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                    <!-- UPI -->
+                                    <button
+                                        type="button"
+                                        @click="method = 'upi'"
+                                        class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
+                                        :class="method === 'upi' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-xs' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
+                                    >
+                                        <svg class="w-4 h-4 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                                        <span>UPI</span>
+                                    </button>
+
+                                    <!-- Cash -->
+                                    <button
+                                        type="button"
+                                        @click="method = 'cash'"
+                                        class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
+                                        :class="method === 'cash' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-xs' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
+                                    >
+                                        <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                        <span>Cash</span>
+                                    </button>
+
+                                    <!-- Card -->
+                                    <button
+                                        type="button"
+                                        @click="method = 'card'"
+                                        class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
+                                        :class="method === 'card' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-xs' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
+                                    >
+                                        <svg class="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                                        <span>Card</span>
+                                    </button>
+
+                                    <!-- Bank Transfer -->
+                                    <button
+                                        type="button"
+                                        @click="method = 'transfer'"
+                                        class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
+                                        :class="method === 'transfer' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-xs' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
+                                    >
+                                        <svg class="w-4 h-4 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
+                                        <span>Transfer</span>
+                                    </button>
+                                </div>
+
+                                <input type="hidden" name="payment_method" :value="method">
+                            </div>
+
+                            <!-- If CARD -->
+                            <div x-show="method === 'card'" class="bg-blue-50/60 rounded-lg p-2.5 border border-blue-100 space-y-1.5">
+                                <div class="flex items-center gap-1.5 text-blue-700 text-xs font-semibold">
+                                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                                    <span>{{ __('Swipe / Tap on POS machine') }}</span>
+                                </div>
+                                <input
+                                    type="text"
+                                    name="payment_ref"
+                                    x-model="paymentRef"
+                                    placeholder="{{ __('Card 4 Digits / Auth Ref (Optional)...') }}"
+                                    class="block w-full text-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-1.5"
+                                >
+                            </div>
+
+                            <!-- If UPI -->
+                            <div x-show="method === 'upi'" class="bg-indigo-50/60 rounded-lg p-2.5 border border-indigo-100 space-y-1.5">
+                                <div class="flex items-center gap-1.5 text-indigo-700 text-xs font-semibold">
+                                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <span>{{ __('Collect via QR Code / UPI App') }}</span>
+                                </div>
+                                <input
+                                    type="text"
+                                    name="payment_ref"
+                                    x-model="paymentRef"
+                                    placeholder="{{ __('UPI UTR / Reference ID (Optional)...') }}"
+                                    class="block w-full text-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-1.5"
+                                >
+                            </div>
+
+                            <!-- If TRANSFER -->
+                            <div x-show="method === 'transfer'" class="bg-purple-50/60 rounded-lg p-2.5 border border-purple-100 space-y-1.5">
+                                <div class="flex items-center gap-1.5 text-purple-700 text-xs font-semibold">
+                                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
+                                    <span>{{ __('Bank Transfer / NEFT / IMPS Reference') }}</span>
+                                </div>
+                                <input
+                                    type="text"
+                                    name="payment_ref"
+                                    x-model="paymentRef"
+                                    placeholder="{{ __('Bank Transfer Reference (Optional)...') }}"
+                                    class="block w-full text-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-1.5"
+                                >
+                            </div>
+
+                            <!-- If CASH -->
+                            <div x-show="method === 'cash'" class="p-3 bg-emerald-50 rounded-lg border border-emerald-200 space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <label class="block text-xs font-bold text-emerald-800 uppercase">{{ __('Cash Received (₹)') }}</label>
+                                    <button type="button" @click="cashReceived = total" class="text-xs text-emerald-700 underline font-semibold">Exact Amount</button>
+                                </div>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    name="cash_received"
+                                    x-model.number="cashReceived"
+                                    class="w-full text-sm border-gray-300 rounded px-2.5 py-1.5 text-right font-bold"
+                                >
+                                <div class="flex justify-between text-xs text-emerald-700 font-semibold pt-1">
+                                    <span>{{ __('Change to Return:') }}</span>
+                                    <span class="font-mono" x-text="'₹' + Math.max(0, cashReceived - total).toFixed(2)"></span>
+                                </div>
+                            </div>
+
+                            <!-- Reason for changing payment method -->
+                            <div>
+                                <x-input-label for="edit_payment_reason" :value="__('Reason for Modification')" />
+                                <input
+                                    id="edit_payment_reason"
+                                    type="text"
+                                    name="reason"
+                                    placeholder="{{ __('e.g., Customer paid via UPI instead of Cash') }}"
+                                    class="block w-full mt-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                >
+                            </div>
+
+                            <div class="rounded-md bg-amber-50 p-3 border border-amber-200">
+                                <p class="text-xs text-amber-800">
+                                    {{ __('Updating the payment method will adjust the accounting journal and generate an audit log entry.') }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
+                            <x-secondary-button type="button" x-on:click="$dispatch('close-modal', { name: 'edit-payment-modal' })">
+                                {{ __('Cancel') }}
+                            </x-secondary-button>
+
+                            <x-primary-button type="submit">
+                                <x-heroicon-o-check class="w-4 h-4 mr-1.5" />
+                                {{ __('Save Changes') }}
+                            </x-primary-button>
+                        </div>
+                    </form>
+                </x-modal>
+                @endif
 
                 <!-- Edit Sale Date Modal -->
                 <x-modal name="edit-date-modal" maxWidth="md">

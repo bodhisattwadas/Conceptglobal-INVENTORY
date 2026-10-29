@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\FinanceCategoryController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UnitController;
 use App\Http\Controllers\Api\UserController;
@@ -120,6 +121,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Sales
     Route::resource('sales', SalesController::class)->except(['edit', 'update'])->middleware('role:admin,sales');
+    Route::middleware('role:admin')->group(function () {
+        Route::get('sales/{sale}/edit', [SalesController::class, 'edit'])->name('sales.edit');
+        Route::put('sales/{sale}', [SalesController::class, 'update'])->name('sales.update');
+        Route::patch('sales/{sale}/payment-method', [SalesController::class, 'updatePaymentMethod'])->name('sales.update-payment-method');
+    });
     Route::prefix('sales/{sale}')->name('sales.')->controller(SalesController::class)->middleware('role:admin,sales')->group(function () {
         Route::get('print', 'print')->name('print');
         Route::patch('complete', 'complete')->name('complete');
@@ -130,6 +136,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // =========================================================================
     // Admin
     // =========================================================================
+    Route::view('services', 'services.index')->middleware('role:admin')->name('services.index');
     Route::view('coupons', 'coupons.index')->middleware('role:admin')->name('coupons.index');
 
     // =========================================================================
@@ -156,6 +163,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // =========================================================================
     Route::prefix('ajax')->name('ajax.')->group(function () {
         Route::post('products', [ProductController::class, 'search'])->middleware('role:admin,manager,sales')->name('products.search');
+        Route::post('services', [ServiceController::class, 'search'])->middleware('role:admin,sales')->name('services.search');
         Route::post('purchases/preview-reference', [PurchaseController::class, 'previewReference'])->middleware('role:admin,manager')->name('purchases.preview-reference');
         Route::post('suppliers', [SupplierController::class, 'search'])->middleware('role:admin,manager')->name('suppliers.search');
         Route::post('companies', [App\Http\Controllers\Api\CompanyController::class, 'search'])->middleware('role:admin,manager')->name('companies.search');

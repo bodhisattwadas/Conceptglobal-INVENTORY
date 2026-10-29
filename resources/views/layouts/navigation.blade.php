@@ -113,7 +113,7 @@
                         </x-nav-dropdown>
 
                         <!-- Admin Dropdown -->
-                        <x-nav-dropdown active="{{ request()->routeIs(['users.*', 'settings.*', 'coupons.*']) }}">
+                        <x-nav-dropdown active="{{ request()->routeIs(['users.*', 'services.*', 'settings.*', 'coupons.*']) }}">
                             <x-slot name="icon">
                                 <x-heroicon-o-users class="mr-2 h-4 w-4" />
                             </x-slot>
@@ -123,6 +123,9 @@
                             <x-slot name="content">
                                 <x-dropdown-link :href="route('users.index')" :active="request()->routeIs('users.*')">
                                     Users
+                                </x-dropdown-link>
+                                <x-dropdown-link :href="route('services.index')" :active="request()->routeIs('services.*')">
+                                    Services
                                 </x-dropdown-link>
                                 <x-dropdown-link :href="route('coupons.index')" :active="request()->routeIs('coupons.*')">
                                     Coupons
@@ -292,14 +295,15 @@
                         </div>
 
                         <!-- Mobile Admin Accordion -->
-                        <div x-data="{ expanded: {{ request()->routeIs(['users.*', 'settings.*', 'coupons.*']) ? 'true' : 'false' }} }" class="border-b-0">
-                            <button @click="expanded = !expanded" class="flex flex-1 items-center justify-between py-0 font-semibold transition-all hover:underline [&[data-state=open]>svg]:rotate-180 w-full text-left text-md {{ request()->routeIs(['users.*', 'settings.*', 'coupons.*']) ? 'text-primary' : '' }}">
+                        <div x-data="{ expanded: {{ request()->routeIs(['users.*', 'services.*', 'settings.*', 'coupons.*']) ? 'true' : 'false' }} }" class="border-b-0">
+                            <button @click="expanded = !expanded" class="flex flex-1 items-center justify-between py-0 font-semibold transition-all hover:underline [&[data-state=open]>svg]:rotate-180 w-full text-left text-md {{ request()->routeIs(['users.*', 'services.*', 'settings.*', 'coupons.*']) ? 'text-primary' : '' }}">
                                 Admin
                                 <x-heroicon-o-chevron-down :class="{'rotate-180': expanded}" class="h-4 w-4 shrink-0 transition-transform duration-200" />
                             </button>
                             <div x-show="expanded" x-collapse>
                                 <div class="mt-2 flex flex-col gap-2 pl-4 border-l border-border ml-2">
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('users.*') ? 'text-primary' : '' }}" href="{{ route('users.index') }}">Users</a>
+                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('services.*') ? 'text-primary' : '' }}" href="{{ route('services.index') }}">Services</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('coupons.*') ? 'text-primary' : '' }}" href="{{ route('coupons.index') }}">Coupons</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('settings.*') ? 'text-primary' : '' }}" href="{{ route('settings.index') }}">Settings</a>
                                 </div>
