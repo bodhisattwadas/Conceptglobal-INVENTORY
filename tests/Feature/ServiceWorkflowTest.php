@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Livewire\Services\ServiceForm;
+use App\Livewire\Services\ServiceTable;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -15,6 +16,7 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use PowerComponents\LivewirePowerGrid\Components\Exports\Export;
 use Tests\TestCase;
 
 class ServiceWorkflowTest extends TestCase
@@ -384,6 +386,47 @@ class ServiceWorkflowTest extends TestCase
         $this->assertNotFalse($showProductPos);
         $this->assertNotFalse($showServicePos);
         $this->assertLessThan($showServicePos, $showProductPos, 'Product should appear before service in sale show view.');
+    }
+
+    public function test_services_export_without_html_tags(): void
+    {
+        Service::create([
+            'name' => 'Hair Styling Deluxe',
+            'code' => 'SRV-0001',
+            'cost' => 350.00,
+            'description' => 'Deluxe styling and wash',
+            'is_active' => true,
+        ]);
+
+        $component = new ServiceTable;
+        $component->columns = $component->columns();
+        $component->setUp();
+
+        $currentHiddenStates = collect($component->columns)
+            ->mapWithKeys(fn ($column) => [data_get($column, 'field') => data_get($column, 'hidden')]);
+
+        $columnsWithHiddenState = array_map(function ($column) use ($currentHiddenStates) {
+            $column->hidden = $currentHiddenStates[$column->field];
+
+            return $column;
+        }, $component->columns());
+
+        $export = new Export;
+        $prepared = $export->prepare($component->prepareToExport(), $columnsWithHiddenState, true);
+
+        $this->assertNotEmpty($prepared['rows']);
+        $row = $prepared['rows'][0];
+
+        $this->assertSame('Hair Styling Deluxe', $row['Service Name']);
+        $this->assertSame('SRV-0001', $row['Service Code']);
+        $this->assertSame(350.0, (float) $row['Cost / Rate']);
+        $this->assertSame('Active', $row['Status']);
+        $this->assertSame('Deluxe styling and wash', $row['Description']);
+
+        foreach ($row as $key => $value) {
+            $this->assertStringNotContainsString('<', (string) $value, "Column {$key} contains HTML tags: {$value}");
+            $this->assertStringNotContainsString('>', (string) $value, "Column {$key} contains HTML tags: {$value}");
+        }
     }
 
     private function receiveStock(Product $product, User $user, int $quantity = 5): void

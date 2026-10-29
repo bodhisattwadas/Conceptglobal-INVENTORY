@@ -50,9 +50,14 @@ final class ServiceTable extends PowerGridComponent
     {
         return PowerGrid::fields()
             ->add('id')
-            ->add('name', fn (Service $model) => '<div class="font-semibold text-gray-900">'.e($model->name).'</div>'.($model->description ? '<div class="text-xs text-gray-500 truncate max-w-xs">'.e($model->description).'</div>' : ''))
-            ->add('code', fn (Service $model) => $model->code ? '<span class="font-mono text-xs font-bold tracking-wide text-gray-800 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">'.e($model->code).'</span>' : '<span class="text-gray-400">-</span>')
+            ->add('name')
+            ->add('name_formatted', fn (Service $model) => '<div class="font-semibold text-gray-900">'.e($model->name).'</div>'.($model->description ? '<div class="text-xs text-gray-500 truncate max-w-xs">'.e($model->description).'</div>' : ''))
+            ->add('code', fn (Service $model) => $model->code ?: '-')
+            ->add('code_formatted', fn (Service $model) => $model->code ? '<span class="font-mono text-xs font-bold tracking-wide text-gray-800 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">'.e($model->code).'</span>' : '<span class="text-gray-400">-</span>')
+            ->add('cost', fn (Service $model) => (float) $model->cost)
             ->add('cost_formatted', fn (Service $model) => '<span class="font-bold text-indigo-700">'.format_money($model->cost).'</span>')
+            ->add('description', fn (Service $model) => $model->description ?: '-')
+            ->add('status_export', fn (Service $model) => $model->is_active ? 'Active' : 'Inactive')
             ->add('is_active_badge', function (Service $model) {
                 return $model->is_active
                     ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Active</span>'
@@ -68,23 +73,48 @@ final class ServiceTable extends PowerGridComponent
                 ->hidden()
                 ->visibleInExport(true),
 
-            Column::make('Service Name', 'name')
+            Column::make('Service Name', 'name_formatted', 'name')
                 ->sortable()
-                ->searchable(),
+                ->searchable()
+                ->visibleInExport(false),
+
+            Column::make('Service Name', 'name')
+                ->hidden()
+                ->visibleInExport(true),
+
+            Column::make('Service Code', 'code_formatted', 'code')
+                ->sortable()
+                ->searchable()
+                ->visibleInExport(false),
 
             Column::make('Service Code', 'code')
-                ->sortable()
-                ->searchable(),
+                ->hidden()
+                ->visibleInExport(true),
 
             Column::make('Cost / Rate', 'cost_formatted', 'cost')
-                ->sortable(),
+                ->sortable()
+                ->visibleInExport(false),
+
+            Column::make('Cost / Rate', 'cost')
+                ->hidden()
+                ->visibleInExport(true),
+
+            Column::make('Description', 'description')
+                ->hidden()
+                ->visibleInExport(true),
 
             Column::make('Status', 'is_active_badge', 'is_active')
                 ->sortable()
                 ->headerAttribute('text-center')
-                ->bodyAttribute('text-center'),
+                ->bodyAttribute('text-center')
+                ->visibleInExport(false),
 
-            Column::action('Action'),
+            Column::make('Status', 'status_export', 'is_active')
+                ->hidden()
+                ->visibleInExport(true),
+
+            Column::action('Action')
+                ->visibleInExport(false),
         ];
     }
 
