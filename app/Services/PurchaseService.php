@@ -13,6 +13,7 @@ use Exception;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PurchaseService
 {
@@ -53,7 +54,16 @@ class PurchaseService
     {
         return DB::transaction(function () use ($purchase, $data) {
             try {
+                Log::info("[PurchaseService] updatePurchase started for PO #{$purchase->id}", [
+                    'status' => $purchase->status->value,
+                    'items_count' => count($data->items),
+                    'supplier_id' => $data->supplier_id,
+                    'company_id' => $data->company_id,
+                    'location' => $data->location,
+                ]);
+
                 if (! in_array($purchase->status, [PurchaseStatus::DRAFT, PurchaseStatus::ORDERED, PurchaseStatus::RECEIVED])) {
+                    Log::warning("[PurchaseService] Cannot update PO #{$purchase->id} with status '{$purchase->status->value}'");
                     throw PurchaseException::invalidStatus('update', $purchase->status->label(), ['id' => $purchase->id]);
                 }
 
@@ -75,12 +85,20 @@ class PurchaseService
                 $purchase->items()->delete();
                 $this->syncItems($purchase, $data->items);
 
-                return $purchase->refresh();
+                $updated = $purchase->refresh();
+                Log::info("[PurchaseService] Draft/Ordered PO #{$purchase->id} updated successfully", [
+                    'new_total' => $updated->total,
+                ]);
+
+                return $updated;
 
             } catch (Exception $e) {
                 if ($e instanceof PurchaseException) {
                     throw $e;
                 }
+                Log::error("[PurchaseService] Error updating PO #{$purchase->id}: {$e->getMessage()}", [
+                    'trace' => $e->getTraceAsString(),
+                ]);
                 throw PurchaseException::updateFailed($e->getMessage(), ['id' => $purchase->id]);
             }
         });
@@ -92,6 +110,14 @@ class PurchaseService
      */
     protected function updateReceivedPurchase(Purchase $purchase, PurchaseData $data): Purchase
     {
+        Log::info("[PurchaseService] updateReceivedPurchase started for PO #{$purchase->id}", [
+            'existing_items_count' => $purchase->items->count(),
+            'submitted_items_count' => count($data->items),
+            'supplier_id' => $data->supplier_id,
+            'company_id' => $data->company_id,
+            'location' => $data->location,
+        ]);
+
         $purchase->update([
             'supplier_id' => $data->supplier_id,
             'company_id' => $data->company_id,
@@ -124,6 +150,11 @@ class PurchaseService
 
                 if ($newQuantity < $unitsSold) {
                     $productName = $item->product?->name ?? "Product #{$item->product_id}";
+                    Log::warning("[PurchaseService] Quantity reduction rejected for PO #{$purchase->id}: units already sold", [
+                        'product_id' => $item->product_id,
+                        'new_quantity' => $newQuantity,
+                        'units_sold' => $unitsSold,
+                    ]);
                     throw PurchaseException::updateFailed(
                         "Cannot reduce quantity of {$productName} to {$newQuantity}. {$unitsSold} unit(s) have already been sold from this batch.",
                         ['product_id' => $item->product_id, 'units_sold' => $unitsSold]
@@ -133,6 +164,11 @@ class PurchaseService
                 $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
                 if ($product && ($product->quantity + $quantityDelta) < 0) {
                     $productName = $item->product?->name ?? "Product #{$item->product_id}";
+                    Log::warning("[PurchaseService] Quantity reduction rejected for PO #{$purchase->id}: insufficient inventory stock", [
+                        'product_id' => $item->product_id,
+                        'current_stock' => $product->quantity,
+                        'delta' => $quantityDelta,
+                    ]);
                     throw PurchaseException::updateFailed(
                         "Cannot reduce quantity of {$productName} by ".abs($quantityDelta).". Current inventory stock ({$product->quantity}) cannot become negative.",
                         ['product_id' => $item->product_id, 'current_stock' => $product->quantity]
@@ -208,7 +244,12 @@ class PurchaseService
             ]);
         }
 
-        return $purchase->refresh()->load('items');
+        $refreshed = $purchase->refresh()->load('items');
+        Log::info("[PurchaseService] Received PO #{$purchase->id} updated successfully", [
+            'new_total' => $refreshed->total,
+        ]);
+
+        return $refreshed;
     }
 
     public function deletePurchase(Purchase $purchase): void

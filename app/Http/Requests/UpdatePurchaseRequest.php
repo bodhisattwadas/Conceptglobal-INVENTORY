@@ -6,14 +6,27 @@ use App\Enums\PurchaseLocation;
 use App\Enums\PurchaseStatus;
 use App\Models\Product;
 use App\Models\Purchase;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class UpdatePurchaseRequest extends FormRequest
 {
     protected function prepareForValidation(): void
     {
+        $purchase = $this->route('purchase');
+        $purchaseId = $purchase instanceof Purchase ? $purchase->id : $purchase;
+
+        Log::info("[PO Update] Submission received for PO #{$purchaseId}", [
+            'purchase_id' => $purchaseId,
+            'user_id' => auth()->id(),
+            'supplier_id' => $this->input('supplier_id'),
+            'company_id' => $this->input('company_id'),
+            'location' => $this->input('location'),
+            'items_count' => is_array($this->input('items')) ? count($this->input('items')) : 0,
+        ]);
         $items = collect($this->input('items', []))->map(function ($item) {
             if (! is_array($item)) {
                 return $item;
@@ -127,9 +140,14 @@ class UpdatePurchaseRequest extends FormRequest
             if (! $purchase instanceof Purchase && is_numeric($purchase)) {
                 $purchase = Purchase::find($purchase);
             }
+            $purchaseId = $purchase instanceof Purchase ? $purchase->id : $purchase;
 
             if ($purchase instanceof Purchase && $purchase->status === PurchaseStatus::RECEIVED) {
                 if ((int) $this->input('supplier_id') !== (int) $purchase->supplier_id) {
+                    Log::warning("[PO Update] Cannot change supplier on received PO #{$purchase->id}", [
+                        'current_supplier_id' => $purchase->supplier_id,
+                        'submitted_supplier_id' => $this->input('supplier_id'),
+                    ]);
                     $validator->errors()->add('supplier_id', 'Supplier cannot be changed on an already received purchase order.');
                 }
 
@@ -139,6 +157,10 @@ class UpdatePurchaseRequest extends FormRequest
                 $existingProductIds = $existingItems->keys()->map(fn ($id) => (int) $id)->sort()->values();
 
                 if ($incomingProductIds->count() !== $existingProductIds->count() || $incomingProductIds->all() !== $existingProductIds->all()) {
+                    Log::warning("[PO Update] Cannot add/remove products on received PO #{$purchase->id}", [
+                        'existing_product_ids' => $existingProductIds->all(),
+                        'incoming_product_ids' => $incomingProductIds->all(),
+                    ]);
                     $validator->errors()->add('items', 'Products cannot be added or removed from an already received purchase order.');
                 } else {
                     foreach ($incomingItems as $index => $item) {
@@ -154,6 +176,11 @@ class UpdatePurchaseRequest extends FormRequest
                         $newQty = (int) ($item['quantity'] ?? 0);
 
                         if ($newQty < $unitsSold) {
+                            Log::warning("[PO Update] Cannot reduce quantity below sold units for PO #{$purchase->id}", [
+                                'product_id' => $productId,
+                                'new_qty' => $newQty,
+                                'units_sold' => $unitsSold,
+                            ]);
                             $validator->errors()->add(
                                 "items.{$index}.quantity",
                                 "Cannot reduce quantity below {$unitsSold} because {$unitsSold} unit(s) have already been sold from this batch."
@@ -164,6 +191,11 @@ class UpdatePurchaseRequest extends FormRequest
                         if ($quantityDelta < 0) {
                             $product = Product::find($productId);
                             if ($product && ($product->quantity + $quantityDelta) < 0) {
+                                Log::warning("[PO Update] Quantity reduction would result in negative stock for PO #{$purchase->id}", [
+                                    'product_id' => $productId,
+                                    'current_stock' => $product->quantity,
+                                    'delta' => $quantityDelta,
+                                ]);
                                 $validator->errors()->add(
                                     "items.{$index}.quantity",
                                     'Cannot reduce quantity by '.abs($quantityDelta)." because only {$product->quantity} unit(s) remain in inventory."
@@ -196,8 +228,31 @@ class UpdatePurchaseRequest extends FormRequest
                 ->exists();
 
             if ($invalidProducts) {
+                Log::warning("[PO Update] Rejected products not belonging to vendor's brand on PO #{$purchaseId}", [
+                    'supplier_id' => $this->input('supplier_id'),
+                    'allowed_company_ids' => $supplierCompanyIds->all(),
+                    'submitted_product_ids' => $productIds->all(),
+                ]);
                 $validator->errors()->add('items', 'Every product must belong to a brand supplied by this vendor.');
             }
         });
+    }
+
+    protected function failedValidation(Validator $validator): void
+    {
+        $purchase = $this->route('purchase');
+        $purchaseId = $purchase instanceof Purchase ? $purchase->id : $purchase;
+
+        Log::warning("[PO Update] Validation FAILED for PO #{$purchaseId}", [
+            'purchase_id' => $purchaseId,
+            'user_id' => auth()->id(),
+            'errors' => $validator->errors()->toArray(),
+            'submitted_supplier_id' => $this->input('supplier_id'),
+            'submitted_company_id' => $this->input('company_id'),
+            'submitted_location' => $this->input('location'),
+            'submitted_items' => $this->input('items'),
+        ]);
+
+        parent::failedValidation($validator);
     }
 }

@@ -17,6 +17,7 @@ use App\Models\VendorInvoice;
 use App\Services\PurchaseService;
 use App\Services\VendorInvoiceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class PurchaseReceivedEditTest extends TestCase
@@ -452,5 +453,53 @@ class PurchaseReceivedEditTest extends TestCase
         $this->assertEquals(3500.0, (float) $item->subtotal);
         $this->assertEquals(3500.0, (float) $purchase->fresh()->total);
         $this->assertEquals(3500.0, (float) $purchase->fresh()->vendorInvoice->amount);
+    }
+
+    public function test_purchase_update_logs_validation_failure(): void
+    {
+        Log::spy();
+
+        $purchase = $this->createReceivedPurchase(5, 100, 200);
+
+        $response = $this->actingAs($this->user)->put(route('purchases.update', $purchase), [
+            'supplier_id' => $this->supplier->id,
+            'company_id' => $this->company->id,
+            'purchase_date' => now()->toDateString(),
+            'location' => 'shop',
+            'items' => [],
+        ]);
+
+        $response->assertSessionHasErrors(['items']);
+        Log::shouldHaveReceived('warning')->withArgs(function ($message) use ($purchase) {
+            return str_contains($message, "Validation FAILED for PO #{$purchase->id}");
+        });
+    }
+
+    public function test_purchase_update_logs_success(): void
+    {
+        Log::spy();
+
+        $purchase = $this->createReceivedPurchase(10, 300, 500);
+
+        $response = $this->actingAs($this->user)->put(route('purchases.update', $purchase), [
+            'supplier_id' => $this->supplier->id,
+            'company_id' => $this->company->id,
+            'purchase_date' => now()->toDateString(),
+            'location' => 'shop',
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 10,
+                    'mrp' => 500,
+                    'unit_price' => 350,
+                    'discount_percent' => 30,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('purchases.show', $purchase));
+        Log::shouldHaveReceived('info')->withArgs(function ($message) use ($purchase) {
+            return str_contains($message, "Successfully updated PO #{$purchase->id}");
+        });
     }
 }

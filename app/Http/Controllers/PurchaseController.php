@@ -14,6 +14,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class PurchaseController extends Controller
@@ -125,6 +126,16 @@ class PurchaseController extends Controller
 
     public function update(UpdatePurchaseRequest $request, Purchase $purchase)
     {
+        Log::info("[PO Update] Controller update started for PO #{$purchase->id}", [
+            'purchase_id' => $purchase->id,
+            'status' => $purchase->status->value,
+            'user_id' => Auth::id(),
+            'supplier_id' => $request->input('supplier_id'),
+            'company_id' => $request->input('company_id'),
+            'location' => $request->input('location'),
+            'items_count' => is_array($request->input('items')) ? count($request->input('items')) : 0,
+        ]);
+
         try {
             $proofPath = $purchase->proof_image;
             if ($request->hasFile('proof_image')) {
@@ -139,12 +150,28 @@ class PurchaseController extends Controller
 
             $this->service->updatePurchase($purchase, $purchaseData);
 
+            Log::info("[PO Update] Successfully updated PO #{$purchase->id}", [
+                'purchase_id' => $purchase->id,
+                'total' => $purchase->fresh()->total,
+            ]);
+
             return redirect()->route('purchases.show', $purchase)
                 ->with('success', 'Purchase updated successfully.');
 
         } catch (PurchaseException $e) {
+            Log::error("[PO Update] PurchaseException for PO #{$purchase->id}: {$e->getMessage()}", [
+                'purchase_id' => $purchase->id,
+                'error' => $e->getMessage(),
+            ]);
+
             return back()->withInput()->with('error', $e->getMessage());
         } catch (\Exception $e) {
+            Log::error("[PO Update] Unexpected error updating PO #{$purchase->id}: {$e->getMessage()}", [
+                'purchase_id' => $purchase->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return back()->withInput()->with('error', 'Error updating purchase: '.$e->getMessage());
         }
     }
