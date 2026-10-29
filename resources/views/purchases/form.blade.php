@@ -1,4 +1,5 @@
 <div class="space-y-6">
+    <input type="hidden" name="items_payload" id="items_payload" value="">
     <div x-show="is_received" class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 flex items-start gap-3 shadow-sm">
         <svg class="h-5 w-5 text-amber-600 mt-0.5 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -123,8 +124,6 @@
                                                 <span x-show="item.received_quantity !== undefined" class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600" x-text="'In Stock: ' + item.received_quantity"></span>
                                             </div>
                                             <input type="hidden" :name="`items[${index}][product_id]`" :value="item.product_id">
-                                            <input type="hidden" :name="`items[${index}][product_name]`" :value="item.product_name">
-                                            <input type="hidden" :name="`items[${index}][product_code]`" :value="item.product_code">
                                         </div>
                                     </template>
                                     <template x-if="!is_received">
@@ -135,8 +134,6 @@
                                                 autocomplete="off"
                                             ></select>
                                             <input type="hidden" :name="item.product_id ? `items[${index}][product_id]` : null" :value="item.product_id">
-                                            <input type="hidden" :name="item.product_id ? `items[${index}][product_name]` : null" :value="item.product_name">
-                                            <input type="hidden" :name="item.product_id ? `items[${index}][product_code]` : null" :value="item.product_code">
                                             <div x-show="item.product_code" class="mt-1">
                                                 <span class="inline-flex items-center rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium font-mono text-emerald-700 border border-emerald-200" x-text="item.product_code"></span>
                                             </div>
@@ -145,8 +142,6 @@
                                 </td>
                                 <td class="w-[180px] min-w-[150px] px-4 py-3 align-top">
                                     <div class="pt-2 text-sm font-medium text-gray-800" x-text="item.brand || '-'"></div>
-                                    <input type="hidden" :name="item.product_id ? `items[${index}][company_id]` : null" :value="item.company_id">
-                                    <input type="hidden" :name="item.product_id ? `items[${index}][brand]` : null" :value="item.brand">
                                 </td>
                                 <td class="w-16 px-2 py-3 text-center align-top whitespace-nowrap">
                                     <input type="number" :name="item.product_id ? `items[${index}][quantity]` : null" x-model.number="item.quantity" @input="updateFromQuantity(index)" class="w-16 rounded-md border-gray-300 px-1 py-1.5 text-center text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" :min="is_received ? (item.min_quantity || 1) : 1">
@@ -297,6 +292,23 @@
                         this.updateFromDiscount(idx, item.discount_percent);
                     }
                 });
+
+                const validItems = this.items
+                    .filter(item => item.product_id)
+                    .map(item => ({
+                        product_id: item.product_id,
+                        quantity: parseInt(item.quantity) || 0,
+                        mrp: item.mrp || item.selling_price || item.unit_price,
+                        discount_percent: parseFloat(item.discount_percent) || 0,
+                        unit_price: parseFloat(item.unit_price) || 0,
+                        selling_price: item.mrp || item.selling_price || item.unit_price,
+                    }));
+
+                const payloadInput = document.getElementById('items_payload');
+                if (payloadInput) {
+                    payloadInput.value = JSON.stringify(validItems);
+                }
+
                 this.loading = true;
                 e.target.submit();
             },

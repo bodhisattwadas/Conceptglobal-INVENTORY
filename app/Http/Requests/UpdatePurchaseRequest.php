@@ -19,15 +19,25 @@ class UpdatePurchaseRequest extends FormRequest
         $purchase = $this->route('purchase');
         $purchaseId = $purchase instanceof Purchase ? $purchase->id : $purchase;
 
+        $rawItems = $this->input('items', []);
+        if ($this->filled('items_payload')) {
+            $decoded = json_decode((string) $this->input('items_payload'), true);
+            if (is_array($decoded) && ! empty($decoded)) {
+                $rawItems = $decoded;
+            }
+        }
+
         Log::info("[PO Update] Submission received for PO #{$purchaseId}", [
             'purchase_id' => $purchaseId,
             'user_id' => auth()->id(),
             'supplier_id' => $this->input('supplier_id'),
             'company_id' => $this->input('company_id'),
             'location' => $this->input('location'),
-            'items_count' => is_array($this->input('items')) ? count($this->input('items')) : 0,
+            'items_count' => is_array($rawItems) ? count($rawItems) : 0,
+            'via_json_payload' => $this->filled('items_payload'),
         ]);
-        $items = collect($this->input('items', []))->map(function ($item) {
+
+        $items = collect($rawItems)->map(function ($item) {
             if (! is_array($item)) {
                 return $item;
             }

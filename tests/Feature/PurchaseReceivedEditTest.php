@@ -502,4 +502,34 @@ class PurchaseReceivedEditTest extends TestCase
             return str_contains($message, "Successfully updated PO #{$purchase->id}");
         });
     }
+
+    public function test_purchase_update_with_json_items_payload_handles_large_order_successfully(): void
+    {
+        $purchase = $this->createReceivedPurchase(10, 300, 500);
+
+        $payload = [
+            [
+                'product_id' => $this->product->id,
+                'quantity' => 10,
+                'mrp' => 500,
+                'unit_price' => 350,
+                'discount_percent' => 30,
+            ],
+        ];
+
+        $response = $this->actingAs($this->user)->put(route('purchases.update', $purchase), [
+            'supplier_id' => $this->supplier->id,
+            'company_id' => $this->company->id,
+            'purchase_date' => now()->toDateString(),
+            'location' => 'shop',
+            'items_payload' => json_encode($payload),
+        ]);
+
+        $response->assertRedirect(route('purchases.show', $purchase));
+        $response->assertSessionHas('success');
+
+        $item = $purchase->fresh()->items->first();
+        $this->assertEquals(350.0, (float) $item->unit_price);
+        $this->assertEquals(3500.0, (float) $item->subtotal);
+    }
 }

@@ -12,7 +12,15 @@ class StorePurchaseRequest extends FormRequest
 {
     protected function prepareForValidation(): void
     {
-        $items = collect($this->input('items', []))->map(function ($item) {
+        $rawItems = $this->input('items', []);
+        if ($this->filled('items_payload')) {
+            $decoded = json_decode((string) $this->input('items_payload'), true);
+            if (is_array($decoded) && ! empty($decoded)) {
+                $rawItems = $decoded;
+            }
+        }
+
+        $items = collect($rawItems)->map(function ($item) {
             if (! is_array($item)) {
                 return $item;
             }

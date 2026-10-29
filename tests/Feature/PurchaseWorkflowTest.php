@@ -744,4 +744,55 @@ class PurchaseWorkflowTest extends TestCase
         $editResponse->assertDontSeeText('Add Product');
         $editResponse->assertDontSee('Remove product');
     }
+
+    public function test_purchase_can_be_created_with_json_items_payload(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+        $supplier = Supplier::create([
+            'name' => 'JSON Supplier',
+            'contact_person' => 'Contact',
+            'email' => 'json@test.com',
+            'phone' => '1234567890',
+        ]);
+        $brand = Company::create(['company_code' => 'BRD-JSON', 'company_name' => 'JSON Brand', 'short_name' => 'JB', 'is_active' => true]);
+        $supplier->companies()->attach($brand->id);
+        $category = Category::create(['name' => 'JSON Cat', 'slug' => 'json-cat-'.uniqid()]);
+        $unit = Unit::factory()->create();
+
+        $product = Product::factory()->create([
+            'company_id' => $brand->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'SKU-JSON-1',
+            'name' => 'JSON Product',
+            'mrp' => 400,
+            'is_active' => true,
+        ]);
+
+        $payload = [
+            [
+                'product_id' => $product->id,
+                'quantity' => 4,
+                'mrp' => 400,
+                'discount_percent' => 10,
+                'unit_price' => 360,
+                'selling_price' => 400,
+            ],
+        ];
+
+        $response = $this->actingAs($user)->post(route('purchases.store'), [
+            'supplier_id' => $supplier->id,
+            'company_id' => $brand->id,
+            'purchase_date' => now()->toDateString(),
+            'due_date' => now()->addDays(2)->toDateString(),
+            'location' => 'shop',
+            'items_payload' => json_encode($payload),
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('purchases', [
+            'supplier_id' => $supplier->id,
+            'total' => 1440,
+        ]);
+    }
 }
