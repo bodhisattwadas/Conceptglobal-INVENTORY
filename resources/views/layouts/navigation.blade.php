@@ -124,7 +124,7 @@
                                 <x-dropdown-link :href="route('users.index')" :active="request()->routeIs('users.*')">
                                     Users
                                 </x-dropdown-link>
-                                <x-dropdown-link :href="route('services.index')" :active="request()->routeIs('services.*')">
+                                <x-dropdown-link :href="Route::has('services.index') ? route('services.index') : url('/services')" :active="request()->routeIs('services.*')">
                                     Services
                                 </x-dropdown-link>
                                 <x-dropdown-link :href="route('coupons.index')" :active="request()->routeIs('coupons.*')">
@@ -303,7 +303,7 @@
                             <div x-show="expanded" x-collapse>
                                 <div class="mt-2 flex flex-col gap-2 pl-4 border-l border-border ml-2">
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('users.*') ? 'text-primary' : '' }}" href="{{ route('users.index') }}">Users</a>
-                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('services.*') ? 'text-primary' : '' }}" href="{{ route('services.index') }}">Services</a>
+                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('services.*') ? 'text-primary' : '' }}" href="{{ Route::has('services.index') ? route('services.index') : url('/services') }}">Services</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('coupons.*') ? 'text-primary' : '' }}" href="{{ route('coupons.index') }}">Coupons</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('settings.*') ? 'text-primary' : '' }}" href="{{ route('settings.index') }}">Settings</a>
                                 </div>
