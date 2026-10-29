@@ -15,24 +15,48 @@
             <form action="{{ route('purchases.update', $purchase) }}" method="POST" enctype="multipart/form-data"
                     x-data="purchaseForm({
                         items: {{ Js::from(old('items', $purchase->items->map(function($item) {
-                            $mrp = (float) ($item->product->mrp ?? $item->selling_price ?? 0);
+                            $itemSellingPrice = (float) ($item->selling_price ?: 0);
+                            $productMrp = (float) ($item->product?->mrp ?: 0);
                             $unitPrice = (float) $item->unit_price;
-                            $discountPercent = $item->discount_percent !== null
-                                ? (float) $item->discount_percent
-                                : ($mrp > 0 ? round((1 - ($unitPrice / $mrp)) * 100, 2) : 0);
+
+                            // Prefer the item's recorded MRP/selling price on this PO, then Product Master MRP, then unit price
+                            $mrp = $itemSellingPrice > 0 ? $itemSellingPrice : ($productMrp > 0 ? $productMrp : $unitPrice);
+
+                            // Ensure MRP is at least unit price so discount percent cannot be negative
+                            if ($unitPrice > $mrp) {
+                                $mrp = $unitPrice;
+                            }
+
+                            // Calculate discount percent safely clamped to 0% - 100%
+                            if ($item->discount_percent !== null && is_numeric($item->discount_percent)) {
+                                $discountPercent = (float) $item->discount_percent;
+                            } elseif ($mrp > 0 && $mrp >= $unitPrice) {
+                                $discountPercent = round((1 - ($unitPrice / $mrp)) * 100, 2);
+                            } else {
+                                $discountPercent = 0.0;
+                            }
+                            $discountPercent = max(0, min(100, $discountPercent));
+
+                            $calculatedUnitPrice = $mrp > 0 ? round($mrp * (1 - ($discountPercent / 100)), 2) : $unitPrice;
+                            if (abs($unitPrice - $calculatedUnitPrice) < 0.05) {
+                                $calculatedUnitPrice = $unitPrice;
+                            }
+                            $qty = (int) $item->quantity;
+                            $calculatedSubtotal = round($qty * $calculatedUnitPrice, 2);
+
                             return [
                                 'product_id' => $item->product_id,
-                                'quantity' => $item->quantity,
-                                'unit_price' => $item->unit_price,
-                                'selling_price' => $item->selling_price,
+                                'quantity' => $qty,
+                                'unit_price' => $calculatedUnitPrice,
+                                'selling_price' => $mrp,
                                 'discount_percent' => $discountPercent,
-                                'subtotal' => $item->subtotal,
+                                'subtotal' => $calculatedSubtotal,
                                 'key' => Str::random(10),
                                 'product_name' => $item->product->name ?? '',
                                 'product_code' => $item->product->product_code ?? $item->product->sku ?? '',
                                 'company_id' => $item->product->company_id ?? null,
                                 'brand' => $item->product->company ? ($item->product->company->short_name ?: $item->product->company->company_name) : '',
-                                'mrp' => $mrp ?: $item->unit_price ?: 0,
+                                'mrp' => $mrp,
                                 'batch_number' => $item->batch_number ?? '',
                                 'received_quantity' => (int) ($item->received_quantity ?? $item->quantity),
                                 'min_quantity' => max(1, (int) $item->quantity - (int) ($item->received_quantity ?? $item->quantity)),

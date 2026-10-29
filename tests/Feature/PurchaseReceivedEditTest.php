@@ -411,4 +411,46 @@ class PurchaseReceivedEditTest extends TestCase
             'source' => 'purchase_edit',
         ]);
     }
+
+    public function test_received_purchase_edit_screen_handles_high_unit_price_without_negative_discount(): void
+    {
+        // Item with unit price 62962.50 while product mrp in master is 750
+        $purchase = $this->createReceivedPurchase(2, 62962.50, 750);
+
+        $response = $this->actingAs($this->user)->get(route('purchases.edit', $purchase));
+        $response->assertOk();
+
+        // Must not contain absurd negative discount
+        $response->assertDontSee('-8295');
+    }
+
+    public function test_received_purchase_allows_direct_unit_price_update(): void
+    {
+        $purchase = $this->createReceivedPurchase(10, 300, 500);
+
+        $response = $this->actingAs($this->user)->put(route('purchases.update', $purchase), [
+            'supplier_id' => $this->supplier->id,
+            'company_id' => $this->company->id,
+            'purchase_date' => now()->toDateString(),
+            'location' => 'shop',
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 10,
+                    'mrp' => 500,
+                    'unit_price' => 350,
+                    'discount_percent' => 30,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('purchases.show', $purchase));
+        $response->assertSessionHas('success');
+
+        $item = $purchase->fresh()->items->first();
+        $this->assertEquals(350.0, (float) $item->unit_price);
+        $this->assertEquals(3500.0, (float) $item->subtotal);
+        $this->assertEquals(3500.0, (float) $purchase->fresh()->total);
+        $this->assertEquals(3500.0, (float) $purchase->fresh()->vendorInvoice->amount);
+    }
 }

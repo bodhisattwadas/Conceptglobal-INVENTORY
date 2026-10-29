@@ -98,11 +98,12 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="min-w-[340px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Product</th>
-                            <th class="w-[200px] min-w-[180px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Brand</th>
+                            <th class="min-w-[320px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Product</th>
+                            <th class="w-[180px] min-w-[150px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Brand</th>
                             <th class="w-16 px-2 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">Qty</th>
-                            <th class="w-32 px-3 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">MRP</th>
-                            <th class="w-32 px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">MRP Discount %</th>
+                            <th class="w-28 px-3 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">MRP</th>
+                            <th class="w-24 px-3 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">Discount %</th>
+                            <th class="w-32 px-3 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">Agreed Price</th>
                             <th class="w-28 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">Subtotal</th>
                             @if(!($purchase->exists ?? false))
                                 <th class="w-14 px-2 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap"><span class="sr-only">Action</span></th>
@@ -112,7 +113,7 @@
                     <tbody class="divide-y divide-gray-200 bg-white">
                         <template x-for="(item, index) in items" :key="item.key">
                             <tr>
-                                <td class="min-w-[340px] px-4 py-3 align-top">
+                                <td class="min-w-[320px] px-4 py-3 align-top">
                                     <template x-if="is_received">
                                         <div class="space-y-1 py-1">
                                             <div class="font-semibold text-gray-900" x-text="item.product_name"></div>
@@ -142,39 +143,53 @@
                                         </div>
                                     </template>
                                 </td>
-                                <td class="w-[200px] min-w-[180px] px-4 py-3 align-top">
+                                <td class="w-[180px] min-w-[150px] px-4 py-3 align-top">
                                     <div class="pt-2 text-sm font-medium text-gray-800" x-text="item.brand || '-'"></div>
                                     <input type="hidden" :name="item.product_id ? `items[${index}][company_id]` : null" :value="item.company_id">
                                     <input type="hidden" :name="item.product_id ? `items[${index}][brand]` : null" :value="item.brand">
                                 </td>
                                 <td class="w-16 px-2 py-3 text-center align-top whitespace-nowrap">
-                                    <input type="number" :name="item.product_id ? `items[${index}][quantity]` : null" x-model.number="item.quantity" @input="calculateLine(index)" class="w-16 rounded-md border-gray-300 px-1 py-1.5 text-center text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" :min="is_received ? (item.min_quantity || 1) : 1">
+                                    <input type="number" :name="item.product_id ? `items[${index}][quantity]` : null" x-model.number="item.quantity" @input="updateFromQuantity(index)" class="w-16 rounded-md border-gray-300 px-1 py-1.5 text-center text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" :min="is_received ? (item.min_quantity || 1) : 1">
                                     <div x-show="is_received && item.min_quantity > 1" class="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap" x-text="'Min: ' + item.min_quantity"></div>
                                 </td>
-                                <td class="w-32 px-3 py-3 text-right text-sm align-top whitespace-nowrap">
+                                <td class="w-28 px-3 py-3 text-right text-sm align-top whitespace-nowrap">
                                     <div class="inline-flex items-center gap-1 justify-end">
                                         <span class="text-xs text-gray-500 font-medium">₹</span>
                                         <input
                                             type="number"
                                             :name="item.product_id ? `items[${index}][mrp]` : null"
                                             x-model.number="item.mrp"
-                                            @input="calculateLine(index)"
-                                            @change="calculateLine(index)"
-                                            class="w-24 rounded-md border-gray-300 text-right text-sm py-1.5 px-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                            @input="updateFromMrp(index)"
+                                            @change="updateFromMrp(index)"
+                                            class="w-20 rounded-md border-gray-300 text-right text-sm py-1.5 px-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                             min="0"
                                             step="0.01"
                                             placeholder="0.00"
                                         >
                                     </div>
                                 </td>
-                                <td class="w-32 px-4 py-3 text-center align-top whitespace-nowrap">
-                                    <div class="inline-flex items-center gap-1">
-                                        <input type="number" :name="item.product_id ? `items[${index}][discount_percent]` : null" x-model.number="item.discount_percent" @input="calculateLine(index, $event.target.value)" @change="calculateLine(index, $event.target.value)" class="w-20 rounded-md border-gray-300 text-right text-sm" min="0" max="100" step="0.01">
-                                        <span class="text-sm text-gray-500">%</span>
+                                <td class="w-24 px-3 py-3 text-center align-top whitespace-nowrap">
+                                    <div class="inline-flex items-center gap-1 justify-center">
+                                        <input type="number" :name="item.product_id ? `items[${index}][discount_percent]` : null" x-model.number="item.discount_percent" @input="updateFromDiscount(index, $event.target.value)" @change="updateFromDiscount(index, $event.target.value)" class="w-16 rounded-md border-gray-300 text-right text-sm py-1.5 px-1 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" min="0" max="100" step="0.01">
+                                        <span class="text-xs text-gray-500">%</span>
                                     </div>
-                                    <input type="hidden" :name="item.product_id ? `items[${index}][unit_price]` : null" :value="item.unit_price">
                                     <input type="hidden" :name="item.product_id ? `items[${index}][selling_price]` : null" :value="item.mrp || item.unit_price || 0">
-                                    <div class="mt-1 text-xs text-gray-500" x-text="'Agreed: ' + window.formatMoney(item.unit_price)"></div>
+                                </td>
+                                <td class="w-32 px-3 py-3 text-right text-sm align-top whitespace-nowrap">
+                                    <div class="inline-flex items-center gap-1 justify-end">
+                                        <span class="text-xs text-gray-500 font-medium">₹</span>
+                                        <input
+                                            type="number"
+                                            :name="item.product_id ? `items[${index}][unit_price]` : null"
+                                            x-model.number="item.unit_price"
+                                            @input="updateFromUnitPrice(index)"
+                                            @change="updateFromUnitPrice(index)"
+                                            class="w-24 rounded-md border-gray-300 text-right text-sm py-1.5 px-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-medium"
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="0.00"
+                                        >
+                                    </div>
                                 </td>
                                 <td class="w-28 px-4 py-3 text-right text-sm font-semibold align-top whitespace-nowrap" x-text="window.formatMoney(item.subtotal)"></td>
                                 @if(!($purchase->exists ?? false))
@@ -195,7 +210,7 @@
                         </template>
                         @if(!($purchase->exists ?? false))
                             <tr x-show="!is_received">
-                                <td colspan="7" class="px-4 py-3 bg-white">
+                                <td colspan="8" class="px-4 py-3 bg-white">
                                     <button
                                         type="button"
                                         @click="addRow()"
@@ -214,7 +229,7 @@
                         <tr>
                             <td colspan="2" class="px-4 py-4 text-right font-bold text-gray-700">Total Qty</td>
                             <td class="w-16 px-2 py-4 text-center font-bold text-base text-gray-900" x-text="totalQuantity"></td>
-                            <td colspan="2" class="px-4 py-4 text-right font-bold text-gray-700">Total PO</td>
+                            <td colspan="3" class="px-4 py-4 text-right font-bold text-gray-700">Total PO</td>
                             <td class="w-28 px-4 py-4 text-right text-lg font-bold text-blue-600 whitespace-nowrap" x-text="window.formatMoney(total)"></td>
                             @if(!($purchase->exists ?? false))
                                 <td class="w-14"></td>
@@ -259,32 +274,96 @@
             init() {
                 const seededItems = (initialData.items || []).map(item => this.normalizeItem(item));
                 this.items = seededItems.length ? seededItems : [this.blankItem()];
+                this.items.forEach((item, idx) => {
+                    if (item.product_id) {
+                        this.updateFromDiscount(idx);
+                    }
+                });
                 this.initScannerListener();
             },
 
             submitForm(e) {
                 if (this.loading) return;
+
+                if (this.is_received) {
+                    const confirmMsg = "Are you sure you want to update this received purchase order?\n\nAdjusting quantities will immediately update inventory stock levels and movements. Adjusting prices or discounts will update product purchase/selling prices and the vendor invoice.";
+                    if (!confirm(confirmMsg)) {
+                        return;
+                    }
+                }
+
                 this.items.forEach((item, idx) => {
                     if (item.product_id) {
-                        this.calculateLine(idx, item.discount_percent);
+                        this.updateFromDiscount(idx, item.discount_percent);
                     }
                 });
                 this.loading = true;
                 e.target.submit();
             },
 
-            calculateLine(index, explicitValue = null) {
+            updateFromQuantity(index) {
+                const item = this.items[index];
+                if (!item) return;
+
+                const qty = parseInt(item.quantity) || 0;
+                item.subtotal = this.money(qty * (parseFloat(item.unit_price) || 0));
+            },
+
+            updateFromMrp(index) {
+                const item = this.items[index];
+                if (!item) return;
+
+                const mrp = Math.max(0, parseFloat(item.mrp) || 0);
+                item.mrp = mrp;
+                item.selling_price = mrp;
+
+                const discount = Math.max(0, Math.min(100, parseFloat(item.discount_percent) || 0));
+                item.discount_percent = discount;
+
+                item.unit_price = this.money(mrp * (1 - discount / 100));
+                item.subtotal = this.money((parseInt(item.quantity) || 0) * (parseFloat(item.unit_price) || 0));
+            },
+
+            updateFromDiscount(index, explicitValue = null) {
                 const item = this.items[index];
                 if (!item) return;
 
                 const rawVal = explicitValue !== null ? explicitValue : item.discount_percent;
                 const discount = Math.max(0, Math.min(100, parseFloat(rawVal) || 0));
                 item.discount_percent = discount;
+
                 const mrp = Math.max(0, parseFloat(item.mrp) || 0);
                 item.mrp = mrp;
                 item.selling_price = mrp;
+
                 item.unit_price = this.money(mrp * (1 - discount / 100));
                 item.subtotal = this.money((parseInt(item.quantity) || 0) * (parseFloat(item.unit_price) || 0));
+            },
+
+            updateFromUnitPrice(index) {
+                const item = this.items[index];
+                if (!item) return;
+
+                const unitPrice = Math.max(0, parseFloat(item.unit_price) || 0);
+                item.unit_price = this.money(unitPrice);
+
+                let mrp = Math.max(0, parseFloat(item.mrp) || 0);
+                if (item.unit_price > mrp) {
+                    mrp = item.unit_price;
+                    item.mrp = mrp;
+                    item.selling_price = mrp;
+                    item.discount_percent = 0;
+                } else if (mrp > 0) {
+                    item.discount_percent = Number((Math.max(0, Math.min(100, (1 - (item.unit_price / mrp)) * 100))).toFixed(2));
+                } else {
+                    item.discount_percent = 0;
+                }
+
+                item.subtotal = this.money((parseInt(item.quantity) || 0) * item.unit_price);
+            },
+
+            calculateLine(index, explicitValue = null) {
+                this.updateFromDiscount(index, explicitValue);
             },
 
             get total() {
@@ -413,11 +492,23 @@
             },
 
             normalizeItem(item) {
-                const mrp = this.money(item.mrp || item.selling_price || 0);
-                const unitPrice = this.money(item.unit_price || 0);
-                const discount = item.discount_percent ?? (mrp > 0
-                    ? Math.max(0, Math.min(100, Number((100 - ((unitPrice || 0) / mrp * 100)).toFixed(4))))
-                    : this.defaultDiscountPercent);
+                let mrp = this.money(item.mrp || item.selling_price || 0);
+                let unitPrice = this.money(item.unit_price || 0);
+
+                if (unitPrice > mrp) {
+                    mrp = unitPrice;
+                }
+
+                let discount = (item.discount_percent !== undefined && item.discount_percent !== null && item.discount_percent !== '')
+                    ? parseFloat(item.discount_percent)
+                    : (mrp > 0 ? (100 - (unitPrice / mrp * 100)) : this.defaultDiscountPercent);
+
+                discount = Math.max(0, Math.min(100, isNaN(discount) ? 0 : discount));
+                discount = Number(discount.toFixed(2));
+
+                const finalUnitPrice = mrp > 0 ? this.money(mrp * (1 - discount / 100)) : unitPrice;
+                const qty = parseInt(item.quantity) || 0;
+                const subtotal = this.money(qty * finalUnitPrice);
 
                 return {
                     ...this.blankItem(),
@@ -427,8 +518,8 @@
                     mrp,
                     selling_price: mrp,
                     discount_percent: discount,
-                    unit_price: unitPrice,
-                    subtotal: this.money(item.subtotal || ((parseInt(item.quantity) || 0) * unitPrice))
+                    unit_price: finalUnitPrice,
+                    subtotal: subtotal
                 };
             },
 

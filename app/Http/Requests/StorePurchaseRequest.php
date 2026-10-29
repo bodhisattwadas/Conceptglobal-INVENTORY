@@ -21,15 +21,31 @@ class StorePurchaseRequest extends FormRequest
             if ($submittedMrp !== null && is_numeric($submittedMrp)) {
                 $mrp = (float) $submittedMrp;
             } else {
-                $mrp = Product::query()->whereKey($item['product_id'] ?? null)->value('mrp');
+                $mrp = (float) (Product::query()->whereKey($item['product_id'] ?? null)->value('mrp') ?? 0);
+            }
+
+            $submittedUnitPrice = isset($item['unit_price']) && is_numeric($item['unit_price']) ? (float) $item['unit_price'] : null;
+
+            if ($submittedUnitPrice !== null && $submittedUnitPrice > $mrp) {
+                $mrp = $submittedUnitPrice;
             }
 
             $discount = max(0, min(100, (float) ($item['discount_percent'] ?? 0)));
 
-            if ($mrp !== null) {
-                $item['mrp'] = number_format(((float) $mrp), 2, '.', '');
-                $item['unit_price'] = number_format(((float) $mrp) * (1 - $discount / 100), 2, '.', '');
-                $item['selling_price'] = number_format((float) $mrp, 2, '.', '');
+            if ($submittedUnitPrice !== null && (! isset($item['discount_percent']) || $item['discount_percent'] === '')) {
+                $discount = $mrp > 0 ? max(0, min(100, round((1 - ($submittedUnitPrice / $mrp)) * 100, 2))) : 0;
+            }
+
+            if ($mrp > 0) {
+                $calculatedUnitPrice = round($mrp * (1 - $discount / 100), 2);
+                $finalUnitPrice = ($submittedUnitPrice !== null && abs($submittedUnitPrice - $calculatedUnitPrice) < 0.05)
+                    ? $submittedUnitPrice
+                    : $calculatedUnitPrice;
+
+                $item['mrp'] = number_format($mrp, 2, '.', '');
+                $item['unit_price'] = number_format($finalUnitPrice, 2, '.', '');
+                $item['selling_price'] = number_format($mrp, 2, '.', '');
+                $item['discount_percent'] = $discount;
             }
 
             return $item;
