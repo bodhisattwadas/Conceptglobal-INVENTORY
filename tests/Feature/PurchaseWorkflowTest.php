@@ -699,4 +699,49 @@ class PurchaseWorkflowTest extends TestCase
         $printResponse->assertOk();
         $printResponse->assertHeader('content-type', 'application/pdf');
     }
+
+    public function test_purchase_edit_view_removes_add_product_and_delete_product_buttons(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $supplier = Supplier::factory()->create([
+            'name' => 'Supplier Buttons Test',
+            'email' => 'buttons@test.com',
+        ]);
+        $brand = Company::create(['company_code' => 'BRD-BTN', 'company_name' => 'Brand Buttons Test']);
+        $category = Category::create(['name' => 'Cat Buttons Test', 'slug' => 'cat-buttons-test']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc-btn']);
+
+        $product = Product::factory()->create([
+            'company_id' => $brand->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'SKU-BTN-1',
+            'name' => 'Buttons Product Test',
+            'mrp' => 500,
+            'is_active' => true,
+        ]);
+
+        $purchase = Purchase::create([
+            'invoice_number' => 'PO-TEST-BUTTONS',
+            'supplier_id' => $supplier->id,
+            'company_id' => $brand->id,
+            'location' => 'shop',
+            'purchase_date' => now()->toDateString(),
+            'total' => 500,
+            'created_by' => $user->id,
+        ]);
+
+        // 1. PO Create view includes Add Product and Remove product buttons
+        $createResponse = $this->actingAs($user)->get(route('purchases.create'));
+        $createResponse->assertOk();
+        $createResponse->assertSeeText('Add Product');
+        $createResponse->assertSee('Remove product');
+
+        // 2. PO Edit view does not include Add Product or Remove product buttons
+        $editResponse = $this->actingAs($user)->get(route('purchases.edit', $purchase));
+        $editResponse->assertOk();
+        $editResponse->assertDontSeeText('Add Product');
+        $editResponse->assertDontSee('Remove product');
+    }
 }
