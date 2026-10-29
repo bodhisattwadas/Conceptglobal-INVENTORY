@@ -74,17 +74,19 @@
 
                                 <div>
                                     <label class="block text-xs font-medium text-gray-700 mb-1">{{ __('Select Product') }} <span class="text-red-500">*</span></label>
-                                    <select
-                                        wire:model.live="source_product_id"
-                                        class="block w-full rounded-md border-gray-300 py-1.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                    <div
+                                        wire:ignore
+                                        x-data="stockAdjustmentSourcePicker($wire, @js($selectedSourceProductData), '{{ route('ajax.products.search') }}')"
+                                        class="w-full"
                                     >
-                                        <option value="">{{ __('-- Select Product --') }}</option>
-                                        @foreach($products as $p)
-                                            <option value="{{ $p->id }}">
-                                                {{ $p->name }} ({{ $p->product_code ?: $p->sku }}) - Stock: {{ $p->quantity }}
-                                            </option>
-                                        @endforeach
-                                    </select>
+                                        <select
+                                            x-ref="sourceSelect"
+                                            id="source_product_select"
+                                            class="block w-full rounded-md border-gray-300 py-1.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        >
+                                            <option value="">{{ __('-- Search or Scan Product --') }}</option>
+                                        </select>
+                                    </div>
                                     @error('source_product_id') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                                 </div>
 
@@ -368,4 +370,234 @@
             </div>
         </div>
     @endif
+
+    <script>
+        if (typeof window.stockAdjustmentSourcePicker !== 'function') {
+            window.stockAdjustmentSourcePicker = function(wire, initialData, searchUrl) {
+                return {
+                    tom: null,
+                    init() {
+                        const waitForTom = (cb) => {
+                            if (window.TomSelect) {
+                                cb();
+                            } else {
+                                setTimeout(() => waitForTom(cb), 50);
+                            }
+                        };
+
+                        waitForTom(() => {
+                            if (this.tom || this.$refs.sourceSelect?.tomselect) return;
+
+                            const config = {
+                                placeholder: '{{ __('Search product name, barcode or SKU...') }}',
+                                preload: 'focus',
+                                maxOptions: 200,
+                                valueField: 'value',
+                                labelField: 'text',
+                                searchField: ['text', 'name', 'sku', 'product_code'],
+                                plugins: ['dropdown_input', 'clear_button'],
+                                openOnFocus: true,
+                                loadThrottle: 150,
+                                load: (query, callback) => {
+                                    fetch(searchUrl, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Accept': 'application/json',
+                                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                                        },
+                                        body: JSON.stringify({ q: query, all_stock: true })
+                                    })
+                                    .then(r => r.json())
+                                    .then(items => callback(Array.isArray(items) ? items : []))
+                                    .catch(() => callback([]));
+                                },
+                                closeAfterSelect: true,
+                                onItemAdd: (val) => {
+                                    const intVal = val ? parseInt(val, 10) : null;
+                                    if (wire.get('source_product_id') !== intVal) {
+                                        wire.set('source_product_id', intVal);
+                                    }
+                                },
+                                onItemRemove: () => {
+                                    if (wire.get('source_product_id') !== null) {
+                                        wire.set('source_product_id', null);
+                                    }
+                                },
+                                onClear: () => {
+                                    if (wire.get('source_product_id') !== null) {
+                                        wire.set('source_product_id', null);
+                                    }
+                                },
+                                render: {
+                                    option: (data, escape) => {
+                                        const name = escape(data.text || data.name || '');
+                                        const sku = escape(data.sku || '');
+                                        const productCode = escape(data.product_code || '');
+                                        const qty = escape(String(data.quantity ?? 0));
+                                        const unit = escape(data.unit?.symbol || '');
+                                        const price = '₹' + Number(data.mrp || data.selling_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+                                        const codeParts = [];
+                                        if (productCode) {
+                                            codeParts.push('<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-blue-50 text-blue-700 border border-blue-200">Barcode: ' + productCode + '</span>');
+                                        }
+                                        if (sku) {
+                                            codeParts.push('<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-gray-100 text-gray-700 border border-gray-200">SKU: ' + sku + '</span>');
+                                        }
+                                        const codeInfo = codeParts.join(' ');
+
+                                        return '<div class="flex items-center justify-between gap-3 w-full py-1.5 px-2">' +
+                                            '<div class="min-w-0 pr-2">' +
+                                                '<div class="font-medium text-gray-900 truncate text-sm">' + name + '</div>' +
+                                                '<div class="flex items-center gap-1.5 mt-1 flex-wrap">' + codeInfo + '</div>' +
+                                            '</div>' +
+                                            '<div class="text-right shrink-0">' +
+                                                '<div class="font-bold text-gray-900 text-xs sm:text-sm">' + price + '</div>' +
+                                                '<div class="text-xs ' + (Number(data.quantity) > 0 ? 'text-emerald-600 font-semibold' : 'text-amber-600 font-medium') + '">Stock: ' + qty + ' ' + unit + '</div>' +
+                                            '</div>' +
+                                        '</div>';
+                                    },
+                                    item: (data, escape) => {
+                                        const displayText = data.text || data.name || '';
+                                        return '<div class="truncate font-medium text-gray-900 text-sm">' + escape(displayText) + '</div>';
+                                    },
+                                    no_results: (data, escape) => {
+                                        return '<div class="no-results px-3 py-2 text-xs text-gray-500">No products found</div>';
+                                    }
+                                }
+                            };
+
+                            this.tom = new TomSelect(this.$refs.sourceSelect, config);
+
+                            if (initialData) {
+                                this.tom.addOption(initialData);
+                                this.tom.setValue(String(initialData.value), true);
+                            } else if (wire.get('source_product_id')) {
+                                this.loadAndSetProduct(wire.get('source_product_id'));
+                            }
+
+                            if (this.tom.control_input) {
+                                this.tom.control_input.placeholder = '{{ __('Search product name, barcode or SKU...') }}';
+                            }
+                            if (this.tom.dropdown_input) {
+                                this.tom.dropdown_input.placeholder = '{{ __('Search product name, barcode or SKU...') }}';
+                            }
+
+                            const handleScannerKeyDown = (e) => {
+                                if (e.key === 'Enter' || e.keyCode === 13) {
+                                    const input = e.target;
+                                    const query = (input.value || '').trim();
+                                    if (!query) return;
+
+                                    const qLower = query.toLowerCase();
+                                    const activeVal = this.tom.activeOption?.dataset?.value;
+                                    const activeData = activeVal ? this.tom.options[activeVal] : null;
+                                    const activeMatches = activeData && (
+                                        (activeData.product_code && activeData.product_code.toLowerCase() === qLower) ||
+                                        (activeData.sku && activeData.sku.toLowerCase() === qLower) ||
+                                        (activeData.text && activeData.text.toLowerCase() === qLower) ||
+                                        (activeData.name && activeData.name.toLowerCase() === qLower)
+                                    );
+
+                                    if (!activeMatches) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.stopImmediatePropagation();
+                                        this.handleBarcodeScan(query);
+                                    }
+                                }
+                            };
+
+                            this.tom.control_input?.addEventListener('keydown', handleScannerKeyDown, true);
+                            if (this.tom.dropdown_input) {
+                                this.tom.dropdown_input.addEventListener('keydown', handleScannerKeyDown, true);
+                            }
+                            this.tom.wrapper?.addEventListener('keydown', (e) => {
+                                if ((e.key === 'Enter' || e.keyCode === 13) && (e.target?.classList.contains('dropdown-input') || e.target?.classList.contains('ts-input'))) {
+                                    handleScannerKeyDown(e);
+                                }
+                            }, true);
+                        });
+
+                        this.$watch('$wire.source_product_id', (newVal) => {
+                            if (!this.tom) return;
+                            const currentVal = this.tom.getValue();
+                            if (!newVal) {
+                                if (currentVal) this.tom.clear(true);
+                            } else if (String(currentVal) !== String(newVal)) {
+                                if (this.tom.options[newVal]) {
+                                    this.tom.setValue(String(newVal), true);
+                                } else {
+                                    this.loadAndSetProduct(newVal);
+                                }
+                            }
+                        });
+                    },
+                    loadAndSetProduct(productId) {
+                        fetch(searchUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                            },
+                            body: JSON.stringify({ q: String(productId), all_stock: true })
+                        })
+                        .then(r => r.json())
+                        .then(items => {
+                            const match = (items || []).find(p => String(p.id || p.value) === String(productId));
+                            if (match && this.tom) {
+                                this.tom.addOption(match);
+                                this.tom.setValue(String(match.id || match.value), true);
+                            }
+                        })
+                        .catch(() => {});
+                    },
+                    handleBarcodeScan(query) {
+                        const qLower = query.trim().toLowerCase();
+                        if (!qLower) return;
+
+                        fetch(searchUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                            },
+                            body: JSON.stringify({ q: query, all_stock: true })
+                        })
+                        .then(r => r.json())
+                        .then(items => {
+                            const list = Array.isArray(items) ? items : [];
+                            if (list.length === 0) {
+                                window.dispatchEvent(new CustomEvent('toast', {
+                                    detail: { message: 'No product found matching "' + query + '"', type: 'warning' }
+                                }));
+                                return;
+                            }
+
+                            const match = list.find(p => (p.product_code && p.product_code.toLowerCase() === qLower) || (p.sku && p.sku.toLowerCase() === qLower))
+                                || list.find(p => (p.product_code && p.product_code.toLowerCase().startsWith(qLower)) || (p.sku && p.sku.toLowerCase().startsWith(qLower)))
+                                || list.find(p => (p.text || p.name || '').toLowerCase() === qLower)
+                                || list[0];
+
+                            if (match && this.tom) {
+                                this.tom.addOption(match);
+                                this.tom.setValue(String(match.id || match.value), false);
+                                wire.set('source_product_id', parseInt(match.id || match.value, 10));
+                                this.tom.close();
+                                window.dispatchEvent(new CustomEvent('toast', {
+                                    detail: { message: 'Selected: ' + match.name, type: 'success' }
+                                }));
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Scan error:', err);
+                        });
+                    }
+                };
+            };
+        }
+    </script>
 </div>

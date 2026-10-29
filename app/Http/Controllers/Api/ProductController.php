@@ -16,6 +16,7 @@ class ProductController extends Controller
         $companyId = $request->integer('company_id');
         $supplierId = $request->integer('supplier_id');
         $forPurchase = $request->boolean('for_purchase');
+        $allStock = $request->boolean('all_stock') || $forPurchase;
 
         $queryLower = mb_strtolower($query);
 
@@ -30,7 +31,7 @@ class ProductController extends Controller
         $products = Product::query()
             ->with(['unit', 'company', 'inventoryStock'])
             ->where('is_active', true)
-            ->when(! $forPurchase, fn ($builder) => $builder->whereHas('inventoryStock', fn ($stock) => $stock->where('quantity', '>', 0)))
+            ->when(! $allStock, fn ($builder) => $builder->whereHas('inventoryStock', fn ($stock) => $stock->where('quantity', '>', 0)))
             ->when($companyId > 0, fn ($builder) => $builder->where('company_id', $companyId))
             ->when($supplierId > 0 && ! $companyId, fn ($builder) => $builder->whereIn('company_id', $supplierCompanyIds))
             ->when($query !== '', function ($q) use ($queryLower) {
@@ -82,7 +83,7 @@ class ProductController extends Controller
                 ]);
             })
             ->orderBy('name')
-            ->limit(($companyId > 0 || $forPurchase) ? 300 : 50)
+            ->limit(($companyId > 0 || $allStock) ? 300 : 50)
             ->get()
             ->map(function ($product) {
                 $displayText = $product->product_code

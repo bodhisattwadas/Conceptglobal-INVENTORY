@@ -286,6 +286,36 @@ class StockAdjustmentModal extends Component
             ->orderBy('name')
             ->get(['id', 'name', 'sku', 'product_code', 'quantity', 'mrp']);
 
+        $selectedSourceProductData = null;
+        if ($this->source_product_id) {
+            $selectedSourceProduct = Product::with(['unit', 'company', 'inventoryStock'])->find($this->source_product_id);
+            if ($selectedSourceProduct) {
+                $displayText = $selectedSourceProduct->product_code
+                    ? "{$selectedSourceProduct->product_code} - {$selectedSourceProduct->name}"
+                    : ($selectedSourceProduct->sku ? "{$selectedSourceProduct->sku} - {$selectedSourceProduct->name}" : $selectedSourceProduct->name);
+                $sellingPrice = (float) ($selectedSourceProduct->selling_price ?: ($selectedSourceProduct->mrp ?: $selectedSourceProduct->purchase_price ?: 0));
+                $mrp = (float) ($selectedSourceProduct->mrp ?: ($selectedSourceProduct->selling_price ?: 0));
+
+                $selectedSourceProductData = [
+                    'value' => $selectedSourceProduct->id,
+                    'id' => $selectedSourceProduct->id,
+                    'text' => $displayText,
+                    'name' => $selectedSourceProduct->name,
+                    'price' => $sellingPrice,
+                    'selling_price' => $sellingPrice,
+                    'mrp' => $mrp,
+                    'sku' => $selectedSourceProduct->sku,
+                    'product_code' => $selectedSourceProduct->product_code,
+                    'brand' => $selectedSourceProduct->company ? ($selectedSourceProduct->company->short_name ?: $selectedSourceProduct->company->company_name) : null,
+                    'quantity' => $selectedSourceProduct->inventoryStock?->quantity ?? 0,
+                    'unit' => $selectedSourceProduct->unit ? [
+                        'symbol' => $selectedSourceProduct->unit->symbol,
+                        'name' => $selectedSourceProduct->unit->name,
+                    ] : null,
+                ];
+            }
+        }
+
         $sourceBatches = collect();
         if ($this->source_product_id) {
             $sourceBatches = PurchaseItem::query()
@@ -302,6 +332,7 @@ class StockAdjustmentModal extends Component
 
         return view('livewire.inventory.stock-adjustment-modal', [
             'products' => $products,
+            'selectedSourceProductData' => $selectedSourceProductData,
             'sourceBatches' => $sourceBatches,
             'selectedBatch' => $this->getSelectedBatch(),
             'companies' => $companies,

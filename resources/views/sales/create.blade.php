@@ -218,6 +218,39 @@
                             <template x-for="(item, index) in cart" :key="item.key">
                                 <tr :class="index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'" class="hover:bg-indigo-50/40 transition-colors">
                                     <td class="px-4 py-3 align-top min-w-[220px]">
+                                        <!-- Row Type Switcher (Product vs Service, visible when unselected) -->
+                                        <div x-show="!item.id" class="flex items-center justify-between mb-1.5">
+                                            <div class="inline-flex rounded-lg p-0.5 bg-gray-100 border border-gray-200">
+                                                <button
+                                                    type="button"
+                                                    @click="switchRowType(item, 'product')"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold transition-all"
+                                                    :class="item.type !== 'service'
+                                                        ? 'bg-white text-emerald-700 shadow-sm border border-gray-200/60'
+                                                        : 'text-gray-500 hover:text-gray-700'"
+                                                >
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                                                    </svg>
+                                                    <span>{{ __('Product') }}</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    @click="switchRowType(item, 'service')"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold transition-all"
+                                                    :class="item.type === 'service'
+                                                        ? 'bg-purple-600 text-white shadow-sm'
+                                                        : 'text-gray-500 hover:text-gray-700'"
+                                                >
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879a3 3 0 11-4.242-4.242L7.757 7.757m0 0l7.071-7.071a3 3 0 114.243 4.243L12 12" />
+                                                    </svg>
+                                                    <span>{{ __('Service') }}</span>
+                                                </button>
+                                            </div>
+                                            <span class="text-[11px] font-medium" :class="item.type === 'service' ? 'text-purple-600' : 'text-emerald-600'" x-text="item.type === 'service' ? 'Service Mode' : 'Product Mode'"></span>
+                                        </div>
+
                                         <div class="w-full">
                                             <select
                                                 :id="`product_search_${item.key}`"
@@ -353,12 +386,12 @@
                                         <button
                                             type="button"
                                             @click="addServiceRow()"
-                                            :disabled="hasBlankRow"
+                                            :disabled="hasBlankServiceRow"
                                             class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                                            :class="hasBlankRow
+                                            :class="hasBlankServiceRow
                                                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200 shadow-none'
                                                 : 'bg-purple-600 hover:bg-purple-500 text-white shadow-sm focus-visible:outline-purple-600'"
-                                            :title="hasBlankRow ? 'Select an item in the blank row first' : 'Add a service (e.g. Facial, Hair Brow)'"
+                                            :title="hasBlankServiceRow ? 'Select a service for the existing blank row first' : 'Add a service (e.g. Facial, Hair Brow)'"
                                         >
                                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879a3 3 0 11-4.242-4.242L7.757 7.757m0 0l7.071-7.071a3 3 0 114.243 4.243L12 12" />
@@ -944,25 +977,64 @@
                         };
                     },
 
+                    switchRowType(item, newType) {
+                        if (!item || item.type === newType) return;
+                        this.destroyRowSelect(item);
+                        item.type = newType;
+                        item.id = null;
+                        item.name = '';
+                        item.sku = '';
+                        item.product_code = '';
+                        item.price = 0;
+                        item.quantity = 1;
+                        item.max_stock = newType === 'service' ? 999999 : 0;
+                        item.unit = newType === 'service' ? 'srv' : '';
+                        item.discountPercent = 0;
+
+                        this.$nextTick(() => {
+                            const el = document.getElementById(`product_search_${item.key}`);
+                            if (el) {
+                                this.initRowProductSelect(el, item);
+                            }
+                            this.focusRowSelect(item);
+                        });
+
+                        this.persistCart();
+                        this.syncAllProductDropdowns();
+                    },
+
                     addRow(type = 'product') {
-                        const existingBlank = this.cart.find(item => !item.id);
-                        if (existingBlank) {
-                            if (this.cart.length === 1 && !existingBlank.id && existingBlank.type !== type) {
-                                existingBlank.type = type;
-                                existingBlank.unit = type === 'service' ? 'srv' : '';
-                                existingBlank.max_stock = type === 'service' ? 999999 : 0;
-                                this.destroyRowSelect(existingBlank);
-                                this.$nextTick(() => {
-                                    const el = document.getElementById(`product_search_${existingBlank.key}`);
-                                    if (el) this.initRowProductSelect(el, existingBlank);
-                                    this.focusRowSelect(existingBlank);
-                                });
+                        // If cart has only 1 row and it is unselected, switch its type if different
+                        if (this.cart.length === 1 && !this.cart[0].id) {
+                            if (this.cart[0].type !== type) {
+                                this.switchRowType(this.cart[0], type);
                                 return;
                             }
+                            this.focusRowSelect(this.cart[0]);
+                            return;
+                        }
 
-                            this.focusRowSelect(existingBlank);
+                        // Check if there is already an existing blank row of the same type
+                        const existingBlankSameType = this.cart.find(item => !item.id && item.type === type);
+                        if (existingBlankSameType) {
+                            this.focusRowSelect(existingBlankSameType);
                             this.$dispatch('toast', {
-                                message: `Please select a ${existingBlank.type === 'service' ? 'service' : 'product'} for the existing blank row first.`,
+                                message: `Please select a ${type === 'service' ? 'service' : 'product'} for the existing blank row first.`,
+                                type: 'warning'
+                            });
+                            return;
+                        }
+
+                        // Check if there is an existing blank row of the other type
+                        const existingBlankOtherType = this.cart.find(item => !item.id && item.type !== type);
+                        if (existingBlankOtherType) {
+                            if (this.cart.filter(item => !!item.id).length === 0) {
+                                this.switchRowType(existingBlankOtherType, type);
+                                return;
+                            }
+                            this.focusRowSelect(existingBlankOtherType);
+                            this.$dispatch('toast', {
+                                message: `Please select an item for the existing blank row first.`,
                                 type: 'warning'
                             });
                             return;
@@ -1997,7 +2069,11 @@
                     },
 
                     get hasBlankRow() {
-                        return this.cart.some(item => !item.id);
+                        return this.cart.some(item => !item.id && item.type !== 'service');
+                    },
+
+                    get hasBlankServiceRow() {
+                        return this.cart.some(item => !item.id && item.type === 'service');
                     },
 
                     get subtotal() {

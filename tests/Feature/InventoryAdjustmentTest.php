@@ -547,4 +547,70 @@ class InventoryAdjustmentTest extends TestCase
         $this->assertNotNull($newProduct);
         $this->assertEquals(3, $newProduct->quantity);
     }
+
+    public function test_modal_renders_barcode_search_for_source_product_and_ajax_search_finds_by_barcode(): void
+    {
+        $product = Product::factory()->create([
+            'company_id' => $this->brand->id,
+            'category_id' => $this->category->id,
+            'unit_id' => $this->unit->id,
+            'sku' => 'SKU-BARCODE-01',
+            'product_code' => '8901234567890',
+            'name' => 'Barcode Test Serum',
+            'mrp' => 899,
+            'selling_price' => 850,
+            'quantity' => 15,
+            'is_active' => true,
+        ]);
+        InventoryStock::create(['product_id' => $product->id, 'quantity' => 15]);
+
+        $purchase = Purchase::create([
+            'invoice_number' => 'PO-BC-01',
+            'supplier_id' => $this->supplier->id,
+            'company_id' => $this->brand->id,
+            'location' => 'shop',
+            'purchase_date' => now()->toDateString(),
+            'total' => 1500,
+            'created_by' => $this->user->id,
+        ]);
+
+        $batch = PurchaseItem::create([
+            'purchase_id' => $purchase->id,
+            'product_id' => $product->id,
+            'quantity' => 15,
+            'received_quantity' => 15,
+            'unit_price' => 100,
+            'selling_price' => 850,
+            'batch_number' => 'BATCH-BC-01',
+            'subtotal' => 1500,
+        ]);
+
+        $this->actingAs($this->user);
+
+        // Verify AJAX product search by barcode returns exact item with all_stock
+        $response = $this->postJson(route('ajax.products.search'), [
+            'q' => '8901234567890',
+            'all_stock' => true,
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonFragment([
+            'id' => $product->id,
+            'product_code' => '8901234567890',
+            'sku' => 'SKU-BARCODE-01',
+            'name' => 'Barcode Test Serum',
+        ]);
+
+        // Verify Livewire modal renders the TomSelect barcode search component and correctly binds selection
+        Livewire::test(StockAdjustmentModal::class)
+            ->dispatch('open-adjustment-modal')
+            ->assertSet('isOpen', true)
+            ->assertSet('source_product_id', null)
+            ->assertSee('Search product name, barcode or SKU...')
+            ->assertSee('source_product_select')
+            ->assertSee('handleBarcodeScan')
+            ->set('source_product_id', $product->id)
+            ->assertSet('source_purchase_item_id', $batch->id)
+            ->assertSee('BATCH-BC-01');
+    }
 }
