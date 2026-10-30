@@ -69,6 +69,9 @@ class Dashboard extends Component
     {
         [$startDate, $endDate] = $this->getDateRange();
 
+        // Audit and log detailed KPI parameters (each product, invoice, discounts, net price, COGS)
+        $service->logKpiBreakdown($startDate, $endDate, $this->dateFilter);
+
         // 1. Sales Stats
         $salesStats = $service->getSalesStats($startDate, $endDate, $this->dateFilter);
 
