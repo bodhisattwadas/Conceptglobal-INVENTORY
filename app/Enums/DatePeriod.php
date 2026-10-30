@@ -9,6 +9,7 @@ enum DatePeriod: string
     case THIS_WEEK = 'this_week';
     case THIS_MONTH = 'this_month';
     case LAST_MONTH = 'last_month';
+    case ALL_TIME = 'all_time';
     case CUSTOM = 'custom';
 
     public function label(): string
@@ -19,6 +20,7 @@ enum DatePeriod: string
             self::THIS_WEEK => 'This Week',
             self::THIS_MONTH => 'This Month',
             self::LAST_MONTH => 'Last Month',
+            self::ALL_TIME => 'All Time',
             self::CUSTOM => 'Custom Period',
         };
     }

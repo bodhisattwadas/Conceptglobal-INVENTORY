@@ -4,6 +4,7 @@ namespace App\Livewire\Dashboard;
 
 use App\Enums\DatePeriod;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Services\DashboardStatsService;
 use Carbon\Carbon;
 use Livewire\Component;
@@ -13,7 +14,7 @@ class Dashboard extends Component
 {
     use WithPagination;
 
-    public string $dateFilter = DatePeriod::TODAY->value;
+    public string $dateFilter = DatePeriod::THIS_MONTH->value;
 
     public ?string $customStartDate = null;
 
@@ -78,6 +79,8 @@ class Dashboard extends Component
             'total_sales' => $salesStats['total_revenue'],
             'sales_count' => $salesStats['count'],
             'gross_profit' => $salesStats['gross_profit'],
+            'cogs' => $salesStats['cogs'],
+            'margin' => $salesStats['margin'],
             'income' => $cashFlowStats['income'],
             'expense' => $cashFlowStats['expense'],
             'net_cash_flow' => $cashFlowStats['net_cash_flow'],
@@ -128,11 +131,15 @@ class Dashboard extends Component
             DatePeriod::THIS_WEEK => [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()],
             DatePeriod::THIS_MONTH => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
             DatePeriod::LAST_MONTH => [$now->copy()->subMonth()->startOfMonth(), $now->copy()->subMonth()->endOfMonth()],
+            DatePeriod::ALL_TIME => [
+                Carbon::parse(Sale::min('sale_date') ?? now()->subYears(5))->startOfDay(),
+                $now->copy()->endOfDay(),
+            ],
             DatePeriod::CUSTOM => [
                 Carbon::parse($this->customStartDate ?: $now->copy()->startOfMonth())->startOfDay(),
                 Carbon::parse($this->customEndDate ?: $now)->endOfDay(),
             ],
-            default => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+            default => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
         };
     }
 

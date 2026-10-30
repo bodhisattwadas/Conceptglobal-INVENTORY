@@ -66,7 +66,7 @@
                     @money($stats['total_sales'] ?? 0)
                 </div>
                 <p class="text-xs mt-1" style="color: rgba(29, 78, 216, 0.8);">
-                    {{ $stats['sales_count'] ?? 0 }} transactions
+                    {{ $stats['sales_count'] ?? 0 }} {{ \Illuminate\Support\Str::plural('transaction', $stats['sales_count'] ?? 0) }}
                 </p>
             </div>
         </button>
@@ -80,11 +80,15 @@
                 </span>
             </div>
             <div class="p-4 pt-0">
-                <div class="text-xl sm:text-2xl font-bold">
+                <div class="text-xl sm:text-2xl font-bold {{ ($stats['gross_profit'] ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-600' }}">
                     @money($stats['gross_profit'] ?? 0)
                 </div>
                 <p class="text-xs mt-1" style="color: rgba(4, 120, 87, 0.8);">
-                    Estimated based on COGS
+                    @if(($stats['total_sales'] ?? 0) > 0)
+                        {{ $stats['margin'] ?? 0 }}% margin (COGS: @money($stats['cogs'] ?? 0))
+                    @else
+                        Estimated based on COGS
+                    @endif
                 </p>
             </div>
         </button>
@@ -168,15 +172,15 @@
     </div>
 
     <!-- Data Tables Section -->
-    <div class="grid gap-4 md:grid-cols-5">
+    <div class="grid gap-4 grid-cols-1 lg:grid-cols-2">
         <!-- Recent Sales -->
-        <div class="col-span-1 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+        <div class="col-span-1 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid flex flex-col">
             <div class="p-4 flex flex-col space-y-1.5 border-b">
                 <h3 class="font-semibold leading-none tracking-tight">Recent Sales</h3>
                 <p class="text-xs text-muted-foreground">Latest transactions overview.</p>
             </div>
-            <div class="p-0">
-                <div class="relative w-full overflow-auto max-h-[300px]">
+            <div class="p-0 flex-1 flex flex-col justify-between">
+                <div class="relative w-full overflow-auto">
                     <table class="w-full caption-bottom text-sm">
                         <thead class="[&_tr]:border-b sticky top-0 bg-card z-10">
                             <tr class="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
@@ -191,7 +195,7 @@
                                         {{ $sale['invoice_number'] }}
                                         <div class="text-[11px] text-muted-foreground font-normal">{{ $sale['customer']['name'] ?? 'Guest' }}</div>
                                     </td>
-                                    <td class="px-4 py-2 align-middle text-right font-medium text-emerald-600">@money($sale['total'])</td>
+                                    <td class="px-4 py-2 align-middle text-right font-medium text-emerald-600 whitespace-nowrap">@money($sale['total'])</td>
                                 </tr>
                             @empty
                                 <tr>
@@ -205,7 +209,7 @@
         </div>
 
         <!-- Low Stock Products -->
-        <div id="dashboard-low-stock-products" class="scroll-mt-24 col-span-4 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid">
+        <div id="dashboard-low-stock-products" class="scroll-mt-24 col-span-1 rounded-xl border bg-card text-card-foreground shadow-sm break-inside-avoid flex flex-col">
             <div class="p-4 flex flex-col space-y-1.5 border-b">
                 <h3 class="font-semibold leading-none tracking-tight">Low Stock Products</h3>
                 <p class="text-xs text-muted-foreground">All active products at or below minimum quantity.</p>
@@ -231,7 +235,7 @@
                                     <td class="px-4 py-2 align-middle font-medium">
                                         <button
                                             type="button"
-                                            class="block max-w-[260px] text-left hover:text-blue-700 focus:outline-none focus:underline"
+                                            class="block max-w-[280px] xl:max-w-md text-left hover:text-blue-700 focus:outline-none focus:underline"
                                             title="{{ $product->name }}"
                                             wire:click="$dispatch('show-product', { product: {{ $product->id }} })"
                                         >
