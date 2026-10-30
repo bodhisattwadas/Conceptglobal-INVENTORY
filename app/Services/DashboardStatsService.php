@@ -3,7 +3,10 @@
 namespace App\Services;
 
 use App\Models\FinanceTransaction;
+use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\PurchaseItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use BackedEnum;
@@ -60,6 +63,22 @@ class DashboardStatsService
             if ($completedSales->isEmpty()) {
                 $lines[] = '  (No completed sales found in this date range)';
             } else {
+                $allSaleItemIds = $completedSales->flatMap->items->pluck('id')->filter()->values();
+                $movementsBySaleItemId = InventoryMovement::whereIn('sale_item_id', $allSaleItemIds)
+                    ->whereNotNull('purchase_item_id')
+                    ->with(['purchaseItem.purchase'])
+                    ->get()
+                    ->keyBy('sale_item_id');
+
+                $allProductIds = $completedSales->flatMap->items->pluck('product_id')->filter()->unique()->values();
+                $latestPoItemsByProductId = PurchaseItem::whereIn('product_id', $allProductIds)
+                    ->whereHas('purchase')
+                    ->with('purchase')
+                    ->orderByDesc('id')
+                    ->get()
+                    ->groupBy('product_id')
+                    ->map(fn ($group) => $group->first());
+
                 foreach ($completedSales as $saleIndex => $sale) {
                     $saleTotal = (float) $sale->total;
                     $saleSubtotal = (float) $sale->subtotal;
@@ -124,25 +143,61 @@ class DashboardStatsService
                             : ($item->product?->product_code ?? $item->product?->sku ?? 'N/A');
 
                         $unitCost = 0.0;
+                        $poOrderPrice = null;
+                        $poSourceInfo = '';
                         $costSource = '';
 
                         if ($isService) {
                             $unitCost = 0.0;
                             $costSource = 'Service (INR 0.00 COGS)';
                         } else {
+                            $mrp = (float) ($item->product?->mrp ?? $item->unit_price);
+                            $productBuy = (float) ($item->product?->purchase_price ?? 0);
                             $recordedCost = (float) ($item->cost_price ?? 0);
-                            $productCost = (float) ($item->product?->purchase_price ?? 0);
 
-                            if ($recordedCost > 0) {
+                            $movement = $movementsBySaleItemId->get($item->id);
+                            $latestPo = $latestPoItemsByProductId->get($item->product_id);
+
+                            // Priority 1: Check FIFO deducted PO batch from inventory movements
+                            if ($movement && $movement->purchaseItem && (float) $movement->purchaseItem->unit_price > 0) {
+                                $poOrderPrice = (float) $movement->purchaseItem->unit_price;
+                                $poRef = $movement->purchaseItem->purchase?->invoice_number ?? "PO #{$movement->purchaseItem->purchase_id}";
+                                $poDate = $movement->purchaseItem->purchase?->purchase_date ? Carbon::parse($movement->purchaseItem->purchase->purchase_date)->format('Y-m-d') : '';
+                                $poSourceInfo = "FIFO Batch: {$poRef}".($poDate ? " ({$poDate})" : '');
+                                $unitCost = $poOrderPrice;
+                                $costSource = "PO Order Price [{$poSourceInfo}]";
+                            }
+                            // Priority 2: Check latest PO item placed for this product
+                            elseif ($latestPo && (float) $latestPo->unit_price > 0) {
+                                $poOrderPrice = (float) $latestPo->unit_price;
+                                $poRef = $latestPo->purchase?->invoice_number ?? "PO #{$latestPo->purchase_id}";
+                                $poDate = $latestPo->purchase?->purchase_date ? Carbon::parse($latestPo->purchase->purchase_date)->format('Y-m-d') : '';
+                                $poSourceInfo = "Latest PO Placed: {$poRef}".($poDate ? " ({$poDate})" : '');
+                                $unitCost = $poOrderPrice;
+                                $costSource = "PO Order Price [{$poSourceInfo}]";
+                            }
+                            // Priority 3: Check recorded cost_price if lower than MRP
+                            elseif ($recordedCost > 0 && ($mrp <= 0 || $recordedCost < $mrp)) {
                                 $unitCost = $recordedCost;
-                                $costSource = 'Recorded HPP';
-                            } elseif ($productCost > 0) {
-                                $unitCost = $productCost;
-                                $costSource = 'Fallback Product Purchase Price';
-                            } else {
-                                $unitCost = 0.0;
-                                $costSource = 'ZERO COST (Warning)';
-                                $warningItems[] = "Product '{$itemName}' in Invoice {$sale->invoice_number} has INR 0.00 cost price.";
+                                $costSource = 'Recorded HPP (No PO Item Found)';
+                            }
+                            // Priority 4: Check product catalog purchase price if lower than MRP
+                            elseif ($productBuy > 0 && ($mrp <= 0 || $productBuy < $mrp)) {
+                                $unitCost = $productBuy;
+                                $costSource = 'Product Catalog Purchase Price (No PO Item Found)';
+                            }
+                            // Priority 5: Fallback
+                            else {
+                                $unitCost = $recordedCost ?: $productBuy;
+                                $costSource = ($unitCost >= $mrp && $mrp > 0)
+                                    ? 'MRP Fallback (No PO item found in system)'
+                                    : 'Zero Cost (No PO found)';
+
+                                if ($unitCost <= 0) {
+                                    $warningItems[] = "Product '{$itemName}' in Invoice {$sale->invoice_number} has INR 0.00 cost price and no PO found.";
+                                } elseif ($unitCost >= $mrp && $mrp > 0) {
+                                    $warningItems[] = "Product '{$itemName}' in Invoice {$sale->invoice_number} has no PO Order Price found in system; defaulted to full MRP INR {$mrp}.";
+                                }
                             }
                         }
 
@@ -159,15 +214,26 @@ class DashboardStatsService
                             $isService ? $item->service_id : $item->product_id
                         );
                         $lines[] = sprintf(
-                            '         Qty: %d | Unit Price: INR %0.2f | Disc: INR %0.2f | Net Unit Price: INR %0.2f | Line Total: INR %0.2f',
+                            '         Qty: %d | Unit Price (MRP): INR %0.2f | Disc: INR %0.2f | Net Selling Price: INR %0.2f | Line Total: INR %0.2f',
                             $qty,
                             $unitPrice,
                             $itemDiscount,
                             $netUnitPrice,
                             $lineSubtotal
                         );
+                        if (! $isService) {
+                            if ($poOrderPrice !== null) {
+                                $lines[] = sprintf(
+                                    '         PO Order Price (Seller Bought Price): INR %0.2f [%s]',
+                                    $poOrderPrice,
+                                    $poSourceInfo
+                                );
+                            } else {
+                                $lines[] = '         PO Order Price (Seller Bought Price): None found in PO records';
+                            }
+                        }
                         $lines[] = sprintf(
-                            '         Unit Cost: INR %0.2f [%s] | Line COGS: INR %0.2f | Gross Profit: INR %0.2f (Margin: %0.1f%%)',
+                            '         Cost Price Used: INR %0.2f [%s] | Line COGS: INR %0.2f | Gross Profit: INR %0.2f (Margin: %0.1f%%)',
                             $unitCost,
                             $costSource,
                             $lineCogs,
@@ -329,16 +395,60 @@ class DashboardStatsService
             $count = (int) ($salesData->count ?? 0);
 
             // COGS = Sum of (Sales Item Quantity * Cost Price) for physical products only.
-            // Services carry zero merchandise inventory cost.
-            // If cost_price was 0 at the time of sale, fall back to product purchase_price.
-            $cogs = (float) SaleItem::query()
+            // Priority:
+            // 1. PO Order price from deducted FIFO movement
+            // 2. PO Order price from latest PO item placed for this product
+            // 3. Recorded cost_price if < MRP
+            // 4. Product catalog purchase_price if < MRP
+            // 5. Fallback recorded cost or purchase_price
+            $saleItems = SaleItem::query()
                 ->whereHas('sale', function ($query) use ($startStr, $endStr) {
                     $query->whereBetween('sale_date', [$startStr, $endStr])
                         ->where('status', 'completed');
                 })
                 ->whereNotNull('product_id')
-                ->leftJoin('products', 'sale_items.product_id', '=', 'products.id')
-                ->sum(DB::raw('sale_items.quantity * COALESCE(NULLIF(sale_items.cost_price, 0), products.purchase_price, 0)'));
+                ->with(['product:id,mrp,purchase_price'])
+                ->get();
+
+            $saleItemIds = $saleItems->pluck('id')->filter()->values();
+            $movementsBySaleItemId = InventoryMovement::whereIn('sale_item_id', $saleItemIds)
+                ->whereNotNull('purchase_item_id')
+                ->with('purchaseItem')
+                ->get()
+                ->keyBy('sale_item_id');
+
+            $productIds = $saleItems->pluck('product_id')->filter()->unique()->values();
+            $latestPoItemsByProductId = PurchaseItem::whereIn('product_id', $productIds)
+                ->whereHas('purchase')
+                ->orderByDesc('id')
+                ->get(['id', 'product_id', 'unit_price', 'purchase_id'])
+                ->groupBy('product_id')
+                ->map(fn ($group) => (float) $group->first()->unit_price);
+
+            $cogs = 0.0;
+            foreach ($saleItems as $item) {
+                $qty = (int) $item->quantity;
+                $mrp = (float) ($item->product?->mrp ?? 0);
+                $productBuy = (float) ($item->product?->purchase_price ?? 0);
+                $recordedCost = (float) ($item->cost_price ?? 0);
+
+                $movement = $movementsBySaleItemId->get($item->id);
+                $latestPoPrice = $latestPoItemsByProductId->get($item->product_id);
+
+                if ($movement && $movement->purchaseItem && (float) $movement->purchaseItem->unit_price > 0) {
+                    $unitCost = (float) $movement->purchaseItem->unit_price;
+                } elseif ($latestPoPrice !== null && $latestPoPrice > 0) {
+                    $unitCost = $latestPoPrice;
+                } elseif ($recordedCost > 0 && ($mrp <= 0 || $recordedCost < $mrp)) {
+                    $unitCost = $recordedCost;
+                } elseif ($productBuy > 0 && ($mrp <= 0 || $productBuy < $mrp)) {
+                    $unitCost = $productBuy;
+                } else {
+                    $unitCost = $recordedCost ?: $productBuy;
+                }
+
+                $cogs += ($qty * $unitCost);
+            }
 
             $grossProfit = (float) ($totalRevenue - $cogs);
             $margin = $totalRevenue > 0 ? round(($grossProfit / $totalRevenue) * 100, 1) : 0.0;
