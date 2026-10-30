@@ -85,7 +85,7 @@
                 </div>
                 <p class="text-xs mt-1" style="color: rgba(4, 120, 87, 0.8);">
                     @if(($stats['total_sales'] ?? 0) > 0)
-                        {{ $stats['margin'] ?? 0 }}% margin (COGS: @money($stats['cogs'] ?? 0))
+                        {{ number_format((float) ($stats['margin'] ?? 0), 1) }}% margin (COGS: @money($stats['cogs'] ?? 0))
                     @else
                         Estimated based on COGS
                     @endif

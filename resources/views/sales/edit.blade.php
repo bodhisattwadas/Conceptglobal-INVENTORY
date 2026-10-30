@@ -43,20 +43,35 @@
                 action="{{ route('sales.update', $sale) }}"
                 method="POST"
                 x-data="saleEditForm({
-                    initialItems: {{ Js::from(old('items', $sale->items->map(function ($item) {
-                        return [
-                            'key' => Str::random(8),
-                            'product_id' => $item->product_id,
-                            'service_id' => $item->service_id,
-                            'is_service' => $item->isService(),
-                            'name' => $item->product?->name ?? $item->service?->name ?? 'Unknown Item',
-                            'code' => $item->product?->product_code ?? $item->product?->sku ?? '',
-                            'unit_price' => (float) $item->unit_price,
-                            'quantity' => (int) $item->quantity,
-                            'discount' => (float) $item->discount,
-                            'subtotal' => (float) $item->subtotal,
-                        ];
-                    }))) }},
+                    initialItems: {{ Js::from(
+                        old('items') ? collect(old('items'))->map(function ($item) {
+                            return [
+                                'key' => $item['key'] ?? Str::random(8),
+                                'product_id' => !empty($item['product_id']) ? (int) $item['product_id'] : null,
+                                'service_id' => !empty($item['service_id']) ? (int) $item['service_id'] : null,
+                                'is_service' => !empty($item['service_id']) || !empty($item['is_service']),
+                                'name' => $item['name'] ?? (!empty($item['product_id']) ? \App\Models\Product::find($item['product_id'])?->name : \App\Models\Service::find($item['service_id'] ?? null)?->name) ?? 'Item',
+                                'code' => $item['code'] ?? '',
+                                'unit_price' => (float) ($item['unit_price'] ?? 0),
+                                'quantity' => (int) ($item['quantity'] ?? 1),
+                                'discount' => (float) ($item['discount'] ?? 0),
+                                'subtotal' => (float) ($item['subtotal'] ?? 0),
+                            ];
+                        }) : $sale->items->map(function ($item) {
+                            return [
+                                'key' => Str::random(8),
+                                'product_id' => $item->product_id,
+                                'service_id' => $item->service_id,
+                                'is_service' => $item->isService(),
+                                'name' => $item->product?->name ?? $item->service?->name ?? 'Unknown Item',
+                                'code' => $item->product?->product_code ?? $item->product?->sku ?? $item->service?->code ?? '',
+                                'unit_price' => (float) $item->unit_price,
+                                'quantity' => (int) $item->quantity,
+                                'discount' => (float) $item->discount,
+                                'subtotal' => (float) $item->subtotal,
+                            ];
+                        })
+                    ) }},
                     saleDate: {{ Js::from(old('sale_date', $sale->sale_date->format('Y-m-d'))) }},
                     paymentMethod: {{ Js::from(old('payment_method', $sale->payment_method->value)) }},
                     paymentRef: {{ Js::from(old('payment_ref', $existingPaymentRef)) }},
@@ -155,46 +170,106 @@
 
                 <!-- Line Items Section -->
                 <div class="bg-white rounded-xl shadow-xs border border-gray-200 p-6 space-y-4">
-                    <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-100 pb-3">
                         <div>
                             <h3 class="text-sm font-bold uppercase tracking-wider text-gray-700">{{ __('Sale Line Items') }}</h3>
                             <p class="text-xs text-gray-500">{{ __('Modify quantities, unit prices, or discounts. Stock balances will adjust upon saving.') }}</p>
                         </div>
                         <div class="flex items-center gap-2">
-                            <!-- Quick Add Product/Service Search Input -->
-                            <div class="relative w-72">
-                                <input
-                                    type="text"
-                                    x-model="itemSearchQuery"
-                                    @input.debounce.300ms="searchItems()"
-                                    placeholder="{{ __('Search product or service to add...') }}"
-                                    class="w-full text-xs border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 focus:ring-indigo-500 focus:border-indigo-500"
-                                >
-                                <x-heroicon-o-magnifying-glass class="w-4 h-4 text-gray-400 absolute left-2.5 top-2" />
+                            <!-- Quick Add Product/Service Search Bar -->
+                            <div class="relative w-full sm:w-96" @click.outside="showDropdown = false">
+                                <div class="flex items-center rounded-lg border border-gray-300 bg-white shadow-xs focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 overflow-hidden">
+                                    <!-- Search Type Selector -->
+                                    <select
+                                        x-model="searchFilter"
+                                        @change="searchItems()"
+                                        class="text-xs font-semibold bg-gray-50 text-gray-600 border-0 border-r border-gray-200 py-1.5 pl-2.5 pr-6 focus:ring-0 cursor-pointer"
+                                    >
+                                        <option value="all">{{ __('All') }}</option>
+                                        <option value="product">{{ __('Products') }}</option>
+                                        <option value="service">{{ __('Services') }}</option>
+                                    </select>
+
+                                    <!-- Search Input -->
+                                    <div class="relative flex-1 flex items-center">
+                                        <x-heroicon-o-magnifying-glass class="w-4 h-4 text-gray-400 absolute left-2 pointer-events-none" />
+                                        <input
+                                            id="sale_item_search_input"
+                                            type="text"
+                                            x-ref="searchInput"
+                                            x-model="itemSearchQuery"
+                                            @input.debounce.250ms="searchItems()"
+                                            @focus="showDropdown = true; if (!searchResults.length) searchItems();"
+                                            @keydown.escape="showDropdown = false"
+                                            :placeholder="searchFilter === 'product' ? '{{ __('Search product (Name, Code, SKU)...') }}' : (searchFilter === 'service' ? '{{ __('Search service (Facial, Hair, etc.)...') }}' : '{{ __('Search product or service to add...') }}')"
+                                            class="w-full text-xs border-0 py-1.5 pl-7 pr-6 focus:ring-0 text-gray-800 placeholder-gray-400"
+                                            autocomplete="off"
+                                        >
+                                        <!-- Clear Button -->
+                                        <button
+                                            type="button"
+                                            x-show="itemSearchQuery"
+                                            @click="itemSearchQuery = ''; searchResults = []; showDropdown = false;"
+                                            class="absolute right-2 text-gray-400 hover:text-gray-600"
+                                            style="display: none;"
+                                        >
+                                            <x-heroicon-o-x-mark class="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
 
                                 <!-- Search Dropdown Results -->
                                 <div
-                                    x-show="searchResults.length > 0"
-                                    @click.outside="searchResults = []"
-                                    class="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                                    x-show="showDropdown && (searchResults.length > 0 || isSearching || itemSearchQuery.trim().length > 0)"
+                                    class="absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-72 overflow-y-auto divide-y divide-gray-100"
                                     style="display: none;"
                                 >
+                                    <!-- Loading State -->
+                                    <div x-show="isSearching" class="p-3 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
+                                        <svg class="animate-spin h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span>{{ __('Searching items...') }}</span>
+                                    </div>
+
+                                    <!-- No Results State -->
+                                    <div x-show="!isSearching && searchResults.length === 0 && itemSearchQuery.trim().length > 0" class="p-3 text-center text-xs text-gray-500">
+                                        {{ __('No product or service found matching') }} "<span class="font-semibold text-gray-700" x-text="itemSearchQuery"></span>"
+                                    </div>
+
+                                    <!-- Results List -->
                                     <template x-for="result in searchResults" :key="result.type + '-' + result.id">
                                         <button
                                             type="button"
                                             @click="addItem(result)"
-                                            class="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 flex items-center justify-between border-b border-gray-100 last:border-b-0"
+                                            class="w-full text-left px-3.5 py-2.5 text-xs hover:bg-indigo-50 flex items-center justify-between gap-2 transition-colors cursor-pointer border-b border-gray-100 last:border-b-0"
                                         >
-                                            <div>
-                                                <span class="font-bold text-gray-800" x-text="result.name"></span>
-                                                <span class="text-gray-400 text-[10px] ml-1" x-text="result.code ? '(' + result.code + ')' : ''"></span>
-                                                <span
-                                                    class="ml-1 text-[10px] px-1.5 py-0.2 rounded font-semibold uppercase"
-                                                    :class="result.is_service ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'"
-                                                    x-text="result.is_service ? 'Service' : 'Product'"
-                                                ></span>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="flex items-center gap-1.5 flex-wrap">
+                                                    <span class="font-bold text-gray-900 truncate" x-text="result.name"></span>
+                                                    <span
+                                                        class="text-[10px] px-1.5 py-0.2 rounded font-semibold uppercase tracking-wider shrink-0"
+                                                        :class="result.is_service ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'"
+                                                        x-text="result.is_service ? 'Service' : 'Product'"
+                                                    ></span>
+                                                </div>
+                                                <div class="flex items-center gap-2 text-[11px] text-gray-500 mt-0.5">
+                                                    <span x-show="result.code" class="font-mono text-gray-400" x-text="result.code"></span>
+                                                    <span x-show="result.brand" class="text-gray-400" x-text="'• ' + result.brand"></span>
+                                                    <template x-if="!result.is_service">
+                                                        <span
+                                                            class="font-medium"
+                                                            :class="result.quantity > 0 ? 'text-emerald-600' : 'text-amber-600'"
+                                                            x-text="result.quantity > 0 ? 'Stock: ' + result.quantity : 'Out of stock'"
+                                                        ></span>
+                                                    </template>
+                                                </div>
                                             </div>
-                                            <span class="font-mono font-bold text-gray-700" x-text="'₹' + parseFloat(result.selling_price || result.unit_price || 0).toFixed(2)"></span>
+                                            <div class="text-right shrink-0">
+                                                <div class="font-mono font-bold text-gray-900" x-text="'₹' + parseFloat(result.selling_price || 0).toFixed(2)"></div>
+                                                <span class="text-[10px] text-indigo-600 font-semibold">{{ __('+ Click to add') }}</span>
+                                            </div>
                                         </button>
                                     </template>
                                 </div>
@@ -216,14 +291,42 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
+                                <template x-if="items.length === 0">
+                                    <tr>
+                                        <td colspan="6" class="py-8 text-center text-gray-400">
+                                            <x-heroicon-o-shopping-bag class="w-10 h-10 mx-auto text-gray-300 mb-2" />
+                                            <p class="text-sm font-medium">{{ __('No items in this sale yet.') }}</p>
+                                            <p class="text-xs text-gray-400 mt-1">{{ __('Search or click "+ Add Product" / "+ Add Service" below.') }}</p>
+                                        </td>
+                                    </tr>
+                                </template>
+
                                 <template x-for="(item, index) in items" :key="item.key">
-                                    <tr class="hover:bg-gray-50/50">
+                                    <tr
+                                        class="transition-colors duration-300"
+                                        :class="highlightKey === item.key ? 'bg-emerald-50' : 'hover:bg-gray-50/50'"
+                                    >
                                         <!-- Item Info & Hidden Inputs -->
                                         <td class="py-2.5 px-3">
-                                            <input type="hidden" :name="'items[' + index + '][product_id]'" :value="item.product_id">
-                                            <input type="hidden" :name="'items[' + index + '][service_id]'" :value="item.service_id">
-                                            <div class="font-medium text-gray-900" x-text="item.name"></div>
-                                            <div class="text-xs text-gray-400" x-text="item.code ? 'Code: ' + item.code : (item.is_service ? 'Service' : '')"></div>
+                                            <template x-if="item.product_id">
+                                                <input type="hidden" :name="'items[' + index + '][product_id]'" :value="item.product_id">
+                                            </template>
+                                            <template x-if="item.service_id">
+                                                <input type="hidden" :name="'items[' + index + '][service_id]'" :value="item.service_id">
+                                            </template>
+                                            <input type="hidden" :name="'items[' + index + '][name]'" :value="item.name">
+                                            <input type="hidden" :name="'items[' + index + '][code]'" :value="item.code">
+                                            <input type="hidden" :name="'items[' + index + '][is_service]'" :value="item.is_service ? 1 : 0">
+
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-medium text-gray-900" x-text="item.name"></span>
+                                                <span
+                                                    class="text-[9px] px-1.5 py-0.2 rounded font-semibold uppercase tracking-wider"
+                                                    :class="item.is_service ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'"
+                                                    x-text="item.is_service ? 'Service' : 'Product'"
+                                                ></span>
+                                            </div>
+                                            <div class="text-xs text-gray-400 mt-0.5" x-text="item.code ? 'Code: ' + item.code : (item.is_service ? 'Service Item' : '')"></div>
                                         </td>
 
                                         <!-- Unit Price -->
@@ -235,7 +338,7 @@
                                                 :name="'items[' + index + '][unit_price]'"
                                                 x-model.number="item.unit_price"
                                                 @input="calculateRow(item)"
-                                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 text-right focus:ring-indigo-500 focus:border-indigo-500"
+                                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 text-right focus:ring-indigo-500 focus:border-indigo-500 font-mono"
                                             >
                                         </td>
 
@@ -248,7 +351,7 @@
                                                 :name="'items[' + index + '][discount]'"
                                                 x-model.number="item.discount"
                                                 @input="calculateRow(item)"
-                                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 text-right focus:ring-indigo-500 focus:border-indigo-500"
+                                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 text-right focus:ring-indigo-500 focus:border-indigo-500 font-mono"
                                             >
                                         </td>
 
@@ -266,7 +369,7 @@
                                                     :name="'items[' + index + '][quantity]'"
                                                     x-model.number="item.quantity"
                                                     @input="calculateRow(item)"
-                                                    class="w-16 text-xs text-center border border-gray-300 rounded py-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                                    class="w-16 text-xs text-center border border-gray-300 rounded py-1 focus:ring-indigo-500 focus:border-indigo-500 font-semibold"
                                                 >
                                                 <button
                                                     type="button"
@@ -294,6 +397,33 @@
                                 </template>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Bottom Action Buttons for Adding Product/Service -->
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-gray-100">
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                @click="openSearch('product')"
+                                class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-colors cursor-pointer"
+                            >
+                                <x-heroicon-o-plus class="w-4 h-4" />
+                                <span>{{ __('Add Product') }}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                @click="openSearch('service')"
+                                class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white shadow-xs transition-colors cursor-pointer"
+                            >
+                                <x-heroicon-o-plus class="w-4 h-4" />
+                                <span>{{ __('Add Service') }}</span>
+                            </button>
+                        </div>
+
+                        <div class="text-xs text-gray-500 font-medium">
+                            <span x-text="items.length"></span> {{ __('line item(s) in sale') }}
+                        </div>
                     </div>
                 </div>
 
@@ -536,7 +666,11 @@
                 couponDiscount: config.couponDiscount || 0,
 
                 itemSearchQuery: '',
+                searchFilter: 'all',
                 searchResults: [],
+                isSearching: false,
+                showDropdown: false,
+                highlightKey: null,
 
                 init() {
                     this.items.forEach(item => this.calculateRow(item));
@@ -556,6 +690,7 @@
                         return;
                     }
                     this.items.splice(index, 1);
+                    this.onPaymentMethodChange();
                 },
 
                 get grossSubtotal() {
@@ -615,84 +750,142 @@
                     }
                 },
 
+                openSearch(type) {
+                    this.searchFilter = type;
+                    this.showDropdown = true;
+                    this.$nextTick(() => {
+                        const input = document.getElementById('sale_item_search_input');
+                        if (input) {
+                            input.focus();
+                            input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                        this.searchItems();
+                    });
+                },
+
                 async searchItems() {
                     const q = this.itemSearchQuery.trim();
-                    if (q.length < 2) {
-                        this.searchResults = [];
-                        return;
-                    }
+                    this.isSearching = true;
+                    this.showDropdown = true;
 
                     try {
-                        const [pRes, sRes] = await Promise.all([
-                            fetch('{{ route("ajax.products.search") }}', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                                },
-                                body: JSON.stringify({ query: q })
-                            }).then(r => r.json()).catch(() => []),
-                            fetch('{{ route("ajax.services.search") }}', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                                },
-                                body: JSON.stringify({ query: q })
-                            }).then(r => r.json()).catch(() => [])
-                        ]);
+                        const promises = [];
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+                        const headers = {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken
+                        };
+                        const payload = JSON.stringify({
+                            q: q,
+                            search: q,
+                            query: q,
+                            all_stock: 1
+                        });
 
-                        const products = (Array.isArray(pRes) ? pRes : (pRes.data || [])).map(p => ({
-                            id: p.id,
-                            name: p.name,
-                            code: p.product_code || p.sku || '',
-                            selling_price: p.selling_price || 0,
-                            is_service: false,
-                            type: 'product'
-                        }));
+                        if (this.searchFilter === 'all' || this.searchFilter === 'product') {
+                            promises.push(
+                                fetch('{{ route("ajax.products.search") }}', {
+                                    method: 'POST',
+                                    headers: headers,
+                                    body: payload
+                                })
+                                .then(r => r.json())
+                                .then(data => {
+                                    const list = Array.isArray(data) ? data : (data.data || []);
+                                    return list.map(p => ({
+                                        id: p.id,
+                                        name: p.name,
+                                        code: p.product_code || p.sku || '',
+                                        brand: p.brand || '',
+                                        selling_price: parseFloat(p.selling_price || p.price || 0),
+                                        quantity: p.quantity,
+                                        is_service: false,
+                                        type: 'product'
+                                    }));
+                                })
+                                .catch(err => {
+                                    console.error('Product search error:', err);
+                                    return [];
+                                })
+                            );
+                        }
 
-                        const services = (Array.isArray(sRes) ? sRes : (sRes.data || [])).map(s => ({
-                            id: s.id,
-                            name: s.name,
-                            code: '',
-                            selling_price: s.price || s.selling_price || 0,
-                            is_service: true,
-                            type: 'service'
-                        }));
+                        if (this.searchFilter === 'all' || this.searchFilter === 'service') {
+                            promises.push(
+                                fetch('{{ route("ajax.services.search") }}', {
+                                    method: 'POST',
+                                    headers: headers,
+                                    body: payload
+                                })
+                                .then(r => r.json())
+                                .then(data => {
+                                    const list = Array.isArray(data) ? data : (data.data || []);
+                                    return list.map(s => ({
+                                        id: s.id,
+                                        name: s.name,
+                                        code: s.code || '',
+                                        brand: '',
+                                        selling_price: parseFloat(s.selling_price || s.price || s.cost || 0),
+                                        quantity: null,
+                                        is_service: true,
+                                        type: 'service'
+                                    }));
+                                })
+                                .catch(err => {
+                                    console.error('Service search error:', err);
+                                    return [];
+                                })
+                            );
+                        }
 
-                        this.searchResults = [...products, ...services].slice(0, 10);
+                        const results = await Promise.all(promises);
+                        this.searchResults = results.flat().slice(0, 30);
                     } catch (e) {
                         console.error('Error fetching items:', e);
+                        this.searchResults = [];
+                    } finally {
+                        this.isSearching = false;
                     }
                 },
 
                 addItem(result) {
-                    const existing = this.items.find(i => 
-                        result.is_service ? i.service_id === result.id : i.product_id === result.id
+                    const isService = !!result.is_service;
+                    const existingIndex = this.items.findIndex(i =>
+                        isService ? (i.service_id == result.id) : (i.product_id == result.id)
                     );
 
-                    if (existing) {
-                        existing.quantity++;
-                        this.calculateRow(existing);
+                    if (existingIndex !== -1) {
+                        this.items[existingIndex].quantity = (parseInt(this.items[existingIndex].quantity) || 0) + 1;
+                        this.calculateRow(this.items[existingIndex]);
+                        this.highlightKey = this.items[existingIndex].key;
                     } else {
-                        const price = parseFloat(result.selling_price) || 0;
+                        const price = parseFloat(result.selling_price || 0);
+                        const newKey = 'item_' + Date.now() + '_' + Math.random().toString(36).substring(7);
                         const newItem = {
-                            key: Math.random().toString(36).substring(7),
-                            product_id: result.is_service ? null : result.id,
-                            service_id: result.is_service ? result.id : null,
-                            is_service: result.is_service,
+                            key: newKey,
+                            product_id: isService ? null : result.id,
+                            service_id: isService ? result.id : null,
+                            is_service: isService,
                             name: result.name,
-                            code: result.code,
+                            code: result.code || '',
                             unit_price: price,
                             discount: 0,
                             quantity: 1,
                             subtotal: price
                         };
                         this.items.push(newItem);
+                        this.highlightKey = newKey;
                     }
+
+                    setTimeout(() => {
+                        this.highlightKey = null;
+                    }, 1500);
 
                     this.itemSearchQuery = '';
                     this.searchResults = [];
+                    this.showDropdown = false;
+                    this.onPaymentMethodChange();
                 },
 
                 formatMoney(amount) {

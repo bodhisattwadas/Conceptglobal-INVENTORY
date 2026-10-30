@@ -68,8 +68,10 @@ class User extends Authenticatable
 
     public function hasRole(UserRole|string ...$roles): bool
     {
+        $currentRole = $this->role instanceof UserRole ? $this->role->value : (string) $this->role;
+
         return collect($roles)->contains(
-            fn (UserRole|string $role) => $this->role === ($role instanceof UserRole ? $role->value : $role)
+            fn (UserRole|string $role) => $currentRole === ($role instanceof UserRole ? $role->value : $role)
         );
     }
 }

@@ -11,7 +11,7 @@ class ProductController extends Controller
 {
     public function search(Request $request)
     {
-        $rawQuery = $request->input('q') ?? $request->input('search');
+        $rawQuery = $request->input('q') ?? $request->input('search') ?? $request->input('query');
         $query = is_string($rawQuery) ? trim($rawQuery) : '';
         $companyId = $request->integer('company_id');
         $supplierId = $request->integer('supplier_id');

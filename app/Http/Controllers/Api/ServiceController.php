@@ -10,7 +10,7 @@ class ServiceController extends Controller
 {
     public function search(Request $request)
     {
-        $rawQuery = $request->input('q') ?? $request->input('search');
+        $rawQuery = $request->input('q') ?? $request->input('search') ?? $request->input('query');
         $query = is_string($rawQuery) ? trim($rawQuery) : '';
         $queryLower = mb_strtolower($query);
 

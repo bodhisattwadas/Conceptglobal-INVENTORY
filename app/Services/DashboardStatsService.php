@@ -67,7 +67,7 @@ class DashboardStatsService
 
         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
             $startDateStr = $startDate->format('Y-m-d');
-            $endDateStr = $endDate->format('Y-m-d');
+            $endDateStr = $endDate->format('Y-m-d 23:59:59');
 
             // Optimize: Calculate Income and Expense directly in the DB using joins
             $totals = FinanceTransaction::join('finance_categories', 'finance_transactions.finance_category_id', '=', 'finance_categories.id')
@@ -217,7 +217,7 @@ class DashboardStatsService
 
         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
             $startDateStr = $startDate->format('Y-m-d');
-            $endDateStr = $endDate->format('Y-m-d');
+            $endDateStr = $endDate->format('Y-m-d 23:59:59');
 
             // Optimize: Group by date and type at the database level instead of memory
             $transactions = FinanceTransaction::join('finance_categories', 'finance_transactions.finance_category_id', '=', 'finance_categories.id')
@@ -305,7 +305,7 @@ class DashboardStatsService
 
         return Cache::remember($cacheKey, now()->addSeconds(20), function () use ($startDate, $endDate) {
             $startDateStr = $startDate->format('Y-m-d');
-            $endDateStr = $endDate->format('Y-m-d');
+            $endDateStr = $endDate->format('Y-m-d 23:59:59');
 
             return FinanceTransaction::select('finance_category_id', DB::raw('SUM(amount) as total_amount'))
                 ->whereBetween('transaction_date', [$startDateStr, $endDateStr])

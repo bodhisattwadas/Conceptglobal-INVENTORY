@@ -12,6 +12,7 @@ use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
+use App\Models\Service;
 use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
@@ -521,5 +522,85 @@ class HistoricalSaleEditTest extends TestCase
         $response->assertSee('UPI UTR / Reference ID (Optional)...');
         $response->assertSee('Collect via QR Code / UPI App');
         $response->assertSee('Swipe / Tap on POS machine');
+    }
+
+    public function test_edit_view_renders_add_product_and_add_service_buttons(): void
+    {
+        $sale = $this->createTestSale(2, PaymentMethod::CASH);
+
+        $response = $this->actingAs($this->admin)->get(route('sales.edit', $sale));
+
+        $response->assertOk();
+        $response->assertSee('Add Product');
+        $response->assertSee('Add Service');
+        $response->assertSee('sale_item_search_input');
+    }
+
+    public function test_ajax_product_and_service_search_accepts_query_and_all_stock(): void
+    {
+        $service = Service::create([
+            'name' => 'Signature Facial Treatment',
+            'code' => 'SRV-FACIAL',
+            'cost' => 1200,
+            'is_active' => true,
+        ]);
+
+        // Product search with 'query' key and 'all_stock'
+        $responseP = $this->actingAs($this->admin)->postJson(route('ajax.products.search'), [
+            'query' => 'Rose Serum',
+            'all_stock' => 1,
+        ]);
+        $responseP->assertOk();
+        $this->assertNotEmpty($responseP->json());
+        $this->assertEquals('Rose Serum', $responseP->json()[0]['name']);
+
+        // Service search with 'query' key
+        $responseS = $this->actingAs($this->admin)->postJson(route('ajax.services.search'), [
+            'query' => 'Signature Facial',
+        ]);
+        $responseS->assertOk();
+        $this->assertNotEmpty($responseS->json());
+        $this->assertEquals('Signature Facial Treatment', $responseS->json()[0]['name']);
+    }
+
+    public function test_admin_can_add_service_to_historical_sale(): void
+    {
+        $service = Service::create([
+            'name' => 'Hair Styling Spa',
+            'code' => 'SRV-HAIR',
+            'cost' => 800,
+            'is_active' => true,
+        ]);
+
+        $sale = $this->createTestSale(2, PaymentMethod::UPI);
+
+        // Edit sale: keep 2 products, add 1 service
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::UPI->value,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+                [
+                    'service_id' => $service->id,
+                    'quantity' => 1,
+                    'unit_price' => 800,
+                    'discount' => 50,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $sale->refresh();
+
+        $this->assertCount(2, $sale->items);
+        $serviceItem = $sale->items->where('service_id', $service->id)->first();
+        $this->assertNotNull($serviceItem);
+        $this->assertEquals(750, (float) $serviceItem->subtotal);
+        $this->assertEquals(1150, (float) $sale->total); // 400 + 750
     }
 }

@@ -9,6 +9,7 @@ use App\Models\FinanceCategory;
 use App\Models\FinanceTransaction;
 use App\Models\Purchase;
 use App\Models\Sale;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -29,7 +30,7 @@ class FinanceTransactionService
             ],
             [
                 'code' => $this->generateTransactionCode('INC'),
-                'transaction_date' => $sale->sale_date,
+                'transaction_date' => $sale->sale_date ? Carbon::parse($sale->sale_date)->toDateString() : now()->toDateString(),
                 'finance_category_id' => $category->id,
                 'amount' => $sale->total,
                 'description' => 'Sale Inv: '.$sale->invoice_number.' - '.($sale->customer->name ?? 'Guest'),
@@ -53,7 +54,7 @@ class FinanceTransactionService
             ],
             [
                 'code' => $this->generateTransactionCode('EXP'),
-                'transaction_date' => $purchase->purchase_date,
+                'transaction_date' => $purchase->purchase_date ? Carbon::parse($purchase->purchase_date)->toDateString() : now()->toDateString(),
                 'finance_category_id' => $category->id,
                 'amount' => $purchase->total,
                 'description' => 'Purchase PO: '.$purchase->invoice_number.' - '.($purchase->supplier->name ?? 'Unknown'),

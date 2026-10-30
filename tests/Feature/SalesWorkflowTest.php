@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
+use App\Enums\UserRole;
+use App\Livewire\Sales\SalesTable;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\DiscountCoupon;
@@ -16,6 +18,7 @@ use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class SalesWorkflowTest extends TestCase
@@ -1036,6 +1039,30 @@ class SalesWorkflowTest extends TestCase
         $viewResponse = $this->actingAs($user)->get(route('sales.create'));
         $viewResponse->assertOk();
         $viewResponse->assertSee('refreshCartPrices()', false);
+    }
+
+    public function test_sales_table_renders_action_buttons_on_paginated_pages(): void
+    {
+        $user = User::factory()->create(['role' => UserRole::Admin]);
+
+        for ($i = 1; $i <= 15; $i++) {
+            $this->pendingSale($user, 100);
+        }
+
+        // Test initial render on page 2 via query params
+        Livewire::actingAs($user)
+            ->withQueryParams(['page' => 2])
+            ->test(SalesTable::class)
+            ->assertSee('title="View Details"', false)
+            ->assertSee('title="Print Invoice"', false)
+            ->assertSee('title="Edit Sale"', false);
+
+        // Test direct HTTP GET on page 2 (matches browser ?page=2 / ?page=3)
+        $response = $this->actingAs($user)->get(route('sales.index', ['page' => 2]));
+        $response->assertOk();
+        $response->assertSee('title="View Details"', false);
+        $response->assertSee('title="Print Invoice"', false);
+        $response->assertSee('title="Edit Sale"', false);
     }
 
     private function receiveStock(Product $product, User $user): void
