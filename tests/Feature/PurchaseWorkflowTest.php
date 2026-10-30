@@ -12,6 +12,7 @@ use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use PowerComponents\LivewirePowerGrid\Components\Exports\Export;
 use Tests\TestCase;
 
@@ -794,5 +795,33 @@ class PurchaseWorkflowTest extends TestCase
             'supplier_id' => $supplier->id,
             'total' => 1440,
         ]);
+    }
+
+    public function test_purchase_table_renders_action_buttons_on_paginated_pages(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+        $supplier = Supplier::factory()->create();
+
+        for ($i = 1; $i <= 15; $i++) {
+            Purchase::create([
+                'invoice_number' => 'PO.TEST.'.str_pad((string) $i, 4, '0', STR_PAD_LEFT),
+                'supplier_id' => $supplier->id,
+                'created_by' => $user->id,
+                'purchase_date' => now(),
+                'status' => PurchaseStatus::ORDERED,
+                'total' => 100,
+            ]);
+        }
+
+        Livewire::actingAs($user)
+            ->withQueryParams(['page' => 2])
+            ->test(PurchaseTable::class)
+            ->assertSee('title="View Details"', false)
+            ->assertSee('title="Edit Purchase Order"', false);
+
+        $response = $this->actingAs($user)->get(route('purchases.index', ['page' => 2]));
+        $response->assertOk();
+        $response->assertSee('title="View Details"', false);
+        $response->assertSee('title="Edit Purchase Order"', false);
     }
 }
