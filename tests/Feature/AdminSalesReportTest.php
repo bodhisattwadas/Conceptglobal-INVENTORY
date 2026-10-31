@@ -70,7 +70,7 @@ class AdminSalesReportTest extends TestCase
 
         $response->assertOk();
         $response->assertSeeLivewire(SalesReport::class);
-        $response->assertSee('Sales & Revenue Reports');
+        $response->assertSee('Sales Reports');
     }
 
     public function test_sales_report_kpi_and_payment_method_breakdown_calculations(): void

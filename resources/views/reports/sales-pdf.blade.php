@@ -159,7 +159,7 @@
     <table class="kpi-table">
         <tr>
             <td class="kpi-box">
-                <div class="kpi-label">Net Sales</div>
+                <div class="kpi-label">Total Sales</div>
                 <div class="kpi-value" style="color: #0284c7;">Rs. {{ number_format($kpis['net_sales'], 2) }}</div>
                 <div class="kpi-sub">Collected</div>
             </td>

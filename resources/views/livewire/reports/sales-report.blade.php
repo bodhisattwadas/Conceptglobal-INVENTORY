@@ -1,53 +1,55 @@
 <div class="space-y-6">
-    <!-- Filter and Action Bar -->
+    <!-- Filter and Action Bar (Matched to Dashboard Overview Header) -->
     <div class="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm space-y-4">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <!-- Date Filter Presets & Inputs -->
-            <div class="flex flex-wrap items-center gap-3">
-                <div class="flex items-center gap-2">
-                    <label for="dateFilter" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        {{ __('Period') }}:
-                    </label>
-                    <select
-                        id="dateFilter"
-                        wire:model.live="dateFilter"
-                        class="rounded-lg border-input bg-background text-sm font-medium text-foreground py-1.5 px-3 shadow-sm focus:border-primary focus:ring-primary"
-                    >
-                        <option value="today">{{ __('Today') }}</option>
-                        <option value="yesterday">{{ __('Yesterday') }}</option>
-                        <option value="this_week">{{ __('This Week') }}</option>
-                        <option value="this_month">{{ __('This Month') }}</option>
-                        <option value="last_month">{{ __('Last Month') }}</option>
-                        <option value="this_year">{{ __('This Year') }}</option>
-                        <option value="all_time">{{ __('All Time') }}</option>
-                        <option value="custom">{{ __('Custom Range') }}</option>
-                    </select>
-                </div>
+            <div>
+                <h2 class="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <x-heroicon-o-chart-bar class="w-5 h-5 text-primary" />
+                    <span>{{ __('Overview') }}</span>
+                </h2>
+                <p class="text-sm text-muted-foreground">
+                    {{ __('Monitor your sales performance, profit margins, and collections at a glance.') }}
+                </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- Period Selector -->
+                <select
+                    id="dateFilter"
+                    wire:model.live="dateFilter"
+                    class="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                    <option value="today">{{ __('Today') }}</option>
+                    <option value="yesterday">{{ __('Yesterday') }}</option>
+                    <option value="this_week">{{ __('This Week') }}</option>
+                    <option value="this_month">{{ __('This Month') }}</option>
+                    <option value="last_month">{{ __('Last Month') }}</option>
+                    <option value="this_year">{{ __('This Year') }}</option>
+                    <option value="all_time">{{ __('All Time') }}</option>
+                    <option value="custom">{{ __('Custom Range') }}</option>
+                </select>
 
                 <!-- Custom Range Inputs -->
                 <div class="flex items-center gap-2">
-                    <span class="text-xs text-muted-foreground">{{ __('From') }}:</span>
                     <input
                         type="date"
                         wire:model.live="startDate"
-                        class="rounded-lg border-input bg-background text-sm text-foreground py-1.5 px-2.5 shadow-sm focus:border-primary focus:ring-primary"
+                        class="h-9 rounded-md border border-input bg-background px-2.5 py-1 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     />
-                    <span class="text-xs text-muted-foreground">{{ __('To') }}:</span>
+                    <span class="text-xs text-muted-foreground">{{ __('to') }}</span>
                     <input
                         type="date"
                         wire:model.live="endDate"
-                        class="rounded-lg border-input bg-background text-sm text-foreground py-1.5 px-2.5 shadow-sm focus:border-primary focus:ring-primary"
+                        class="h-9 rounded-md border border-input bg-background px-2.5 py-1 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     />
                 </div>
-            </div>
 
-            <!-- Export Buttons -->
-            <div class="flex flex-wrap items-center gap-2">
+                <!-- Export & Print Buttons -->
                 <button
                     type="button"
                     wire:click="exportCsv"
                     wire:loading.attr="disabled"
-                    class="inline-flex items-center gap-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 px-3.5 py-2 text-sm font-medium shadow-sm transition-colors disabled:opacity-50"
+                    class="print:hidden inline-flex items-center gap-1.5 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 text-sm font-medium shadow-sm transition-colors disabled:opacity-50"
                 >
                     <x-heroicon-o-arrow-down-tray class="w-4 h-4" />
                     <span wire:loading.remove wire:target="exportCsv">{{ __('Export CSV') }}</span>
@@ -56,19 +58,19 @@
 
                 <a
                     href="{{ route('reports.sales.pdf', ['start_date' => $startDate, 'end_date' => $endDate]) }}"
-                    class="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 px-3.5 py-2 text-sm font-medium shadow-sm transition-colors"
+                    class="print:hidden inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-3 text-sm font-medium shadow-sm transition-colors"
                 >
                     <x-heroicon-o-document-arrow-down class="w-4 h-4" />
-                    <span>{{ __('Download PDF') }}</span>
+                    <span>{{ __('PDF') }}</span>
                 </a>
 
                 <a
                     href="{{ route('reports.sales.pdf', ['start_date' => $startDate, 'end_date' => $endDate, 'stream' => 1]) }}"
                     target="_blank"
-                    class="inline-flex items-center gap-2 rounded-lg border border-border bg-background hover:bg-accent hover:text-accent-foreground px-3.5 py-2 text-sm font-medium shadow-sm transition-colors"
+                    class="print:hidden inline-flex items-center gap-1.5 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 text-sm font-medium shadow-sm transition-colors"
                 >
                     <x-heroicon-o-printer class="w-4 h-4" />
-                    <span>{{ __('Print View') }}</span>
+                    <span>{{ __('Print') }}</span>
                 </a>
             </div>
         </div>
@@ -83,122 +85,122 @@
                 <strong class="text-foreground">{{ \Carbon\Carbon::parse($endDate)->format('d M Y') }}</strong>
             </span>
             <span class="ml-auto font-medium text-foreground">
-                {{ $kpis['total_orders'] }} {{ __('Completed Transactions') }}
+                {{ $kpis['total_orders'] }} {{ \Illuminate\Support\Str::plural('transaction', $kpis['total_orders']) }}
             </span>
         </div>
     </div>
 
-    <!-- Executive KPI Cards (Including Gross Profit consistent with Dashboard) -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <!-- Net Revenue -->
-        <div class="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm relative overflow-hidden">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ __('Net Revenue') }}</span>
-                <span class="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                    <x-heroicon-o-currency-rupee class="w-5 h-5" />
+    <!-- Stats Grid (Matched to Dashboard Names & Visual Style) -->
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <!-- Total Sales (Matched to Dashboard Total Sales) -->
+        <div class="rounded-xl border shadow-sm text-left transition hover:-translate-y-0.5 hover:shadow-md" style="background-color: #eff6ff; border-color: #bfdbfe; color: #172554;">
+            <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
+                <h3 class="tracking-tight text-sm font-medium">{{ __('Total Sales') }}</h3>
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg" style="background-color: #dbeafe; color: #1d4ed8;">
+                    <x-heroicon-o-banknotes class="h-4 w-4" />
                 </span>
             </div>
-            <div class="mt-3">
-                <div class="text-2xl font-bold text-foreground">
+            <div class="p-4 pt-0">
+                <div class="text-xl sm:text-2xl font-bold">
                     ₹ {{ number_format($kpis['net_sales'], 2) }}
                 </div>
-                <div class="text-xs text-muted-foreground mt-1">
-                    {{ __('Actual collected revenue') }}
+                <div class="flex items-center justify-between text-xs mt-1" style="color: rgba(29, 78, 216, 0.8);">
+                    <span>{{ $kpis['total_orders'] }} {{ \Illuminate\Support\Str::plural('transaction', $kpis['total_orders']) }}</span>
                 </div>
             </div>
         </div>
 
-        <!-- Gross Profit (Consistent with Dashboard) -->
-        <div class="rounded-xl border shadow-sm p-4 sm:p-5 relative overflow-hidden" style="background-color: #ecfdf5; border-color: #a7f3d0; color: #064e3b;">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold uppercase tracking-wider text-emerald-800">{{ __('Gross Profit') }}</span>
-                <span class="p-2 rounded-lg" style="background-color: #d1fae5; color: #047857;">
-                    <x-heroicon-o-arrow-trending-up class="w-5 h-5" />
+        <!-- Gross Profit (Matched to Dashboard Gross Profit) -->
+        <div class="rounded-xl border shadow-sm text-left transition hover:-translate-y-0.5 hover:shadow-md" style="background-color: #ecfdf5; border-color: #a7f3d0; color: #064e3b;">
+            <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
+                <h3 class="tracking-tight text-sm font-medium">{{ __('Gross Profit') }}</h3>
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg" style="background-color: #d1fae5; color: #047857;">
+                    <x-heroicon-o-arrow-trending-up class="h-4 w-4" />
                 </span>
             </div>
-            <div class="mt-3">
-                <div class="text-2xl font-bold {{ $kpis['gross_profit'] >= 0 ? 'text-emerald-700' : 'text-red-600' }}">
+            <div class="p-4 pt-0">
+                <div class="text-xl sm:text-2xl font-bold {{ $kpis['gross_profit'] >= 0 ? 'text-emerald-700' : 'text-red-600' }}">
                     ₹ {{ number_format($kpis['gross_profit'], 2) }}
                 </div>
-                <div class="text-xs mt-1 font-medium" style="color: rgba(4, 120, 87, 0.9);">
+                <p class="text-xs mt-1" style="color: rgba(4, 120, 87, 0.8);">
                     @if($kpis['net_sales'] > 0)
                         {{ number_format((float) $kpis['margin'], 1) }}% margin (COGS: ₹ {{ number_format($kpis['cogs'], 2) }})
                     @else
                         {{ __('Estimated based on COGS') }}
                     @endif
-                </div>
+                </p>
             </div>
         </div>
 
         <!-- Gross Sales -->
-        <div class="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ __('Gross Sales') }}</span>
-                <span class="p-2 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400">
-                    <x-heroicon-o-shopping-bag class="w-5 h-5" />
+        <div class="rounded-xl border shadow-sm text-left transition hover:-translate-y-0.5 hover:shadow-md" style="background-color: #f0fdfa; border-color: #99f6e4; color: #134e4a;">
+            <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
+                <h3 class="tracking-tight text-sm font-medium">{{ __('Gross Sales') }}</h3>
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg" style="background-color: #ccfbf1; color: #0f766e;">
+                    <x-heroicon-o-shopping-bag class="h-4 w-4" />
                 </span>
             </div>
-            <div class="mt-3">
-                <div class="text-2xl font-bold text-foreground">
+            <div class="p-4 pt-0">
+                <div class="text-xl sm:text-2xl font-bold">
                     ₹ {{ number_format($kpis['gross_sales'], 2) }}
                 </div>
-                <div class="text-xs text-muted-foreground mt-1">
-                    {{ __('Before discounts & coupons') }}
-                </div>
+                <p class="text-xs mt-1" style="color: rgba(15, 118, 110, 0.8);">
+                    {{ __('Pre-discount retail total') }}
+                </p>
             </div>
         </div>
 
         <!-- Total Discounts -->
-        <div class="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ __('Total Discounts') }}</span>
-                <span class="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                    <x-heroicon-o-tag class="w-5 h-5" />
+        <div class="rounded-xl border shadow-sm text-left transition hover:-translate-y-0.5 hover:shadow-md" style="background-color: #fffbeb; border-color: #fde68a; color: #78350f;">
+            <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
+                <h3 class="tracking-tight text-sm font-medium">{{ __('Total Discounts') }}</h3>
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg" style="background-color: #fef3c7; color: #b45309;">
+                    <x-heroicon-o-tag class="h-4 w-4" />
                 </span>
             </div>
-            <div class="mt-3">
-                <div class="text-2xl font-bold text-amber-600 dark:text-amber-400">
+            <div class="p-4 pt-0">
+                <div class="text-xl sm:text-2xl font-bold text-amber-600">
                     ₹ {{ number_format($kpis['total_discounts'], 2) }}
                 </div>
-                <div class="text-xs text-muted-foreground mt-1">
-                    {{ __('Items + coupons + bill discounts') }}
-                </div>
+                <p class="text-xs mt-1" style="color: rgba(180, 83, 9, 0.8);">
+                    {{ __('Item + coupon discounts') }}
+                </p>
             </div>
         </div>
 
-        <!-- Orders Count -->
-        <div class="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ __('Total Orders') }}</span>
-                <span class="p-2 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                    <x-heroicon-o-receipt-percent class="w-5 h-5" />
+        <!-- Total Orders -->
+        <div class="rounded-xl border shadow-sm text-left transition hover:-translate-y-0.5 hover:shadow-md" style="background-color: #f5f3ff; border-color: #ddd6fe; color: #2e1065;">
+            <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
+                <h3 class="tracking-tight text-sm font-medium">{{ __('Total Orders') }}</h3>
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg" style="background-color: #ede9fe; color: #6d28d9;">
+                    <x-heroicon-o-receipt-percent class="h-4 w-4" />
                 </span>
             </div>
-            <div class="mt-3">
-                <div class="text-2xl font-bold text-foreground">
+            <div class="p-4 pt-0">
+                <div class="text-xl sm:text-2xl font-bold">
                     {{ number_format($kpis['total_orders']) }}
                 </div>
-                <div class="text-xs text-muted-foreground mt-1">
-                    {{ __('Completed sales transactions') }}
-                </div>
+                <p class="text-xs mt-1" style="color: rgba(109, 40, 217, 0.8);">
+                    {{ __('Completed sales count') }}
+                </p>
             </div>
         </div>
 
         <!-- Average Order Value -->
-        <div class="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ __('Average Order Value') }}</span>
-                <span class="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-                    <x-heroicon-o-chart-pie class="w-5 h-5" />
+        <div class="rounded-xl border shadow-sm text-left transition hover:-translate-y-0.5 hover:shadow-md" style="background-color: #eef2ff; border-color: #c7d2fe; color: #1e1b4b;">
+            <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
+                <h3 class="tracking-tight text-sm font-medium">{{ __('Average Order Value') }}</h3>
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg" style="background-color: #e0e7ff; color: #4338ca;">
+                    <x-heroicon-o-chart-pie class="h-4 w-4" />
                 </span>
             </div>
-            <div class="mt-3">
-                <div class="text-2xl font-bold text-foreground">
+            <div class="p-4 pt-0">
+                <div class="text-xl sm:text-2xl font-bold">
                     ₹ {{ number_format($kpis['average_order_value'], 2) }}
                 </div>
-                <div class="text-xs text-muted-foreground mt-1">
-                    {{ __('Net revenue / total orders') }}
-                </div>
+                <p class="text-xs mt-1" style="color: rgba(67, 56, 202, 0.8);">
+                    {{ __('Net sales / total orders') }}
+                </p>
             </div>
         </div>
     </div>
@@ -229,7 +231,7 @@
                         </span>
                         <div>
                             <div class="font-semibold text-sm text-foreground">UPI / QR</div>
-                            <div class="text-xs text-muted-foreground">{{ $upi['count'] }} {{ __('orders') }}</div>
+                            <div class="text-xs text-muted-foreground">{{ $upi['count'] }} {{ \Illuminate\Support\Str::plural('order', $upi['count']) }}</div>
                         </div>
                     </div>
                     <span class="rounded-full bg-blue-100 dark:bg-blue-900/60 px-2.5 py-0.5 text-xs font-bold text-blue-700 dark:text-blue-300">
@@ -256,7 +258,7 @@
                         </span>
                         <div>
                             <div class="font-semibold text-sm text-foreground">Card / POS</div>
-                            <div class="text-xs text-muted-foreground">{{ $card['count'] }} {{ __('orders') }}</div>
+                            <div class="text-xs text-muted-foreground">{{ $card['count'] }} {{ \Illuminate\Support\Str::plural('order', $card['count']) }}</div>
                         </div>
                     </div>
                     <span class="rounded-full bg-purple-100 dark:bg-purple-900/60 px-2.5 py-0.5 text-xs font-bold text-purple-700 dark:text-purple-300">
@@ -283,7 +285,7 @@
                         </span>
                         <div>
                             <div class="font-semibold text-sm text-foreground">Cash</div>
-                            <div class="text-xs text-muted-foreground">{{ $cash['count'] }} {{ __('orders') }}</div>
+                            <div class="text-xs text-muted-foreground">{{ $cash['count'] }} {{ \Illuminate\Support\Str::plural('order', $cash['count']) }}</div>
                         </div>
                     </div>
                     <span class="rounded-full bg-emerald-100 dark:bg-emerald-900/60 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
@@ -310,7 +312,7 @@
                         </span>
                         <div>
                             <div class="font-semibold text-sm text-foreground">Bank Transfer</div>
-                            <div class="text-xs text-muted-foreground">{{ $transfer['count'] }} {{ __('orders') }}</div>
+                            <div class="text-xs text-muted-foreground">{{ $transfer['count'] }} {{ \Illuminate\Support\Str::plural('order', $transfer['count']) }}</div>
                         </div>
                     </div>
                     <span class="rounded-full bg-amber-100 dark:bg-amber-900/60 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-300">
@@ -353,7 +355,7 @@
         @endif
     </div>
 
-    <!-- Daily Sales, Collections, and Profit Breakdown Table -->
+    <!-- Daily Sales, Profit & Collections Summary Table -->
     <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         <div class="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
@@ -378,7 +380,7 @@
                         <th class="px-4 py-3 text-center">{{ __('Orders') }}</th>
                         <th class="px-4 py-3 text-right">{{ __('Gross Sales') }}</th>
                         <th class="px-4 py-3 text-right">{{ __('Discounts') }}</th>
-                        <th class="px-4 py-3 text-right font-bold text-foreground">{{ __('Net Total') }}</th>
+                        <th class="px-4 py-3 text-right font-bold text-foreground">{{ __('Total Sales') }}</th>
                         <th class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400 font-bold">{{ __('Gross Profit') }}</th>
                         <th class="px-4 py-3 text-right text-blue-600 dark:text-blue-400">{{ __('UPI') }}</th>
                         <th class="px-4 py-3 text-right text-purple-600 dark:text-purple-400">{{ __('Card') }}</th>
@@ -483,7 +485,7 @@
                         <th class="px-4 py-3">{{ __('Customer') }}</th>
                         <th class="px-4 py-3">{{ __('Payment Mode') }}</th>
                         <th class="px-4 py-3 text-right">{{ __('Discount') }}</th>
-                        <th class="px-4 py-3 text-right">{{ __('Net Amount') }}</th>
+                        <th class="px-4 py-3 text-right">{{ __('Total Amount') }}</th>
                         <th class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400">{{ __('Profit') }}</th>
                         <th class="px-4 py-3 text-center">{{ __('Action') }}</th>
                     </tr>

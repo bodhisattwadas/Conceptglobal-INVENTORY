@@ -4,10 +4,10 @@
             <div>
                 <h2 class="font-semibold text-xl text-foreground leading-tight flex items-center gap-2">
                     <x-heroicon-o-chart-bar class="w-6 h-6 text-primary" />
-                    <span>{{ __('Sales & Revenue Reports') }}</span>
+                    <span>{{ __('Sales Reports') }}</span>
                 </h2>
                 <p class="text-sm text-muted-foreground mt-0.5">
-                    {{ __('Executive overview of sales, payment mode distributions (UPI, Card, Cash, Transfer), and KPI metrics.') }}
+                    {{ __('Monitor your sales performance, profit margins, and collections at a glance.') }}
                 </p>
             </div>
         </div>
