@@ -477,7 +477,7 @@
                                             'Accept': 'application/json',
                                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                                         },
-                                        body: JSON.stringify({ q: query, all_stock: true })
+                                        body: JSON.stringify({ q: query, all_stock: true, include_parlour: true })
                                     })
                                     .then(r => r.json())
                                     .then(items => callback(Array.isArray(items) ? items : []))
@@ -613,7 +613,7 @@
                                 'Accept': 'application/json',
                                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                             },
-                            body: JSON.stringify({ q: String(productId), all_stock: true })
+                            body: JSON.stringify({ q: String(productId), all_stock: true, include_parlour: true })
                         })
                         .then(r => r.json())
                         .then(items => {
@@ -636,7 +636,7 @@
                                 'Accept': 'application/json',
                                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                             },
-                            body: JSON.stringify({ q: query, all_stock: true })
+                            body: JSON.stringify({ q: query, all_stock: true, include_parlour: true })
                         })
                         .then(r => r.json())
                         .then(items => {
@@ -705,7 +705,7 @@
                                             'Accept': 'application/json',
                                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                                         },
-                                        body: JSON.stringify({ q: query, all_stock: true })
+                                        body: JSON.stringify({ q: query, all_stock: true, include_parlour: true })
                                     })
                                     .then(r => r.json())
                                     .then(items => {
@@ -868,7 +868,7 @@
                                 'Accept': 'application/json',
                                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                             },
-                            body: JSON.stringify({ q: String(productId), all_stock: true })
+                            body: JSON.stringify({ q: String(productId), all_stock: true, include_parlour: true })
                         })
                         .then(r => r.json())
                         .then(items => {
@@ -891,7 +891,7 @@
                                 'Accept': 'application/json',
                                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                             },
-                            body: JSON.stringify({ q: query, all_stock: true })
+                            body: JSON.stringify({ q: query, all_stock: true, include_parlour: true })
                         })
                         .then(r => r.json())
                         .then(items => {

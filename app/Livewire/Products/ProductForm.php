@@ -47,6 +47,8 @@ class ProductForm extends Component
 
     public int $min_stock = 0;
 
+    public string $location = 'shop';
+
     public bool $is_active = true;
 
     public string $description = '';
@@ -78,6 +80,7 @@ class ProductForm extends Component
     public function create(): void
     {
         $this->reset(['sku', 'product_code', 'duplicateBarcodeWarning', 'name', 'category_id', 'unit_id', 'company_id', 'brandName', 'mrp', 'purchase_price', 'selling_price', 'min_stock', 'description', 'notes', 'image', 'currentImagePath', 'product', 'isEditing', 'isCloning', 'categoryName', 'unitName']);
+        $this->location = 'shop';
         $this->is_active = true;
         $this->formKey++;
         $this->resetValidation();
@@ -96,6 +99,7 @@ class ProductForm extends Component
         $this->category_id = $product->category_id;
         $this->unit_id = $product->unit_id;
         $this->company_id = $product->company_id;
+        $this->location = $product->location?->value ?? 'shop';
         $this->mrp = (int) $product->mrp;
         $this->purchase_price = (int) $product->mrp;
         $this->selling_price = (int) $product->mrp;
@@ -130,6 +134,7 @@ class ProductForm extends Component
         $this->category_id = $product->category_id;
         $this->unit_id = $product->unit_id;
         $this->company_id = $product->company_id;
+        $this->location = $product->location?->value ?? 'shop';
         $this->mrp = (int) $product->mrp;
         $this->purchase_price = (int) $product->mrp;
         $this->selling_price = (int) $product->mrp;
@@ -169,6 +174,7 @@ class ProductForm extends Component
             'company_id' => ['required', 'exists:companies,id'],
             'mrp' => ['required', 'integer', 'min:0'],
             'min_stock' => ['required', 'integer', 'min:0'],
+            'location' => ['required', 'string', 'in:shop,parlour'],
             'is_active' => ['boolean'],
             'description' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],

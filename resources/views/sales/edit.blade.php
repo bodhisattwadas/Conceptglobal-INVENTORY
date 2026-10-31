@@ -1058,7 +1058,7 @@
                         q: q,
                         search: q,
                         query: q,
-                        all_stock: 1
+                        all_stock: 0
                     });
 
                     const promises = [];

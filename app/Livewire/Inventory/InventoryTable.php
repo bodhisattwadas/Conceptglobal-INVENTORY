@@ -124,7 +124,7 @@ final class InventoryTable extends PowerGridComponent
         return '<span class="inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold '.$class.'">'.$label.'</span>';
     }
 
-    private function batchQuantities(InventoryStock $stock): string
+    public function batchQuantities(InventoryStock $stock): string
     {
         $batches = $stock->product?->purchaseItems
             ?->filter(fn ($item) => (int) ($item->received_quantity ?? 0) > 0)
@@ -170,7 +170,7 @@ final class InventoryTable extends PowerGridComponent
         return $html;
     }
 
-    private function productCell(InventoryStock $model): string
+    public function productCell(InventoryStock $model): string
     {
         $name = $model->product?->name ?: $model->product_name ?: '-';
         $brand = $model->product?->company?->short_name ?: $model->product?->company?->company_name ?: ($model->brand_short_name ?: $model->company_name ?: null);
@@ -211,7 +211,7 @@ final class InventoryTable extends PowerGridComponent
         return $html;
     }
 
-    private function locationPills(InventoryStock $stock): array
+    public function locationPills(InventoryStock $stock): array
     {
         $product = $stock->product;
         $activeBatches = $product?->purchaseItems
@@ -267,12 +267,12 @@ final class InventoryTable extends PowerGridComponent
         return $pills;
     }
 
-    private function locationBadges(InventoryStock $stock): string
+    public function locationBadges(InventoryStock $stock): string
     {
         return '<div class="flex items-center justify-center gap-1.5 flex-wrap">'.implode('', $this->locationPills($stock)).'</div>';
     }
 
-    private function locationExport(InventoryStock $stock): string
+    public function locationExport(InventoryStock $stock): string
     {
         $product = $stock->product;
         $activeBatches = $product?->purchaseItems
@@ -300,7 +300,7 @@ final class InventoryTable extends PowerGridComponent
         return $hasParlour ? 'Parlour' : 'Shop';
     }
 
-    private function numberWithUnit(int $number, InventoryStock $stock): string
+    public function numberWithUnit(int $number, InventoryStock $stock): string
     {
         $unit = $stock->product?->unit?->symbol ?: $stock->product?->unit?->name ?: '';
 

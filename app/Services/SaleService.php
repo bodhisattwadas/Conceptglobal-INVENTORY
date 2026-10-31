@@ -5,6 +5,7 @@ namespace App\Services;
 use App\DTOs\SaleData;
 use App\Enums\CouponType;
 use App\Enums\PaymentMethod;
+use App\Enums\PurchaseLocation;
 use App\Enums\SaleStatus;
 use App\Exceptions\DiscountCouponException;
 use App\Exceptions\SaleException;
@@ -135,11 +136,19 @@ class SaleService
                         throw SaleException::productNotFound($itemData->product_id);
                     }
 
-                    if ($product->quantity < $itemData->quantity) {
+                    if ($product->location === PurchaseLocation::PARLOUR) {
+                        throw SaleException::invalidDiscount("Product '{$product->name}' is designated for Parlour internal use and cannot be sold at point of sale.");
+                    }
+
+                    $stockByLocation = $product->getStockByLocation();
+                    $hasBatches = $product->purchaseItems && $product->purchaseItems->where('received_quantity', '>', 0)->isNotEmpty();
+                    $availableShopStock = $hasBatches ? $stockByLocation['shop'] : (int) $product->quantity;
+
+                    if ($availableShopStock < $itemData->quantity) {
                         throw SaleException::insufficientStock(
                             $product->name,
                             $itemData->quantity,
-                            $product->quantity
+                            $availableShopStock
                         );
                     }
 
@@ -419,6 +428,10 @@ class SaleService
                     $product = $products->get($itemData->product_id);
                     if (! $product) {
                         throw SaleException::productNotFound($itemData->product_id);
+                    }
+
+                    if ($product->location === PurchaseLocation::PARLOUR) {
+                        throw SaleException::invalidDiscount("Product '{$product->name}' is designated for Parlour internal use and cannot be sold at point of sale.");
                     }
 
                     $unitPrice = $itemData->unit_price > 0 ? $itemData->unit_price : $product->selling_price;

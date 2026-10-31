@@ -16,6 +16,7 @@ class ProductController extends Controller
         $companyId = $request->integer('company_id');
         $supplierId = $request->integer('supplier_id');
         $forPurchase = $request->boolean('for_purchase');
+        $includeParlour = $request->boolean('include_parlour') || $forPurchase;
         $allStock = $request->boolean('all_stock') || $forPurchase;
 
         $queryLower = mb_strtolower($query);
@@ -29,9 +30,19 @@ class ProductController extends Controller
         }
 
         $products = Product::query()
-            ->with(['unit', 'company', 'inventoryStock'])
+            ->with(['unit', 'company', 'inventoryStock', 'purchaseItems'])
             ->where('is_active', true)
             ->when(! $allStock, fn ($builder) => $builder->whereHas('inventoryStock', fn ($stock) => $stock->where('quantity', '>', 0)))
+            ->when(! $includeParlour, function ($builder) {
+                // Parlour items are internal use only and are excluded from POS
+                $builder->where(function ($q) {
+                    $q->where('location', '!=', 'parlour')
+                        ->orWhereNull('location');
+                })->where(function ($q) {
+                    $q->whereDoesntHave('purchaseItems', fn ($pi) => $pi->where('received_quantity', '>', 0))
+                        ->orWhereHas('purchaseItems', fn ($pi) => $pi->where('received_quantity', '>', 0)->where(fn ($loc) => $loc->where('location', 'shop')->orWhereNull('location')));
+                });
+            })
             ->when($companyId > 0, fn ($builder) => $builder->where('company_id', $companyId))
             ->when($supplierId > 0 && ! $companyId, fn ($builder) => $builder->whereIn('company_id', $supplierCompanyIds))
             ->when($query !== '', function ($q) use ($queryLower) {
@@ -85,7 +96,15 @@ class ProductController extends Controller
             ->orderBy('name')
             ->limit(($companyId > 0 || $allStock) ? 300 : 50)
             ->get()
-            ->map(function ($product) {
+            ->map(function ($product) use ($includeParlour) {
+                $stockByLocation = $product->getStockByLocation();
+                $hasBatches = $product->purchaseItems && $product->purchaseItems->where('received_quantity', '>', 0)->isNotEmpty();
+
+                // For POS / retail, stock reflects shop stock only; for purchases/adjustments, total stock
+                $quantity = ($hasBatches && ! $includeParlour)
+                    ? $stockByLocation['shop']
+                    : ($product->inventoryStock?->quantity ?? 0);
+
                 $displayText = $product->product_code
                     ? "{$product->product_code} - {$product->name}"
                     : ($product->sku ? "{$product->sku} - {$product->name}" : $product->name);
@@ -105,13 +124,18 @@ class ProductController extends Controller
                     'product_code' => $product->product_code,
                     'brand' => $product->company ? ($product->company->short_name ?: $product->company->company_name) : null,
                     'brand_id' => $product->company_id,
-                    'quantity' => $product->inventoryStock?->quantity ?? 0,
+                    'quantity' => $quantity,
+                    'location' => $product->location?->value ?? 'shop',
                     'unit' => $product->unit ? [
                         'symbol' => $product->unit->symbol,
                         'name' => $product->unit->name,
                     ] : null,
                 ];
             });
+
+        if (! $allStock && ! $includeParlour) {
+            $products = $products->filter(fn ($item) => (int) $item['quantity'] > 0)->values();
+        }
 
         return response()->json($products);
     }

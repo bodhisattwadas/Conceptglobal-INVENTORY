@@ -205,8 +205,8 @@
                 </div>
             </div>
 
-            <!-- Minimum Quantity and Active Status -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Minimum Quantity, Location, and Active Status -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <!-- Minimum Quantity -->
                 <x-form-input
                     name="min_stock"
@@ -218,6 +218,22 @@
                     required
                     hint="Reorder alert level for inventory. Example: 10."
                 />
+
+                <!-- Location Designation -->
+                <div class="space-y-2">
+                    <x-input-label for="product_location" :value="__('Designated Location')" required hint="Shop is retail; Parlour is internal use only (hidden at POS)." />
+                    <select
+                        id="product_location"
+                        wire:model="location"
+                        class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                        <option value="shop">{{ __('Shop (Retail Counter)') }}</option>
+                        <option value="parlour">{{ __('Parlour (Internal Use Only)') }}</option>
+                    </select>
+                    @error('location')
+                        <p class="text-xs text-rose-600 font-medium">{{ $message }}</p>
+                    @enderror
+                </div>
 
                 <!-- Is Active -->
                 <div class="flex items-center h-full pt-8">

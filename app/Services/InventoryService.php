@@ -126,7 +126,7 @@ class InventoryService
      * FIFO-consume received batches (purchase items) for a sold quantity, decrementing
      * each batch's remaining received_quantity and recording a per-batch movement.
      */
-    public function deductFromBatches(int $productId, int $quantity, string $type, ?string $reference = null, ?string $notes = null, ?Sale $sale = null, ?SaleItem $saleItem = null): void
+    public function deductFromBatches(int $productId, int $quantity, string $type, ?string $reference = null, ?string $notes = null, ?Sale $sale = null, ?SaleItem $saleItem = null, ?string $location = 'shop'): void
     {
         if ($quantity <= 0) {
             return;
@@ -137,6 +137,14 @@ class InventoryService
         $batches = PurchaseItem::query()
             ->where('product_id', $productId)
             ->where('received_quantity', '>', 0)
+            ->when($location !== null, function ($q) use ($location) {
+                $q->where(function ($sub) use ($location) {
+                    $sub->where('location', $location);
+                    if ($location === 'shop') {
+                        $sub->orWhereNull('location');
+                    }
+                });
+            })
             ->whereHas('purchase')
             ->orderBy(
                 Purchase::query()
@@ -167,6 +175,7 @@ class InventoryService
                 'purchase_id' => $batch->purchase_id,
                 'purchase_item_id' => $batch->id,
                 'type' => $type,
+                'location' => $batch->location?->value ?? ($batch->location ?: 'shop'),
                 'quantity' => -$take,
                 'balance_after' => $batch->received_quantity,
                 'reference' => $reference,
@@ -215,6 +224,7 @@ class InventoryService
                 'purchase_id' => $batch->purchase_id,
                 'purchase_item_id' => $batch->id,
                 'type' => $type,
+                'location' => $batch->location?->value ?? ($batch->location ?: 'shop'),
                 'quantity' => $restoreQty,
                 'balance_after' => $batch->received_quantity,
                 'reference' => $reference,

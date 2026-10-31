@@ -65,6 +65,7 @@ class HistoricalSaleEditTest extends TestCase
             'purchase_price' => 100,
             'selling_price' => 200,
             'quantity' => 20,
+            'is_active' => true,
         ]);
 
         InventoryStock::create([
@@ -335,6 +336,7 @@ class HistoricalSaleEditTest extends TestCase
             'purchase_price' => 80,
             'selling_price' => 150,
             'quantity' => 10,
+            'is_active' => true,
         ]);
 
         InventoryStock::create([

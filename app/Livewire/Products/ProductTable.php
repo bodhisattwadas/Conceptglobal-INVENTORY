@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Products;
 
+use App\Enums\PurchaseLocation;
 use App\Exceptions\ProductException;
 use App\Models\Product;
 use App\Services\ProductService;
@@ -63,6 +64,7 @@ final class ProductTable extends PowerGridComponent
                 'products.name',
                 'products.mrp',
                 'products.min_stock',
+                'products.location',
                 'products.is_active',
                 'products.description',
                 'products.image_path',
@@ -101,6 +103,7 @@ final class ProductTable extends PowerGridComponent
             ->add('unit_symbol', fn (Product $model) => $model->unit_symbol ?: '-')
             ->add('mrp_formatted', fn (Product $model) => format_money($model->mrp))
             ->add('min_stock')
+            ->add('location_export', fn (Product $model) => $model->location === PurchaseLocation::PARLOUR ? 'Parlour' : 'Shop')
             ->add('is_active_label', function (Product $model) {
                 return $model->is_active
                     ? '<div class="flex items-center justify-center text-green-500"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></div>'
@@ -176,6 +179,10 @@ final class ProductTable extends PowerGridComponent
                 ->visibleInExport(false),
 
             Column::make('Status', 'is_active_export', 'is_active')
+                ->hidden()
+                ->visibleInExport(true),
+
+            Column::make('Location', 'location_export')
                 ->hidden()
                 ->visibleInExport(true),
 

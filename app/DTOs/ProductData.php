@@ -19,6 +19,7 @@ class ProductData
         public readonly ?string $description,
         public readonly ?string $notes,
         public readonly ?string $image_path = null,
+        public readonly string $location = 'shop',
     ) {}
 
     public static function fromArray(array $data): self
@@ -38,6 +39,7 @@ class ProductData
             description: empty($data['description']) ? null : $data['description'],
             notes: empty($data['notes']) ? null : $data['notes'],
             image_path: empty($data['image_path']) ? null : $data['image_path'],
+            location: ! empty($data['location']) ? $data['location'] : 'shop',
         );
     }
 
@@ -54,6 +56,7 @@ class ProductData
             'purchase_price' => $this->purchase_price,
             'selling_price' => $this->selling_price,
             'min_stock' => $this->min_stock,
+            'location' => $this->location,
             'is_active' => $this->is_active,
             'description' => $this->description,
             'notes' => $this->notes,

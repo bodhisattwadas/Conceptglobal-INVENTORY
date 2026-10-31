@@ -19,6 +19,7 @@ use App\Services\InventoryAdjustmentService;
 use App\Services\PurchaseService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use PowerComponents\LivewirePowerGrid\Components\Exports\Export;
 use ReflectionClass;
 use Tests\TestCase;
 
@@ -461,5 +462,70 @@ class InventoryLocationWorkflowTest extends TestCase
             ->first();
         $this->assertNotNull($shopBatch);
         $this->assertEquals(5, $shopBatch->received_quantity);
+    }
+
+    public function test_inventory_export_includes_location_column(): void
+    {
+        $product = Product::factory()->create([
+            'name' => 'Tea Tree Shampoo',
+            'company_id' => $this->company->id,
+            'category_id' => $this->category->id,
+            'unit_id' => $this->unit->id,
+            'quantity' => 12,
+        ]);
+
+        $stock = InventoryStock::create([
+            'product_id' => $product->id,
+            'quantity' => 12,
+        ]);
+
+        // 7 units in Shop, 5 units in Parlour
+        PurchaseItem::create([
+            'purchase_id' => $this->defaultPurchase->id,
+            'product_id' => $product->id,
+            'location' => PurchaseLocation::SHOP,
+            'quantity' => 7,
+            'received_quantity' => 7,
+            'unit_price' => 100,
+            'subtotal' => 700,
+            'batch_number' => 'TTS-SH-01',
+        ]);
+        PurchaseItem::create([
+            'purchase_id' => $this->defaultPurchase->id,
+            'product_id' => $product->id,
+            'location' => PurchaseLocation::PARLOUR,
+            'quantity' => 5,
+            'received_quantity' => 5,
+            'unit_price' => 100,
+            'subtotal' => 500,
+            'batch_number' => 'TTS-PL-01',
+        ]);
+
+        $component = new InventoryTable;
+        $component->columns = $component->columns();
+        $component->setUp();
+
+        $currentHiddenStates = collect($component->columns)
+            ->mapWithKeys(fn ($column) => [data_get($column, 'field') => data_get($column, 'hidden')]);
+
+        $columnsWithHiddenState = array_map(function ($column) use ($currentHiddenStates) {
+            $column->hidden = $currentHiddenStates[$column->field];
+
+            return $column;
+        }, $component->columns());
+
+        $export = new Export;
+        $prepared = $export->prepare($component->prepareToExport(), $columnsWithHiddenState, true);
+
+        $this->assertNotEmpty($prepared['rows']);
+        $row = collect($prepared['rows'])->firstWhere('SKU', $product->sku);
+
+        $this->assertNotNull($row);
+        $this->assertArrayHasKey('Location', $row);
+        $this->assertSame('Shop, Parlour', $row['Location']);
+
+        // Assert no html tags in the exported Location
+        $this->assertStringNotContainsString('<', $row['Location']);
+        $this->assertStringNotContainsString('>', $row['Location']);
     }
 }
