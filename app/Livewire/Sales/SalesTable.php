@@ -23,7 +23,7 @@ final class SalesTable extends PowerGridComponent
 
     public string $tableName = 'sales-table';
 
-    public string $sortField = 'created_at';
+    public string $sortField = 'sale_date';
 
     public string $sortDirection = 'desc';
 
@@ -52,7 +52,9 @@ final class SalesTable extends PowerGridComponent
     public function datasource(): Builder
     {
         return Sale::query()
-            ->with(['customer', 'creator']);
+            ->with(['customer', 'creator'])
+            ->orderBy('sale_date', 'desc')
+            ->orderBy('id', 'desc');
     }
 
     public function fields(): PowerGridFields

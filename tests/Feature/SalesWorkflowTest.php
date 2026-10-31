@@ -1065,6 +1065,48 @@ class SalesWorkflowTest extends TestCase
         $response->assertSee('title="Edit Sale"', false);
     }
 
+    public function test_sales_table_displays_latest_sale_first_by_date(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        // Older sale (yesterday)
+        $olderSale = Sale::create([
+            'invoice_number' => 'INV.YESTERDAY.001',
+            'created_by' => $user->id,
+            'sale_date' => now()->subDay(),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 500,
+            'global_discount' => 0,
+            'total_discount' => 0,
+            'total' => 500,
+            'cash_received' => 500,
+            'change' => 0,
+            'payment_method' => PaymentMethod::CASH,
+        ]);
+
+        // Newer sale (today)
+        $newerSale = Sale::create([
+            'invoice_number' => 'INV.TODAY.002',
+            'created_by' => $user->id,
+            'sale_date' => now(),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 1000,
+            'global_discount' => 0,
+            'total_discount' => 0,
+            'total' => 1000,
+            'cash_received' => 1000,
+            'change' => 0,
+            'payment_method' => PaymentMethod::CASH,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(SalesTable::class)
+            ->assertSeeHtmlInOrder([
+                'INV.TODAY.002',
+                'INV.YESTERDAY.001',
+            ]);
+    }
+
     private function receiveStock(Product $product, User $user): void
     {
         $purchase = Purchase::create([
