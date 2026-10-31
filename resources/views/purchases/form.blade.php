@@ -106,9 +106,7 @@
                             <th class="w-24 px-3 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">Discount %</th>
                             <th class="w-32 px-3 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">Agreed Price</th>
                             <th class="w-28 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">Subtotal</th>
-                            @if(!($purchase->exists ?? false))
-                                <th class="w-14 px-2 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap"><span class="sr-only">Action</span></th>
-                            @endif
+                            <th class="w-14 px-2 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap"><span class="sr-only">Action</span></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white">
@@ -187,38 +185,34 @@
                                     </div>
                                 </td>
                                 <td class="w-28 px-4 py-3 text-right text-sm font-semibold align-top whitespace-nowrap" x-text="window.formatMoney(item.subtotal)"></td>
-                                @if(!($purchase->exists ?? false))
-                                    <td class="w-14 px-2 py-3 text-center align-top whitespace-nowrap">
-                                        <button x-show="!is_received" type="button" @click="removeItem(index)" class="inline-flex items-center justify-center rounded-md p-1.5 text-red-600 hover:bg-red-100 hover:text-red-700 focus:outline-none transition-colors" title="{{ __('Remove product') }}">
-                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
-                                        <span x-show="is_received" class="text-xs text-gray-400 font-mono" title="{{ __('Product locked on received order') }}">
-                                            <svg class="h-4 w-4 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                            </svg>
-                                        </span>
-                                    </td>
-                                @endif
-                            </tr>
-                        </template>
-                        @if(!($purchase->exists ?? false))
-                            <tr x-show="!is_received">
-                                <td colspan="8" class="px-4 py-3 bg-white">
-                                    <button
-                                        type="button"
-                                        @click="addRow()"
-                                        class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 transition-colors"
-                                    >
-                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                <td class="w-14 px-2 py-3 text-center align-top whitespace-nowrap">
+                                    <button x-show="!is_received" type="button" @click="removeItem(index)" class="inline-flex items-center justify-center rounded-md p-1.5 text-red-600 hover:bg-red-100 hover:text-red-700 focus:outline-none transition-colors" title="{{ __('Remove product') }}">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
-                                        <span>{{ __('Add Product') }}</span>
                                     </button>
+                                    <span x-show="is_received" class="text-xs text-gray-400 font-mono" title="{{ __('Product locked on received order') }}">
+                                        <svg class="h-4 w-4 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                        </svg>
+                                    </span>
                                 </td>
                             </tr>
-                        @endif
+                        </template>
+                        <tr x-show="!is_received">
+                            <td colspan="8" class="px-4 py-3 bg-white">
+                                <button
+                                    type="button"
+                                    @click="addRow()"
+                                    class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 transition-colors"
+                                >
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                    </svg>
+                                    <span>{{ __('Add Product') }}</span>
+                                </button>
+                            </td>
+                        </tr>
                     </tbody>
                     <tfoot class="bg-gray-50 border-t border-gray-200">
                         <tr>
@@ -226,9 +220,7 @@
                             <td class="w-16 px-2 py-4 text-center font-bold text-base text-gray-900" x-text="totalQuantity"></td>
                             <td colspan="3" class="px-4 py-4 text-right font-bold text-gray-700">Total PO</td>
                             <td class="w-28 px-4 py-4 text-right text-lg font-bold text-blue-600 whitespace-nowrap" x-text="window.formatMoney(total)"></td>
-                            @if(!($purchase->exists ?? false))
-                                <td class="w-14"></td>
-                            @endif
+                            <td class="w-14"></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -549,7 +541,7 @@
             },
 
             addRow() {
-                if (this.is_received || this.is_editing) return;
+                if (this.is_received) return;
                 const existingBlank = this.items.find(item => !item.product_id);
                 if (existingBlank) {
                     this.focusRowSelect(existingBlank);
@@ -562,7 +554,7 @@
             },
 
             removeItem(index) {
-                if (this.is_received || this.is_editing) return;
+                if (this.is_received) return;
                 const item = this.items[index];
                 this.destroyRowSelects(item);
                 this.items.splice(index, 1);
@@ -863,7 +855,7 @@
                 this.$dispatch('toast', { message: `Selected "${item.product_name}"`, type: 'success' });
 
                 this.$nextTick(() => {
-                    if (this.is_editing || this.is_received) return;
+                    if (this.is_received) return;
                     const emptyRow = this.items.find(row => !row.product_id);
                     if (emptyRow) {
                         this.focusRowSelect(emptyRow);
@@ -1072,14 +1064,14 @@
                             scanBuffer = '';
                             e.preventDefault();
 
-                            if (this.is_received || this.is_editing) {
+                            if (this.is_received) {
                                 const existing = this.items.find(row => 
                                     (row.product_code && row.product_code.toLowerCase() === barcode.toLowerCase())
                                 );
                                 if (existing) {
                                     this.$dispatch('toast', { message: `Product "${existing.product_name}" is already in this purchase order.`, type: 'info' });
                                 } else {
-                                    this.$dispatch('toast', { message: 'Cannot add new products while editing this purchase order.', type: 'warning' });
+                                    this.$dispatch('toast', { message: 'Cannot add new products to an already received purchase order.', type: 'warning' });
                                 }
                                 return;
                             }

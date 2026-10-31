@@ -701,7 +701,7 @@ class PurchaseWorkflowTest extends TestCase
         $printResponse->assertHeader('content-type', 'application/pdf');
     }
 
-    public function test_purchase_edit_view_removes_add_product_and_delete_product_buttons(): void
+    public function test_purchase_edit_view_allows_add_product_and_remove_product_buttons(): void
     {
         $user = User::factory()->create(['role' => 'admin']);
 
@@ -710,16 +710,27 @@ class PurchaseWorkflowTest extends TestCase
             'email' => 'buttons@test.com',
         ]);
         $brand = Company::create(['company_code' => 'BRD-BTN', 'company_name' => 'Brand Buttons Test']);
+        $supplier->companies()->attach($brand->id);
         $category = Category::create(['name' => 'Cat Buttons Test', 'slug' => 'cat-buttons-test']);
         $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc-btn']);
 
-        $product = Product::factory()->create([
+        $product1 = Product::factory()->create([
             'company_id' => $brand->id,
             'category_id' => $category->id,
             'unit_id' => $unit->id,
             'sku' => 'SKU-BTN-1',
-            'name' => 'Buttons Product Test',
+            'name' => 'Buttons Product 1',
             'mrp' => 500,
+            'is_active' => true,
+        ]);
+
+        $product2 = Product::factory()->create([
+            'company_id' => $brand->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'sku' => 'SKU-BTN-2',
+            'name' => 'Buttons Product 2',
+            'mrp' => 600,
             'is_active' => true,
         ]);
 
@@ -733,17 +744,55 @@ class PurchaseWorkflowTest extends TestCase
             'created_by' => $user->id,
         ]);
 
+        $purchase->items()->create([
+            'product_id' => $product1->id,
+            'quantity' => 1,
+            'unit_price' => 500,
+            'subtotal' => 500,
+            'selling_price' => 500,
+        ]);
+
         // 1. PO Create view includes Add Product and Remove product buttons
         $createResponse = $this->actingAs($user)->get(route('purchases.create'));
         $createResponse->assertOk();
         $createResponse->assertSeeText('Add Product');
         $createResponse->assertSee('Remove product');
 
-        // 2. PO Edit view does not include Add Product or Remove product buttons
+        // 2. PO Edit view also includes Add Product and Remove product buttons
         $editResponse = $this->actingAs($user)->get(route('purchases.edit', $purchase));
         $editResponse->assertOk();
-        $editResponse->assertDontSeeText('Add Product');
-        $editResponse->assertDontSee('Remove product');
+        $editResponse->assertSeeText('Add Product');
+        $editResponse->assertSee('Remove product');
+
+        // 3. User can successfully add a new product while updating the purchase order
+        $updateResponse = $this->actingAs($user)->put(route('purchases.update', $purchase), [
+            'supplier_id' => $supplier->id,
+            'company_id' => $brand->id,
+            'location' => 'shop',
+            'purchase_date' => now()->toDateString(),
+            'items' => [
+                [
+                    'product_id' => $product1->id,
+                    'quantity' => 2,
+                    'mrp' => 500,
+                    'discount_percent' => 0,
+                    'unit_price' => 500,
+                    'selling_price' => 500,
+                ],
+                [
+                    'product_id' => $product2->id,
+                    'quantity' => 3,
+                    'mrp' => 600,
+                    'discount_percent' => 10,
+                    'unit_price' => 540,
+                    'selling_price' => 600,
+                ],
+            ],
+        ]);
+
+        $updateResponse->assertRedirect();
+        $this->assertEquals(2, $purchase->fresh()->items()->count());
+        $this->assertEquals(2620, (float) $purchase->fresh()->total);
     }
 
     public function test_purchase_can_be_created_with_json_items_payload(): void
