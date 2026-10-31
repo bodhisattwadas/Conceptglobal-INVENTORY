@@ -15,6 +15,7 @@ use App\Http\Controllers\FinanceReportController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ProductController as ProductReportController;
 use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SalesController;
 use App\Http\Controllers\SupplierProfileController;
 use App\Http\Controllers\VendorInvoiceController;
@@ -151,6 +152,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('vendor-invoices', [VendorInvoiceController::class, 'index'])->middleware('role:admin,manager')->name('vendor-invoices.index');
     Route::get('vendor-invoices/{vendorInvoice}', [VendorInvoiceController::class, 'show'])->middleware('role:admin,manager')->name('vendor-invoices.show');
     Route::patch('vendor-invoices/{vendorInvoice}/paid', [VendorInvoiceController::class, 'markPaid'])->middleware('role:admin,manager')->name('vendor-invoices.mark-paid');
+
+    // =========================================================================
+    // Reports
+    // =========================================================================
+    Route::prefix('reports')->name('reports.')->middleware('role:admin')->group(function () {
+        Route::get('sales', [ReportController::class, 'sales'])->name('sales');
+        Route::get('sales/pdf', [ReportController::class, 'salesPdf'])->name('sales.pdf');
+    });
 
     // =========================================================================
     // Settings & Users
