@@ -29,7 +29,7 @@
                             <!-- Adjustment Type Selector -->
                             <div>
                                 <label class="block text-xs font-semibold uppercase tracking-wider text-gray-700 mb-1.5">{{ __('Adjustment Mode') }}</label>
-                                <div class="grid grid-cols-3 gap-2">
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                     <button
                                         type="button"
                                         wire:click="$set('adjustmentType', 'reallocation')"
@@ -39,6 +39,18 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                         </svg>
                                         <span class="text-xs">{{ __('Reallocate Product') }}</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        wire:click="$set('adjustmentType', 'location_transfer')"
+                                        class="flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-all {{ $adjustmentType === 'location_transfer' ? 'border-purple-600 bg-purple-50/70 text-purple-900 ring-2 ring-purple-500/30 font-semibold' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}"
+                                    >
+                                        <svg class="h-5 w-5 mb-1 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                        </svg>
+                                        <span class="text-xs">{{ __('Move Location') }}</span>
+                                        <span class="text-[10px] text-gray-500 font-normal">{{ __('Shop ⇄ Parlour') }}</span>
                                     </button>
 
                                     <button
@@ -60,7 +72,7 @@
                                         <svg class="h-5 w-5 mb-1 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
-                                        <span class="text-xs">{{ __('Found / Count Surplus') }}</span>
+                                        <span class="text-xs">{{ __('Found / Surplus') }}</span>
                                     </button>
                                 </div>
                             </div>
@@ -100,7 +112,7 @@
                                             <option value="">{{ __('-- Select Batch --') }}</option>
                                             @foreach($sourceBatches as $b)
                                                 <option value="{{ $b->id }}">
-                                                    Batch: {{ $b->batch_number ?: 'N/A' }} | Available: {{ $b->received_quantity }} units @ ₹{{ number_format($b->unit_price, 2) }}
+                                                    [{{ $b->isParlour() ? 'Parlour' : 'Shop' }}] Batch: {{ $b->batch_number ?: 'N/A' }} | Available: {{ $b->received_quantity }} units @ ₹{{ number_format($b->unit_price, 2) }}
                                                     @if($b->purchase) (PO: {{ $b->purchase->invoice_number }}) @endif
                                                 </option>
                                             @endforeach
@@ -109,9 +121,15 @@
 
                                         @if($selectedBatch)
                                             <div class="mt-2 rounded-md bg-blue-50/80 p-2.5 border border-blue-200 text-xs text-blue-950 flex flex-wrap items-center justify-between gap-2">
-                                                <div>
+                                                <div class="flex items-center gap-1.5 flex-wrap">
                                                     <span class="font-semibold">{{ __('Batch Available:') }}</span>
                                                     <span class="font-bold text-emerald-700 font-mono text-sm">{{ $selectedBatch->received_quantity }}</span> units
+                                                    <span class="mx-1 text-gray-400">|</span>
+                                                    <span class="font-semibold">{{ __('Location:') }}</span>
+                                                    <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold {{ $selectedBatch->isParlour() ? 'border-purple-200 bg-purple-100 text-purple-800' : 'border-blue-200 bg-blue-100 text-blue-800' }}">
+                                                        <span class="w-1.5 h-1.5 rounded-full {{ $selectedBatch->isParlour() ? 'bg-purple-500' : 'bg-blue-500' }}"></span>
+                                                        {{ $selectedBatch->isParlour() ? 'Parlour (Back)' : 'Shop (Front)' }}
+                                                    </span>
                                                     <span class="mx-1 text-gray-400">|</span>
                                                     <span class="font-semibold">{{ __('Cost Price:') }}</span>
                                                     <span class="font-mono">₹{{ number_format($selectedBatch->unit_price, 2) }}</span>
@@ -282,6 +300,48 @@
                                 </div>
                             @endif
 
+                            <!-- Location Transfer Target Section (Only in Location Transfer Mode) -->
+                            @if($adjustmentType === 'location_transfer')
+                                <div class="rounded-lg border border-purple-200 bg-purple-50/30 p-4 space-y-3">
+                                    <h4 class="text-xs font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                                        <span class="inline-block h-2 w-2 rounded-full bg-purple-500"></span>
+                                        {{ __('Move Stock Between Shop & Parlour') }}
+                                    </h4>
+
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1.5">{{ __('Target Location (Move Stock To)') }} <span class="text-red-500">*</span></label>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all {{ $target_location === 'shop' ? 'border-blue-600 bg-blue-50/70 text-blue-950 ring-2 ring-blue-500/30 font-semibold' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}">
+                                                <input type="radio" wire:model.live="target_location" value="shop" class="text-blue-600 focus:ring-blue-500">
+                                                <div class="flex flex-col text-left">
+                                                    <span class="text-sm font-bold flex items-center gap-1.5">
+                                                        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                                                        {{ __('Front Shop') }}
+                                                    </span>
+                                                    <span class="text-[11px] text-gray-500">{{ __('Customer-facing retail counter') }}</span>
+                                                </div>
+                                            </label>
+
+                                            <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all {{ $target_location === 'parlour' ? 'border-purple-600 bg-purple-50/70 text-purple-950 ring-2 ring-purple-500/30 font-semibold' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}">
+                                                <input type="radio" wire:model.live="target_location" value="parlour" class="text-purple-600 focus:ring-purple-500">
+                                                <div class="flex flex-col text-left">
+                                                    <span class="text-sm font-bold flex items-center gap-1.5">
+                                                        <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                                                        {{ __('Back Parlour') }}
+                                                    </span>
+                                                    <span class="text-[11px] text-gray-500">{{ __('Back salon / service area') }}</span>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        @error('target_location') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                                    </div>
+                                    <p class="text-[11px] text-purple-800/80">
+                                        <x-heroicon-s-information-circle class="w-4 h-4 inline-block mr-0.5 text-purple-600" />
+                                        {{ __('Total stock of this product will remain the same. The location tag will update and show badges for Shop / Parlour.') }}
+                                    </p>
+                                </div>
+                            @endif
+
                             <!-- Quantity & Reason -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
@@ -313,7 +373,12 @@
                                         wire:model="reason"
                                         class="block w-full rounded-md border-gray-300 py-1.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
                                     >
-                                        @if($adjustmentType === 'reallocation')
+                                        @if($adjustmentType === 'location_transfer')
+                                            <option value="transfer_to_parlour">{{ __('Transfer to Back Parlour for Services') }}</option>
+                                            <option value="transfer_to_shop">{{ __('Transfer to Front Shop for Retail') }}</option>
+                                            <option value="rebalance">{{ __('Stock Rebalance between Front & Back') }}</option>
+                                            <option value="other">{{ __('Other Location Movement') }}</option>
+                                        @elseif($adjustmentType === 'reallocation')
                                             <option value="misallocation_split">{{ __('PO Misallocation / Product Split') }}</option>
                                             <option value="count_correction">{{ __('Physical Count Discrepancy') }}</option>
                                             <option value="other">{{ __('Other Reallocation') }}</option>
@@ -358,7 +423,13 @@
                                 class="inline-flex items-center justify-center rounded-md bg-blue-600 py-2 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
                             >
                                 <span wire:loading.remove wire:target="submitAdjustment">
-                                    {{ $adjustmentType === 'reallocation' ? __('Confirm Reallocation') : __('Confirm Adjustment') }}
+                                    @if($adjustmentType === 'reallocation')
+                                        {{ __('Confirm Reallocation') }}
+                                    @elseif($adjustmentType === 'location_transfer')
+                                        {{ __('Confirm & Move Location') }}
+                                    @else
+                                        {{ __('Confirm Adjustment') }}
+                                    @endif
                                 </span>
                                 <span wire:loading wire:target="submitAdjustment">
                                     {{ __('Processing...') }}

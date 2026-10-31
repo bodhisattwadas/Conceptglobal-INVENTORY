@@ -16,8 +16,11 @@ class StockAdjustmentModal extends Component
 {
     public bool $isOpen = false;
 
-    // Adjustment type: 'reallocation' or 'quantity_decrease' or 'quantity_increase'
+    // Adjustment type: 'reallocation', 'location_transfer', 'quantity_decrease', 'quantity_increase'
     public string $adjustmentType = 'reallocation';
+
+    // Target Location ('shop' or 'parlour')
+    public string $target_location = 'parlour';
 
     // Source Product & Batch
     public ?int $source_product_id = null;
@@ -70,6 +73,10 @@ class StockAdjustmentModal extends Component
 
             if ($batchId) {
                 $this->source_purchase_item_id = $batchId;
+                $batch = $this->getSelectedBatch();
+                if ($batch) {
+                    $this->target_location = $batch->isParlour() ? 'shop' : 'parlour';
+                }
             }
         } else {
             $this->source_product_id = null;
@@ -94,8 +101,11 @@ class StockAdjustmentModal extends Component
     public function updatedSourcePurchaseItemId(): void
     {
         $batch = $this->getSelectedBatch();
-        if ($batch && $this->quantity > (int) $batch->received_quantity) {
-            $this->quantity = max(1, (int) $batch->received_quantity);
+        if ($batch) {
+            if ($this->quantity > (int) $batch->received_quantity) {
+                $this->quantity = max(1, (int) $batch->received_quantity);
+            }
+            $this->target_location = $batch->isParlour() ? 'shop' : 'parlour';
         }
     }
 
@@ -201,6 +211,7 @@ class StockAdjustmentModal extends Component
                     'source_product_id' => $this->source_product_id,
                     'source_purchase_item_id' => $this->source_purchase_item_id,
                     'target_product_id' => $this->target_product_id,
+                    'target_location' => $this->target_location,
                     'quantity' => $this->quantity,
                     'target_mrp' => $this->target_mrp,
                     'reason' => $this->reason,
@@ -210,6 +221,46 @@ class StockAdjustmentModal extends Component
                 $this->dispatch('toast', [
                     'type' => 'success',
                     'message' => "Stock reallocated successfully (#{$adjustment->adjustment_number}).",
+                ]);
+
+                $this->isOpen = false;
+                $this->dispatch('pg:eventRefresh-inventory-table');
+                $this->dispatch('inventory-adjusted');
+            } catch (\Throwable $e) {
+                $this->addError('quantity', $e->getMessage());
+            }
+        } elseif ($this->adjustmentType === 'location_transfer') {
+            $this->validate([
+                'source_product_id' => ['required', 'exists:products,id'],
+                'source_purchase_item_id' => ['required', 'exists:purchase_items,id'],
+                'target_location' => ['required', 'in:shop,parlour'],
+                'quantity' => ['required', 'integer', 'min:1'],
+                'reason' => ['required', 'string', 'max:100'],
+                'notes' => ['nullable', 'string', 'max:1000'],
+            ]);
+
+            $batch = $this->getSelectedBatch();
+            if (! $batch || (int) $batch->received_quantity < $this->quantity) {
+                $maxAvailable = $batch ? (int) $batch->received_quantity : 0;
+                $this->addError('quantity', "The requested quantity exceeds available batch quantity ({$maxAvailable}).");
+
+                return;
+            }
+
+            try {
+                $adjustment = $service->transferLocation([
+                    'product_id' => $this->source_product_id,
+                    'source_purchase_item_id' => $this->source_purchase_item_id,
+                    'target_location' => $this->target_location,
+                    'quantity' => $this->quantity,
+                    'reason' => $this->reason,
+                    'notes' => $this->notes,
+                ], Auth::id() ?? 1);
+
+                $targetLabel = $this->target_location === 'parlour' ? 'Parlour' : 'Shop';
+                $this->dispatch('toast', [
+                    'type' => 'success',
+                    'message' => "Stock moved to {$targetLabel} successfully (#{$adjustment->adjustment_number}).",
                 ]);
 
                 $this->isOpen = false;

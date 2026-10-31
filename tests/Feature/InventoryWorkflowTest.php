@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\PurchaseLocation;
 use App\Livewire\Inventory\InventoryTable;
 use App\Models\Category;
 use App\Models\Company;
@@ -232,5 +233,66 @@ class InventoryWorkflowTest extends TestCase
         $showResponse->assertOk();
         $showResponse->assertSee('Product Code');
         $showResponse->assertSee('8906036215017');
+    }
+
+    public function test_inventory_table_renders_brand_category_and_location_badges_under_product_name(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $company = Company::create([
+            'company_name' => 'Loreal Paris',
+            'short_name' => 'Loreal',
+            'company_code' => 'LOR-01',
+            'status' => 'active',
+        ]);
+
+        $category = Category::create([
+            'name' => 'Skin Care',
+            'slug' => 'skin-care-'.uniqid(),
+        ]);
+
+        $unit = Unit::create([
+            'name' => 'Piece',
+            'symbol' => 'pc',
+        ]);
+
+        $product = Product::factory()->create([
+            'name' => 'Glow Lipstick - Warm Beige 10ml',
+            'sku' => 'DUMMY.00022',
+            'product_code' => 'GLOW-022',
+            'company_id' => $company->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'quantity' => 10,
+            'location' => PurchaseLocation::SHOP,
+        ]);
+
+        $stock = InventoryStock::create([
+            'product_id' => $product->id,
+            'quantity' => 10,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(InventoryTable::class)
+            ->assertSee('Glow Lipstick - Warm Beige 10ml')
+            ->assertSee('Loreal')
+            ->assertSee('Skin Care')
+            ->assertSee('Shop');
+
+        // Test direct HTML cell output
+        $table = new InventoryTable;
+        $reflection = new ReflectionClass($table);
+        $method = $reflection->getMethod('productCell');
+        $method->setAccessible(true);
+
+        $html = $method->invoke($table, $stock);
+
+        $this->assertStringContainsString('Glow Lipstick - Warm Beige 10ml', $html);
+        $this->assertStringContainsString('Loreal', $html);
+        $this->assertStringContainsString('Skin Care', $html);
+        $this->assertStringContainsString('Shop', $html);
+        $this->assertStringContainsString('bg-indigo-50', $html);
+        $this->assertStringContainsString('bg-emerald-50', $html);
+        $this->assertStringContainsString('bg-blue-50', $html);
     }
 }

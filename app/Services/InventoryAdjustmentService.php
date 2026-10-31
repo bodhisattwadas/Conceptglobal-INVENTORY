@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\PurchaseLocation;
 use App\Models\InventoryAdjustment;
 use App\Models\InventoryMovement;
 use App\Models\InventoryStock;
@@ -120,12 +121,18 @@ class InventoryAdjustmentService
             $targetStock->refresh();
             $targetProduct->refresh();
 
+            $targetLocationRaw = $data['target_location'] ?? null;
+            $targetLocation = $targetLocationRaw
+                ? (is_string($targetLocationRaw) ? PurchaseLocation::tryFrom($targetLocationRaw) : $targetLocationRaw)
+                : $sourceBatch->location;
+
             // 3. Create or increment target FIFO batch linked to original purchase
             $targetBatch = null;
             if ($sourceBatch->purchase_id) {
                 $targetBatch = PurchaseItem::query()
                     ->where('purchase_id', $sourceBatch->purchase_id)
                     ->where('product_id', $targetProduct->id)
+                    ->where('location', $targetLocation?->value ?? 'shop')
                     ->where('batch_number', $sourceBatch->batch_number)
                     ->lockForUpdate()
                     ->first();
@@ -141,6 +148,7 @@ class InventoryAdjustmentService
                 $targetBatch = PurchaseItem::create([
                     'purchase_id' => $sourceBatch->purchase_id,
                     'product_id' => $targetProduct->id,
+                    'location' => $targetLocation?->value ?? 'shop',
                     'quantity' => $quantity,
                     'received_quantity' => $quantity,
                     'unit_price' => $sourceBatch->unit_price,
@@ -156,6 +164,7 @@ class InventoryAdjustmentService
                 'product_id' => $targetProductId,
                 'purchase_id' => $sourceBatch->purchase_id,
                 'purchase_item_id' => $targetBatch->id,
+                'location' => $targetLocation?->value ?? 'shop',
                 'type' => 'reallocation_in',
                 'quantity' => $quantity,
                 'balance_after' => $targetStock->quantity,
@@ -169,8 +178,145 @@ class InventoryAdjustmentService
                 'type' => 'reallocation',
                 'source_product_id' => $sourceProductId,
                 'source_purchase_item_id' => $sourceBatch->id,
+                'source_location' => $sourceBatch->location?->value ?? 'shop',
                 'target_product_id' => $targetProductId,
                 'target_purchase_item_id' => $targetBatch->id,
+                'target_location' => $targetLocation?->value ?? 'shop',
+                'quantity' => $quantity,
+                'unit_cost' => $sourceBatch->unit_price,
+                'reason' => $reason,
+                'notes' => $notes,
+                'created_by' => $userId,
+            ]);
+        });
+    }
+
+    /**
+     * Move stock of the same product between locations (Shop <-> Parlour).
+     */
+    public function transferLocation(array $data, int $userId): InventoryAdjustment
+    {
+        return DB::transaction(function () use ($data, $userId) {
+            $productId = (int) ($data['product_id'] ?? 0);
+            $sourceBatchId = (int) ($data['source_purchase_item_id'] ?? 0);
+            $quantity = (int) ($data['quantity'] ?? 0);
+            $targetLocationRaw = $data['target_location'] ?? null;
+            $reason = trim($data['reason'] ?? 'location_transfer');
+            $notes = trim($data['notes'] ?? '');
+
+            if ($quantity <= 0) {
+                throw new InvalidArgumentException('Quantity must be greater than zero.');
+            }
+
+            $product = Product::where('id', $productId)->lockForUpdate()->first();
+            if (! $product) {
+                throw new RuntimeException("Product #{$productId} not found.");
+            }
+
+            $stock = InventoryStock::firstOrCreate(
+                ['product_id' => $productId],
+                ['quantity' => $product->quantity ?? 0]
+            );
+            $stock = InventoryStock::where('id', $stock->id)->lockForUpdate()->first();
+
+            $sourceBatch = PurchaseItem::where('id', $sourceBatchId)
+                ->where('product_id', $productId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $sourceBatch) {
+                throw new RuntimeException("Source batch #{$sourceBatchId} not found for product #{$productId}.");
+            }
+
+            if ((int) $sourceBatch->received_quantity < $quantity) {
+                throw new RuntimeException(
+                    "Insufficient batch stock. Available: {$sourceBatch->received_quantity} unit(s), requested: {$quantity} unit(s)."
+                );
+            }
+
+            $sourceLocation = $sourceBatch->location;
+            $targetLocation = $targetLocationRaw
+                ? (is_string($targetLocationRaw) ? PurchaseLocation::tryFrom($targetLocationRaw) : $targetLocationRaw)
+                : ($sourceLocation === PurchaseLocation::SHOP ? PurchaseLocation::PARLOUR : PurchaseLocation::SHOP);
+
+            if ($targetLocation === $sourceLocation) {
+                throw new InvalidArgumentException('Source and target locations must be different.');
+            }
+
+            $adjustmentNumber = InventoryAdjustment::generateAdjustmentNumber();
+
+            // 1. Decrement source batch
+            $sourceBatch->decrement('received_quantity', $quantity);
+            $sourceBatch->refresh();
+
+            InventoryMovement::create([
+                'product_id' => $productId,
+                'purchase_id' => $sourceBatch->purchase_id,
+                'purchase_item_id' => $sourceBatch->id,
+                'location' => $sourceLocation?->value ?? 'shop',
+                'type' => 'location_transfer_out',
+                'quantity' => -$quantity,
+                'balance_after' => $stock->quantity,
+                'reference' => $adjustmentNumber,
+                'notes' => "Moved {$quantity} unit(s) from {$sourceLocation->label()} to {$targetLocation->label()}.".($notes ? " Notes: {$notes}" : ''),
+            ]);
+
+            // 2. Find or create target batch with new location
+            $targetBatch = null;
+            if ($sourceBatch->purchase_id) {
+                $targetBatch = PurchaseItem::query()
+                    ->where('purchase_id', $sourceBatch->purchase_id)
+                    ->where('product_id', $productId)
+                    ->where('location', $targetLocation->value)
+                    ->where('batch_number', $sourceBatch->batch_number)
+                    ->lockForUpdate()
+                    ->first();
+            }
+
+            if ($targetBatch) {
+                $targetBatch->increment('received_quantity', $quantity);
+                $targetBatch->refresh();
+            } else {
+                $targetBatchNumber = $this->generateUniqueBatchNumber($sourceBatch->batch_number);
+
+                $targetBatch = PurchaseItem::create([
+                    'purchase_id' => $sourceBatch->purchase_id,
+                    'product_id' => $productId,
+                    'location' => $targetLocation->value,
+                    'quantity' => $quantity,
+                    'received_quantity' => $quantity,
+                    'unit_price' => $sourceBatch->unit_price,
+                    'selling_price' => $sourceBatch->selling_price,
+                    'batch_number' => $targetBatchNumber,
+                    'manufacturing_date' => $sourceBatch->manufacturing_date,
+                    'expiry_date' => $sourceBatch->expiry_date,
+                    'subtotal' => round($quantity * (float) $sourceBatch->unit_price, 2),
+                ]);
+            }
+
+            InventoryMovement::create([
+                'product_id' => $productId,
+                'purchase_id' => $sourceBatch->purchase_id,
+                'purchase_item_id' => $targetBatch->id,
+                'location' => $targetLocation->value,
+                'type' => 'location_transfer_in',
+                'quantity' => $quantity,
+                'balance_after' => $stock->quantity,
+                'reference' => $adjustmentNumber,
+                'notes' => "Received {$quantity} unit(s) moved from {$sourceLocation->label()} into {$targetLocation->label()}.".($notes ? " Notes: {$notes}" : ''),
+            ]);
+
+            // Total product quantity is preserved across location transfers.
+
+            return InventoryAdjustment::create([
+                'adjustment_number' => $adjustmentNumber,
+                'type' => 'location_transfer',
+                'source_product_id' => $productId,
+                'source_purchase_item_id' => $sourceBatch->id,
+                'source_location' => $sourceLocation?->value ?? 'shop',
+                'target_product_id' => $productId,
+                'target_purchase_item_id' => $targetBatch->id,
+                'target_location' => $targetLocation->value,
                 'quantity' => $quantity,
                 'unit_cost' => $sourceBatch->unit_price,
                 'reason' => $reason,

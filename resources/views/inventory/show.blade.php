@@ -63,10 +63,48 @@
         <div class="mx-auto max-w-7xl space-y-4 sm:px-6 lg:px-8">
             <section class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
-                    <div class="md:col-span-2">
+                    <div>
                         <p class="text-xs font-semibold uppercase text-gray-500">{{ __('Product') }}</p>
                         <p class="mt-1 text-2xl font-bold text-gray-900">{{ $product?->name ?? '-' }}</p>
                         <p class="mt-1 text-sm text-gray-500">{{ $product?->company?->short_name ?: ($product?->company?->company_name ?? '-') }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase text-gray-500">{{ __('Location') }}</p>
+                        @php
+                            $locData = $product?->getStockByLocation() ?? ['shop' => 0, 'parlour' => 0];
+                            $hasShop = $locData['shop'] > 0;
+                            $hasParlour = $locData['parlour'] > 0;
+                            if (!$hasShop && !$hasParlour) {
+                                if ($product?->location === \App\Enums\PurchaseLocation::PARLOUR) {
+                                    $hasParlour = true;
+                                } else {
+                                    $hasShop = true;
+                                }
+                            }
+                        @endphp
+                        <div class="mt-2 flex items-center gap-2 flex-wrap">
+                            @if($hasShop)
+                                <span class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                                    <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                                    <span>{{ __('Shop') . ($locData['shop'] > 0 ? " ({$locData['shop']})" : '') }}</span>
+                                </span>
+                            @endif
+                            @if($hasParlour)
+                                <span class="inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-bold text-purple-700">
+                                    <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                                    <span>{{ __('Parlour') . ($locData['parlour'] > 0 ? " ({$locData['parlour']})" : '') }}</span>
+                                </span>
+                            @endif
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">
+                            @if($hasShop && $hasParlour)
+                                {{ __('Stock present in both Shop & Parlour') }}
+                            @elseif($hasParlour)
+                                {{ __('Parlour back storage') }}
+                            @else
+                                {{ __('Front Shop storage') }}
+                            @endif
+                        </p>
                     </div>
                     <div>
                         <p class="text-xs font-semibold uppercase text-gray-500">{{ __('Available Quantity') }}</p>
@@ -117,6 +155,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('Batch No') }}</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium uppercase text-gray-500">{{ __('Location') }}</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('PO Reference') }}</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('Supplier / Vendor') }}</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium uppercase text-gray-500">{{ __('Received Qty') }}</th>
@@ -130,6 +169,19 @@
                             @forelse($batches as $item)
                                 <tr>
                                     <td class="px-4 py-3 text-sm font-bold text-gray-900">{{ $item->batch_number ?: '-' }}</td>
+                                    <td class="px-4 py-3 text-center">
+                                        @if($item->isParlour())
+                                            <span class="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-700">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                {{ __('Parlour') }}
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                                {{ __('Shop') }}
+                                            </span>
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-3 text-sm font-medium text-blue-700">
                                         @if($item->purchase)
                                             <a href="{{ route('purchases.show', $item->purchase) }}" class="hover:underline">
@@ -174,7 +226,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500">{{ __('No received batches found for this product.') }}</td>
+                                    <td colspan="9" class="px-4 py-8 text-center text-sm text-gray-500">{{ __('No received batches found for this product.') }}</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -185,7 +237,7 @@
             <section class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                 <div class="border-b border-gray-100 px-6 py-4">
                     <h3 class="text-base font-semibold text-gray-900">{{ __('Batch Movement Log') }}</h3>
-                    <p class="mt-1 text-sm text-gray-500">{{ __('Only batch-linked movements are shown here: purchase receipts, FIFO sale deductions, cancellations, and sale restores. Overall stock movement entries are kept separately for audit totals.') }}</p>
+                    <p class="mt-1 text-sm text-gray-500">{{ __('Only batch-linked movements are shown here: purchase receipts, FIFO sale deductions, cancellations, location transfers, and sale restores.') }}</p>
                 </div>
 
                 <div class="overflow-x-auto">
@@ -194,6 +246,7 @@
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('Date') }}</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('Type') }}</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium uppercase text-gray-500">{{ __('Location') }}</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('Batch No') }}</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{{ __('Reference') }}</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium uppercase text-gray-500">{{ __('Qty') }}</th>
@@ -206,6 +259,19 @@
                                 <tr>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $movement->created_at?->format('d/m/Y H:i') ?: '-' }}</td>
                                     <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ str($movement->type)->replace('_', ' ')->title() }}</td>
+                                    <td class="px-4 py-3 text-center text-xs">
+                                        @if($movement->location === 'parlour' || $movement->purchaseItem?->isParlour())
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-purple-50 border border-purple-200 px-2 py-0.5 font-medium text-purple-700">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                Parlour
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 font-medium text-blue-700">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                                Shop
+                                            </span>
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-3 text-sm font-bold text-gray-900">{{ $movement->purchaseItem?->batch_number ?: '-' }}</td>
                                     <td class="px-4 py-3 text-sm font-medium text-blue-700">
                                         @if($movement->sale)
@@ -228,7 +294,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-500">{{ __('No batch movement logs found for this product.') }}</td>
+                                    <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500">{{ __('No batch movement logs found for this product.') }}</td>
                                 </tr>
                             @endforelse
                         </tbody>

@@ -229,12 +229,13 @@
             <table class="inventory">
                 <thead>
                     <tr>
-                        <th style="width: 13%;">SKU</th>
-                        <th style="width: 14%;">Product Code</th>
-                        <th style="width: 25%;">Product</th>
-                        <th style="width: 15%;">Brand / Company</th>
-                        <th style="width: 14%;">Category</th>
-                        <th style="width: 7%;" class="right">Qty</th>
+                        <th style="width: 12%;">SKU</th>
+                        <th style="width: 13%;">Product Code</th>
+                        <th style="width: 21%;">Product</th>
+                        <th style="width: 13%;">Brand / Company</th>
+                        <th style="width: 12%;">Category</th>
+                        <th style="width: 11%;">Location</th>
+                        <th style="width: 6%;" class="right">Qty</th>
                         <th style="width: 6%;" class="right">Min Qty</th>
                         <th style="width: 6%;">Status</th>
                     </tr>
@@ -244,6 +245,23 @@
                         @php
                             $minStock = (int) ($stock->product?->min_stock ?? 0);
                             $isLow = $stock->quantity <= $minStock;
+                            $batches = $stock->product?->purchaseItems?->filter(fn ($item) => (int) ($item->received_quantity ?? 0) > 0) ?? collect();
+                            $hasShop = false;
+                            $hasParlour = false;
+                            foreach ($batches as $b) {
+                                if ($b->isParlour()) {
+                                    $hasParlour = true;
+                                } else {
+                                    $hasShop = true;
+                                }
+                            }
+                            if (!$hasShop && !$hasParlour) {
+                                if ($stock->product?->location === \App\Enums\PurchaseLocation::PARLOUR) {
+                                    $hasParlour = true;
+                                } else {
+                                    $hasShop = true;
+                                }
+                            }
                         @endphp
                         <tr>
                             <td>
@@ -258,6 +276,16 @@
                             </td>
                             <td>{{ $stock->product?->company?->short_name ?: $stock->product?->company?->company_name ?: '-' }}</td>
                             <td>{{ $stock->product?->category?->name ?: '-' }}</td>
+                            <td>
+                                @if($hasShop && $hasParlour)
+                                    <span style="font-size: 10px; color: #1d4ed8; font-weight: bold;">Shop</span>,
+                                    <span style="font-size: 10px; color: #7e22ce; font-weight: bold;">Parlour</span>
+                                @elseif($hasParlour)
+                                    <span style="font-size: 10px; color: #7e22ce; font-weight: bold;">Parlour</span>
+                                @else
+                                    <span style="font-size: 10px; color: #1d4ed8; font-weight: bold;">Shop</span>
+                                @endif
+                            </td>
                             <td class="right">
                                 <div class="qty-box">{{ number_format($stock->quantity) }}</div>
                                 <span class="qty-sub">{{ $stock->product?->unit?->symbol ?: $stock->product?->unit?->name ?: 'pcs' }}</span>
