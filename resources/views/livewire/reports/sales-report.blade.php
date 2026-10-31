@@ -88,13 +88,13 @@
         </div>
     </div>
 
-    <!-- Executive KPI Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+    <!-- Executive KPI Cards (Including Gross Profit consistent with Dashboard) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <!-- Net Revenue -->
         <div class="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm relative overflow-hidden">
             <div class="flex items-center justify-between">
                 <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ __('Net Revenue') }}</span>
-                <span class="p-2 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400">
+                <span class="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
                     <x-heroicon-o-currency-rupee class="w-5 h-5" />
                 </span>
             </div>
@@ -108,11 +108,33 @@
             </div>
         </div>
 
+        <!-- Gross Profit (Consistent with Dashboard) -->
+        <div class="rounded-xl border shadow-sm p-4 sm:p-5 relative overflow-hidden" style="background-color: #ecfdf5; border-color: #a7f3d0; color: #064e3b;">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-emerald-800">{{ __('Gross Profit') }}</span>
+                <span class="p-2 rounded-lg" style="background-color: #d1fae5; color: #047857;">
+                    <x-heroicon-o-arrow-trending-up class="w-5 h-5" />
+                </span>
+            </div>
+            <div class="mt-3">
+                <div class="text-2xl font-bold {{ $kpis['gross_profit'] >= 0 ? 'text-emerald-700' : 'text-red-600' }}">
+                    ₹ {{ number_format($kpis['gross_profit'], 2) }}
+                </div>
+                <div class="text-xs mt-1 font-medium" style="color: rgba(4, 120, 87, 0.9);">
+                    @if($kpis['net_sales'] > 0)
+                        {{ number_format((float) $kpis['margin'], 1) }}% margin (COGS: ₹ {{ number_format($kpis['cogs'], 2) }})
+                    @else
+                        {{ __('Estimated based on COGS') }}
+                    @endif
+                </div>
+            </div>
+        </div>
+
         <!-- Gross Sales -->
         <div class="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
             <div class="flex items-center justify-between">
                 <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ __('Gross Sales') }}</span>
-                <span class="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <span class="p-2 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400">
                     <x-heroicon-o-shopping-bag class="w-5 h-5" />
                 </span>
             </div>
@@ -166,7 +188,7 @@
         <div class="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
             <div class="flex items-center justify-between">
                 <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ __('Average Order Value') }}</span>
-                <span class="p-2 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                <span class="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
                     <x-heroicon-o-chart-pie class="w-5 h-5" />
                 </span>
             </div>
@@ -331,16 +353,16 @@
         @endif
     </div>
 
-    <!-- Daily Sales & Payment Breakdown Table -->
+    <!-- Daily Sales, Collections, and Profit Breakdown Table -->
     <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         <div class="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
                 <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
                     <x-heroicon-o-table-cells class="w-5 h-5 text-primary" />
-                    <span>{{ __('Daily Sales & Collections Summary') }}</span>
+                    <span>{{ __('Daily Sales, Profit & Collections Summary') }}</span>
                 </h3>
                 <p class="text-xs text-muted-foreground">
-                    {{ __('Day-by-day revenue, invoice counts, and payment mode breakdowns.') }}
+                    {{ __('Day-by-day revenue, profit & margin, invoice counts, and payment mode breakdowns.') }}
                 </p>
             </div>
             <div class="text-xs text-muted-foreground">
@@ -353,10 +375,11 @@
                 <thead class="bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
                     <tr>
                         <th class="px-4 py-3">{{ __('Date') }}</th>
-                        <th class="px-4 py-3 text-center">{{ __('Invoices') }}</th>
+                        <th class="px-4 py-3 text-center">{{ __('Orders') }}</th>
                         <th class="px-4 py-3 text-right">{{ __('Gross Sales') }}</th>
                         <th class="px-4 py-3 text-right">{{ __('Discounts') }}</th>
                         <th class="px-4 py-3 text-right font-bold text-foreground">{{ __('Net Total') }}</th>
+                        <th class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400 font-bold">{{ __('Gross Profit') }}</th>
                         <th class="px-4 py-3 text-right text-blue-600 dark:text-blue-400">{{ __('UPI') }}</th>
                         <th class="px-4 py-3 text-right text-purple-600 dark:text-purple-400">{{ __('Card') }}</th>
                         <th class="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">{{ __('Cash') }}</th>
@@ -383,6 +406,10 @@
                             <td class="px-4 py-3 text-right whitespace-nowrap font-bold text-foreground">
                                 ₹ {{ number_format($row['net_sales'], 2) }}
                             </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-bold text-emerald-700 dark:text-emerald-400">
+                                ₹ {{ number_format($row['gross_profit'], 2) }}
+                                <span class="text-xs font-normal opacity-80">({{ $row['margin'] }}%)</span>
+                            </td>
                             <td class="px-4 py-3 text-right whitespace-nowrap text-blue-600 dark:text-blue-400">
                                 ₹ {{ number_format($row['upi'], 2) }}
                             </td>
@@ -398,7 +425,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="px-4 py-8 text-center text-muted-foreground">
+                            <td colspan="10" class="px-4 py-8 text-center text-muted-foreground">
                                 <div class="flex flex-col items-center justify-center gap-2">
                                     <x-heroicon-o-information-circle class="w-8 h-8 text-muted-foreground" />
                                     <span>{{ __('No completed sales found in this date range.') }}</span>
@@ -415,6 +442,10 @@
                             <td class="px-4 py-3 text-right">₹ {{ number_format($kpis['gross_sales'], 2) }}</td>
                             <td class="px-4 py-3 text-right text-amber-600 dark:text-amber-400">₹ {{ number_format($kpis['total_discounts'], 2) }}</td>
                             <td class="px-4 py-3 text-right">₹ {{ number_format($kpis['net_sales'], 2) }}</td>
+                            <td class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400 font-bold">
+                                ₹ {{ number_format($kpis['gross_profit'], 2) }}
+                                <span class="text-xs font-normal opacity-80">({{ $kpis['margin'] }}%)</span>
+                            </td>
                             <td class="px-4 py-3 text-right text-blue-600 dark:text-blue-400">₹ {{ number_format($paymentMethods['upi']['amount'] ?? 0, 2) }}</td>
                             <td class="px-4 py-3 text-right text-purple-600 dark:text-purple-400">₹ {{ number_format($paymentMethods['card']['amount'] ?? 0, 2) }}</td>
                             <td class="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">₹ {{ number_format($paymentMethods['cash']['amount'] ?? 0, 2) }}</td>
@@ -435,7 +466,7 @@
                     <span>{{ __('Completed Invoices in Period') }}</span>
                 </h3>
                 <p class="text-xs text-muted-foreground">
-                    {{ __('List of completed transactions with customer details and payment methods.') }}
+                    {{ __('List of completed transactions with customer details, payment methods, and profit.') }}
                 </p>
             </div>
             <span class="text-xs font-medium text-muted-foreground">
@@ -453,6 +484,7 @@
                         <th class="px-4 py-3">{{ __('Payment Mode') }}</th>
                         <th class="px-4 py-3 text-right">{{ __('Discount') }}</th>
                         <th class="px-4 py-3 text-right">{{ __('Net Amount') }}</th>
+                        <th class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400">{{ __('Profit') }}</th>
                         <th class="px-4 py-3 text-center">{{ __('Action') }}</th>
                     </tr>
                 </thead>
@@ -499,6 +531,9 @@
                             <td class="px-4 py-3 text-right whitespace-nowrap font-bold text-foreground">
                                 ₹ {{ number_format((float) $sale->total, 2) }}
                             </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-bold text-emerald-700 dark:text-emerald-400">
+                                ₹ {{ number_format((float) ($sale->gross_profit ?? 0), 2) }}
+                            </td>
                             <td class="px-4 py-3 text-center whitespace-nowrap">
                                 <a href="{{ route('sales.show', $sale) }}" class="inline-flex items-center text-xs text-primary hover:underline font-medium">
                                     <x-heroicon-o-eye class="w-4 h-4 mr-1" />
@@ -508,7 +543,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-4 py-6 text-center text-muted-foreground text-sm">
+                            <td colspan="8" class="px-4 py-6 text-center text-muted-foreground text-sm">
                                 {{ __('No completed sales in this range.') }}
                             </td>
                         </tr>

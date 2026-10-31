@@ -16,7 +16,7 @@
         body {
             font-family: 'DejaVu Sans', sans-serif;
             color: #1e293b;
-            font-size: 9px;
+            font-size: 8.5px;
             line-height: 1.3;
         }
         .header-box {
@@ -47,7 +47,7 @@
         }
 
         .section-title {
-            font-size: 9.5px;
+            font-size: 9px;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -59,28 +59,33 @@
         }
 
         /* KPI Cards Grid */
-        .kpi-table {
+        table.kpi-table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 12px;
         }
-        .kpi-box {
-            width: 20%;
+        table.kpi-table td.kpi-box {
+            width: 16.66%;
             border: 1px solid #cbd5e1;
             background-color: #f8fafc;
-            padding: 6px 8px;
+            padding: 5px 6px;
             text-align: center;
         }
         .kpi-label {
-            font-size: 7.5px;
+            font-size: 7px;
             text-transform: uppercase;
             color: #64748b;
-            margin-bottom: 3px;
+            margin-bottom: 2px;
         }
         .kpi-value {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
             color: #0f172a;
+        }
+        .kpi-sub {
+            font-size: 6.5px;
+            color: #64748b;
+            margin-top: 2px;
         }
 
         /* Standard Table */
@@ -91,15 +96,15 @@
         }
         table.data-table th, table.data-table td {
             border: 1px solid #cbd5e1;
-            padding: 4px 6px;
-            font-size: 8px;
+            padding: 4px 5px;
+            font-size: 7.5px;
         }
         table.data-table th {
             background-color: #e2e8f0;
             font-weight: bold;
             color: #334155;
             text-transform: uppercase;
-            font-size: 7.5px;
+            font-size: 7px;
         }
         .text-right {
             text-align: right;
@@ -144,8 +149,8 @@
             <div>{{ $startDate->format('d M Y') }} to {{ $endDate->format('d M Y') }}</div>
             <div><strong>Generated:</strong> {{ now()->format('d M Y, H:i') }}</div>
         </div>
-        <h1>{{ $storeName }} - Sales & Revenue Report</h1>
-        <p>Executive Sales Performance & Payment Mode Distribution (UPI, Card, Cash, Bank Transfer)</p>
+        <h1>{{ $storeName }} - Sales & Profit Report</h1>
+        <p>Executive Sales Performance, Profit Margins & Payment Mode Distribution (UPI, Card, Cash, Transfer)</p>
         <div class="clear"></div>
     </div>
 
@@ -155,23 +160,33 @@
         <tr>
             <td class="kpi-box">
                 <div class="kpi-label">Net Sales</div>
-                <div class="kpi-value" style="color: #16a34a;">Rs. {{ number_format($kpis['net_sales'], 2) }}</div>
+                <div class="kpi-value" style="color: #0284c7;">Rs. {{ number_format($kpis['net_sales'], 2) }}</div>
+                <div class="kpi-sub">Collected</div>
+            </td>
+            <td class="kpi-box" style="background-color: #ecfdf5;">
+                <div class="kpi-label" style="color: #065f46;">Gross Profit</div>
+                <div class="kpi-value" style="color: #047857;">Rs. {{ number_format($kpis['gross_profit'], 2) }}</div>
+                <div class="kpi-sub" style="color: #047857;">{{ $kpis['margin'] }}% (COGS: Rs. {{ number_format($kpis['cogs'], 2) }})</div>
             </td>
             <td class="kpi-box">
                 <div class="kpi-label">Gross Sales</div>
                 <div class="kpi-value">Rs. {{ number_format($kpis['gross_sales'], 2) }}</div>
+                <div class="kpi-sub">Pre-discounts</div>
             </td>
             <td class="kpi-box">
-                <div class="kpi-label">Total Discounts</div>
+                <div class="kpi-label">Discounts</div>
                 <div class="kpi-value" style="color: #d97706;">Rs. {{ number_format($kpis['total_discounts'], 2) }}</div>
+                <div class="kpi-sub">Item + Coupons</div>
             </td>
             <td class="kpi-box">
-                <div class="kpi-label">Completed Orders</div>
+                <div class="kpi-label">Orders</div>
                 <div class="kpi-value">{{ number_format($kpis['total_orders']) }}</div>
+                <div class="kpi-sub">Completed</div>
             </td>
             <td class="kpi-box">
-                <div class="kpi-label">Average Order Value</div>
+                <div class="kpi-label">Avg Order Value</div>
                 <div class="kpi-value">Rs. {{ number_format($kpis['average_order_value'], 2) }}</div>
+                <div class="kpi-sub">Per Invoice</div>
             </td>
         </tr>
     </table>
@@ -208,7 +223,7 @@
     </table>
 
     <!-- Daily Summary Table -->
-    <div class="section-title">Daily Sales & Collections Summary</div>
+    <div class="section-title">Daily Sales, Profit & Collections Summary</div>
     <table class="data-table">
         <thead>
             <tr>
@@ -217,6 +232,7 @@
                 <th class="text-right">Gross Sales</th>
                 <th class="text-right">Discounts</th>
                 <th class="text-right font-bold">Net Total</th>
+                <th class="text-right font-bold" style="color: #047857;">Gross Profit</th>
                 <th class="text-right">UPI</th>
                 <th class="text-right">Card</th>
                 <th class="text-right">Cash</th>
@@ -231,6 +247,9 @@
                     <td class="text-right">Rs. {{ number_format($row['gross_sales'], 2) }}</td>
                     <td class="text-right" style="color: #b45309;">Rs. {{ number_format($row['total_discounts'], 2) }}</td>
                     <td class="text-right font-bold">Rs. {{ number_format($row['net_sales'], 2) }}</td>
+                    <td class="text-right font-bold" style="color: #047857;">
+                        Rs. {{ number_format($row['gross_profit'], 2) }} ({{ $row['margin'] }}%)
+                    </td>
                     <td class="text-right">Rs. {{ number_format($row['upi'], 2) }}</td>
                     <td class="text-right">Rs. {{ number_format($row['card'], 2) }}</td>
                     <td class="text-right">Rs. {{ number_format($row['cash'], 2) }}</td>
@@ -238,7 +257,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="9" class="text-center">No completed sales recorded in this period.</td>
+                    <td colspan="10" class="text-center">No completed sales recorded in this period.</td>
                 </tr>
             @endforelse
         </tbody>
@@ -250,6 +269,9 @@
                     <td class="text-right">Rs. {{ number_format($kpis['gross_sales'], 2) }}</td>
                     <td class="text-right">Rs. {{ number_format($kpis['total_discounts'], 2) }}</td>
                     <td class="text-right">Rs. {{ number_format($kpis['net_sales'], 2) }}</td>
+                    <td class="text-right" style="color: #047857;">
+                        Rs. {{ number_format($kpis['gross_profit'], 2) }} ({{ $kpis['margin'] }}%)
+                    </td>
                     <td class="text-right">Rs. {{ number_format($paymentMethods['upi']['amount'] ?? 0, 2) }}</td>
                     <td class="text-right">Rs. {{ number_format($paymentMethods['card']['amount'] ?? 0, 2) }}</td>
                     <td class="text-right">Rs. {{ number_format($paymentMethods['cash']['amount'] ?? 0, 2) }}</td>

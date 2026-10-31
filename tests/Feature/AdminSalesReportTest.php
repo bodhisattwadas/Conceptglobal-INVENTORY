@@ -5,7 +5,12 @@ namespace Tests\Feature;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Livewire\Reports\SalesReport;
+use App\Models\Category;
+use App\Models\Company;
+use App\Models\Product;
 use App\Models\Sale;
+use App\Models\SaleItem;
+use App\Models\Unit;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -159,7 +164,64 @@ class AdminSalesReportTest extends TestCase
             ->assertSee('850.00')
             ->assertSee('1,800.00')
             ->assertSee('500.00')
-            ->assertSee('3,000.00');
+            ->assertSee('3,000.00')
+            ->assertSee('Gross Profit');
+    }
+
+    public function test_sales_report_calculates_cogs_and_profit_accurately(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $company = Company::create(['company_code' => 'C01', 'company_name' => 'Company 1']);
+        $cat = Category::create(['name' => 'Cat', 'slug' => 'cat']);
+        $unit = Unit::create(['name' => 'Unit', 'symbol' => 'u']);
+
+        $product = Product::create([
+            'name' => 'Serum Bottle',
+            'sku' => 'SRM-01',
+            'company_id' => $company->id,
+            'category_id' => $cat->id,
+            'unit_id' => $unit->id,
+            'buying_price' => 200.00,
+            'purchase_price' => 200.00,
+            'selling_price' => 500.00,
+            'mrp' => 500.00,
+            'is_active' => true,
+        ]);
+
+        $sale = $this->createSale([
+            'created_by' => $admin->id,
+            'sale_date' => Carbon::now(),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 1000.00,
+            'total_discount' => 0.00,
+            'total' => 1000.00,
+            'payment_method' => PaymentMethod::UPI,
+        ]);
+
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'product_id' => $product->id,
+            'quantity' => 2,
+            'cost_price' => 200.00,
+            'unit_price' => 500.00,
+            'subtotal' => 1000.00,
+            'final_price' => 500.00,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(SalesReport::class)
+            ->assertViewHas('kpis', function (array $kpis) {
+                // Total Net: 1000.00
+                // COGS: 2 * 200 = 400.00
+                // Gross Profit: 1000 - 400 = 600.00
+                // Margin: 60.0%
+                return $kpis['net_sales'] == 1000.00
+                    && $kpis['cogs'] == 400.00
+                    && $kpis['gross_profit'] == 600.00
+                    && $kpis['margin'] == 60.0;
+            })
+            ->assertSee('600.00')
+            ->assertSee('60.0% margin');
     }
 
     public function test_date_filter_updates_results(): void

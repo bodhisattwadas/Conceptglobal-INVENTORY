@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
+use App\Models\PurchaseItem;
 use App\Models\Sale;
+use App\Models\SaleItem;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -17,6 +19,9 @@ class SalesReportService
      * @return array{
      *     kpis: array{
      *         net_sales: float,
+     *         gross_profit: float,
+     *         cogs: float,
+     *         margin: float,
      *         gross_sales: float,
      *         total_discounts: float,
      *         total_orders: int,
@@ -29,17 +34,25 @@ class SalesReportService
      *         count: int,
      *         percentage: float
      *     }>,
-     *     daily_breakdown: Collection
+     *     daily_breakdown: Collection,
+     *     sales: Collection
      * }
      */
     public function getReportData(Carbon $startDate, Carbon $endDate): array
     {
         $sales = Sale::query()
-            ->with(['customer', 'creator'])
+            ->with([
+                'customer',
+                'creator',
+                'items.product:id,mrp,purchase_price',
+                'items.inventoryMovements.purchaseItem',
+            ])
             ->where('status', SaleStatus::COMPLETED)
             ->whereBetween('sale_date', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
             ->orderBy('sale_date', 'desc')
             ->get();
+
+        $this->attachCogsAndProfitToSales($sales);
 
         $kpis = $this->calculateKpis($sales);
         $paymentMethods = $this->calculatePaymentMethodBreakdown($sales, $kpis['net_sales']);
@@ -54,13 +67,90 @@ class SalesReportService
     }
 
     /**
-     * Calculate core KPI metrics from sales collection.
+     * Compute and attach COGS, gross profit, and margin to each sale.
+     * Consistent with Dashboard calculation logic.
+     */
+    protected function attachCogsAndProfitToSales(Collection $sales): void
+    {
+        $productIds = $sales
+            ->flatMap(fn ($sale) => $sale->items)
+            ->pluck('product_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $latestPoItemsByProductId = $productIds->isNotEmpty()
+            ? PurchaseItem::whereIn('product_id', $productIds)
+                ->whereHas('purchase')
+                ->orderByDesc('id')
+                ->get(['id', 'product_id', 'unit_price', 'purchase_id'])
+                ->groupBy('product_id')
+                ->map(fn ($group) => (float) $group->first()->unit_price)
+            : collect();
+
+        foreach ($sales as $sale) {
+            $saleCogs = 0.0;
+
+            foreach ($sale->items as $item) {
+                $saleCogs += $this->calculateItemCogs($item, $latestPoItemsByProductId);
+            }
+
+            $sale->cogs = round($saleCogs, 2);
+            $netRevenue = (float) $sale->total;
+            $grossProfit = round($netRevenue - $sale->cogs, 2);
+            $sale->gross_profit = $grossProfit;
+            $sale->margin = $netRevenue > 0 ? round(($grossProfit / $netRevenue) * 100, 1) : 0.0;
+        }
+    }
+
+    /**
+     * Calculate single line item COGS following Dashboard priority logic.
+     */
+    protected function calculateItemCogs(SaleItem $item, Collection $latestPoItemsByProductId): float
+    {
+        if ($item->product_id === null) {
+            return 0.0; // Services have 0 inventory cost
+        }
+
+        $qty = (int) $item->quantity;
+        $mrp = (float) ($item->product?->mrp ?? 0);
+        $productBuy = (float) ($item->product?->purchase_price ?? 0);
+        $recordedCost = (float) ($item->cost_price ?? 0);
+
+        // 1. PO Order price from deducted FIFO movement
+        $movement = $item->inventoryMovements->first(
+            fn ($m) => $m->purchase_item_id !== null && $m->purchaseItem && (float) $m->purchaseItem->unit_price > 0
+        );
+
+        $latestPoPrice = $latestPoItemsByProductId->get($item->product_id);
+
+        if ($movement && $movement->purchaseItem && (float) $movement->purchaseItem->unit_price > 0) {
+            $unitCost = (float) $movement->purchaseItem->unit_price;
+        } elseif ($latestPoPrice !== null && $latestPoPrice > 0) {
+            $unitCost = $latestPoPrice;
+        } elseif ($recordedCost > 0 && ($mrp <= 0 || $recordedCost < $mrp)) {
+            $unitCost = $recordedCost;
+        } elseif ($productBuy > 0 && ($mrp <= 0 || $productBuy < $mrp)) {
+            $unitCost = $productBuy;
+        } else {
+            $unitCost = $recordedCost ?: $productBuy;
+        }
+
+        return (float) ($qty * $unitCost);
+    }
+
+    /**
+     * Calculate core KPI metrics from sales collection including profit and margin.
      */
     protected function calculateKpis(Collection $sales): array
     {
         $totalOrders = $sales->count();
         $grossSales = (float) $sales->sum(fn ($sale) => (float) $sale->subtotal);
         $netSales = (float) $sales->sum(fn ($sale) => (float) $sale->total);
+        $totalCogs = (float) $sales->sum(fn ($sale) => (float) ($sale->cogs ?? 0));
+        $grossProfit = (float) ($netSales - $totalCogs);
+        $margin = $netSales > 0 ? round(($grossProfit / $netSales) * 100, 1) : 0.0;
+
         $totalDiscounts = (float) $sales->sum(function ($sale) {
             return (float) ($sale->total_discount ?? 0) + (float) ($sale->coupon_discount ?? 0);
         });
@@ -69,6 +159,9 @@ class SalesReportService
 
         return [
             'net_sales' => round($netSales, 2),
+            'cogs' => round($totalCogs, 2),
+            'gross_profit' => round($grossProfit, 2),
+            'margin' => $margin,
             'gross_sales' => round($grossSales, 2),
             'total_discounts' => round($totalDiscounts, 2),
             'total_orders' => $totalOrders,
@@ -142,7 +235,7 @@ class SalesReportService
     }
 
     /**
-     * Calculate day-by-day sales & payment distribution.
+     * Calculate day-by-day sales, collections, and profit distribution.
      */
     protected function calculateDailyBreakdown(Collection $sales): Collection
     {
@@ -152,6 +245,9 @@ class SalesReportService
                 $gross = (float) $daySales->sum(fn ($s) => (float) $s->subtotal);
                 $discounts = (float) $daySales->sum(fn ($s) => (float) ($s->total_discount ?? 0) + (float) ($s->coupon_discount ?? 0));
                 $net = (float) $daySales->sum(fn ($s) => (float) $s->total);
+                $cogs = (float) $daySales->sum(fn ($s) => (float) ($s->cogs ?? 0));
+                $profit = (float) ($net - $cogs);
+                $margin = $net > 0 ? round(($profit / $net) * 100, 1) : 0.0;
 
                 $cash = (float) $daySales->where(function ($s) {
                     $val = $s->payment_method instanceof PaymentMethod ? $s->payment_method->value : $s->payment_method;
@@ -188,6 +284,9 @@ class SalesReportService
                     'gross_sales' => round($gross, 2),
                     'total_discounts' => round($discounts, 2),
                     'net_sales' => round($net, 2),
+                    'cogs' => round($cogs, 2),
+                    'gross_profit' => round($profit, 2),
+                    'margin' => $margin,
                     'cash' => round($cash, 2),
                     'upi' => round($upi, 2),
                     'card' => round($card, 2),
@@ -209,11 +308,18 @@ class SalesReportService
         );
 
         $sales = Sale::query()
-            ->with(['customer', 'creator'])
+            ->with([
+                'customer',
+                'creator',
+                'items.product:id,mrp,purchase_price',
+                'items.inventoryMovements.purchaseItem',
+            ])
             ->where('status', SaleStatus::COMPLETED)
             ->whereBetween('sale_date', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
             ->orderBy('sale_date', 'desc')
             ->get();
+
+        $this->attachCogsAndProfitToSales($sales);
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -237,9 +343,11 @@ class SalesReportService
                 'Customer Phone',
                 'Payment Method',
                 'Gross Amount (INR)',
-                'Item Discount (INR)',
-                'Coupon Discount (INR)',
+                'Total Discount (INR)',
                 'Net Total (INR)',
+                'COGS (INR)',
+                'Gross Profit (INR)',
+                'Margin (%)',
                 'Cashier',
                 'Status',
             ]);
@@ -249,6 +357,8 @@ class SalesReportService
                     ? $sale->payment_method->label()
                     : ucfirst((string) $sale->payment_method);
 
+                $discounts = (float) ($sale->total_discount ?? 0) + (float) ($sale->coupon_discount ?? 0);
+
                 fputcsv($handle, [
                     $sale->invoice_number,
                     $sale->sale_date ? $sale->sale_date->format('Y-m-d H:i') : '',
@@ -256,9 +366,11 @@ class SalesReportService
                     $sale->customer?->phone ?? '',
                     $method,
                     number_format((float) $sale->subtotal, 2, '.', ''),
-                    number_format((float) $sale->total_discount, 2, '.', ''),
-                    number_format((float) $sale->coupon_discount, 2, '.', ''),
+                    number_format($discounts, 2, '.', ''),
                     number_format((float) $sale->total, 2, '.', ''),
+                    number_format((float) ($sale->cogs ?? 0), 2, '.', ''),
+                    number_format((float) ($sale->gross_profit ?? 0), 2, '.', ''),
+                    number_format((float) ($sale->margin ?? 0), 1, '.', ''),
                     $sale->creator?->name ?? 'N/A',
                     $sale->status instanceof SaleStatus ? $sale->status->label() : ucfirst((string) $sale->status),
                 ]);
