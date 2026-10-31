@@ -44,7 +44,8 @@ class SalesReportService
             ->with([
                 'customer',
                 'creator',
-                'items.product:id,mrp,purchase_price',
+                'items.product',
+                'items.service',
                 'items.inventoryMovements.purchaseItem',
             ])
             ->where('status', SaleStatus::COMPLETED)
@@ -90,12 +91,21 @@ class SalesReportService
 
         foreach ($sales as $sale) {
             $saleCogs = 0.0;
+            $hasOnlyServices = true;
+            $hasAnyPhysicalProducts = false;
 
             foreach ($sale->items as $item) {
+                if ($item->product_id !== null && empty($item->service_id)) {
+                    $hasOnlyServices = false;
+                    $hasAnyPhysicalProducts = true;
+                }
                 $saleCogs += $this->calculateItemCogs($item, $latestPoItemsByProductId);
             }
 
             $sale->cogs = round($saleCogs, 2);
+            $sale->has_only_services = $hasOnlyServices && $sale->items->isNotEmpty();
+            $sale->has_physical_products = $hasAnyPhysicalProducts;
+
             $netRevenue = (float) $sale->total;
             $grossProfit = round($netRevenue - $sale->cogs, 2);
             $sale->gross_profit = $grossProfit;
@@ -104,35 +114,68 @@ class SalesReportService
     }
 
     /**
-     * Calculate single line item COGS following Dashboard priority logic.
+     * Calculate single line item COGS following FIFO and Dashboard priority logic.
      */
     protected function calculateItemCogs(SaleItem $item, Collection $latestPoItemsByProductId): float
     {
-        if ($item->product_id === null) {
-            return 0.0; // Services have 0 inventory cost
+        // Services have 0 inventory cost
+        if ($item->product_id === null || ! empty($item->service_id)) {
+            return 0.0;
         }
 
         $qty = (int) $item->quantity;
-        $mrp = (float) ($item->product?->mrp ?? 0);
+        $mrp = (float) ($item->product?->mrp ?: $item->unit_price);
         $productBuy = (float) ($item->product?->purchase_price ?? 0);
         $recordedCost = (float) ($item->cost_price ?? 0);
-
-        // 1. PO Order price from deducted FIFO movement
-        $movement = $item->inventoryMovements->first(
-            fn ($m) => $m->purchase_item_id !== null && $m->purchaseItem && (float) $m->purchaseItem->unit_price > 0
-        );
-
         $latestPoPrice = $latestPoItemsByProductId->get($item->product_id);
 
-        if ($movement && $movement->purchaseItem && (float) $movement->purchaseItem->unit_price > 0) {
-            $unitCost = (float) $movement->purchaseItem->unit_price;
-        } elseif ($latestPoPrice !== null && $latestPoPrice > 0) {
+        // Priority 1: Check FIFO deducted PO batch from inventory movements
+        $deductions = $item->inventoryMovements
+            ? $item->inventoryMovements->filter(
+                fn ($m) => $m->purchase_item_id !== null
+                    && $m->purchaseItem
+                    && (float) $m->purchaseItem->unit_price > 0
+                    && $m->quantity < 0
+            )
+            : collect();
+
+        if ($deductions->isNotEmpty()) {
+            $movementCogs = 0.0;
+            $movementQty = 0;
+            foreach ($deductions as $m) {
+                $take = abs((int) $m->quantity);
+                $movementCogs += ($take * (float) $m->purchaseItem->unit_price);
+                $movementQty += $take;
+            }
+
+            if ($movementQty >= $qty) {
+                return (float) $movementCogs;
+            }
+
+            // Partially covered by FIFO; cover remainder with fallback
+            $remainingQty = $qty - $movementQty;
+            $unitCost = $latestPoPrice
+                ?: ($recordedCost > 0 && ($mrp <= 0 || $recordedCost < $mrp) ? $recordedCost
+                : ($productBuy > 0 && ($mrp <= 0 || $productBuy < $mrp) ? $productBuy
+                : ($recordedCost ?: $productBuy)));
+
+            return (float) ($movementCogs + ($remainingQty * $unitCost));
+        }
+
+        // Priority 2: Latest PO item placed for this product
+        if ($latestPoPrice !== null && $latestPoPrice > 0) {
             $unitCost = $latestPoPrice;
-        } elseif ($recordedCost > 0 && ($mrp <= 0 || $recordedCost < $mrp)) {
+        }
+        // Priority 3: Recorded cost_price if lower than MRP
+        elseif ($recordedCost > 0 && ($mrp <= 0 || $recordedCost < $mrp)) {
             $unitCost = $recordedCost;
-        } elseif ($productBuy > 0 && ($mrp <= 0 || $productBuy < $mrp)) {
+        }
+        // Priority 4: Product catalog purchase price if lower than MRP
+        elseif ($productBuy > 0 && ($mrp <= 0 || $productBuy < $mrp)) {
             $unitCost = $productBuy;
-        } else {
+        }
+        // Priority 5: Fallback to recorded cost or catalog purchase price
+        else {
             $unitCost = $recordedCost ?: $productBuy;
         }
 
@@ -151,9 +194,8 @@ class SalesReportService
         $grossProfit = (float) ($netSales - $totalCogs);
         $margin = $netSales > 0 ? round(($grossProfit / $netSales) * 100, 1) : 0.0;
 
-        $totalDiscounts = (float) $sales->sum(function ($sale) {
-            return (float) ($sale->total_discount ?? 0) + (float) ($sale->coupon_discount ?? 0);
-        });
+        // In database, total_discount already includes item discounts, coupons, and bill discounts
+        $totalDiscounts = (float) $sales->sum(fn ($sale) => (float) ($sale->total_discount ?? 0));
 
         $aov = $totalOrders > 0 ? round($netSales / $totalOrders, 2) : 0.0;
 
@@ -243,7 +285,7 @@ class SalesReportService
             ->groupBy(fn ($sale) => $sale->sale_date ? $sale->sale_date->format('Y-m-d') : 'Unknown')
             ->map(function (Collection $daySales, string $date) {
                 $gross = (float) $daySales->sum(fn ($s) => (float) $s->subtotal);
-                $discounts = (float) $daySales->sum(fn ($s) => (float) ($s->total_discount ?? 0) + (float) ($s->coupon_discount ?? 0));
+                $discounts = (float) $daySales->sum(fn ($s) => (float) ($s->total_discount ?? 0));
                 $net = (float) $daySales->sum(fn ($s) => (float) $s->total);
                 $cogs = (float) $daySales->sum(fn ($s) => (float) ($s->cogs ?? 0));
                 $profit = (float) ($net - $cogs);
@@ -311,7 +353,8 @@ class SalesReportService
             ->with([
                 'customer',
                 'creator',
-                'items.product:id,mrp,purchase_price',
+                'items.product',
+                'items.service',
                 'items.inventoryMovements.purchaseItem',
             ])
             ->where('status', SaleStatus::COMPLETED)
@@ -343,9 +386,9 @@ class SalesReportService
                 'Customer Phone',
                 'Payment Method',
                 'Gross Amount (INR)',
-                'Total Discount (INR)',
+                'Discount (INR)',
                 'Net Total (INR)',
-                'COGS (INR)',
+                'Cost (COGS) (INR)',
                 'Gross Profit (INR)',
                 'Margin (%)',
                 'Cashier',
@@ -357,7 +400,7 @@ class SalesReportService
                     ? $sale->payment_method->label()
                     : ucfirst((string) $sale->payment_method);
 
-                $discounts = (float) ($sale->total_discount ?? 0) + (float) ($sale->coupon_discount ?? 0);
+                $discount = (float) ($sale->total_discount ?? 0);
 
                 fputcsv($handle, [
                     $sale->invoice_number,
@@ -366,7 +409,7 @@ class SalesReportService
                     $sale->customer?->phone ?? '',
                     $method,
                     number_format((float) $sale->subtotal, 2, '.', ''),
-                    number_format($discounts, 2, '.', ''),
+                    number_format($discount, 2, '.', ''),
                     number_format((float) $sale->total, 2, '.', ''),
                     number_format((float) ($sale->cogs ?? 0), 2, '.', ''),
                     number_format((float) ($sale->gross_profit ?? 0), 2, '.', ''),

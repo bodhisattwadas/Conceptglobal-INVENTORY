@@ -10,6 +10,7 @@ use App\Models\Company;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\Service;
 use App\Models\Unit;
 use App\Models\User;
 use Carbon\Carbon;
@@ -84,7 +85,7 @@ class AdminSalesReportTest extends TestCase
             'sale_date' => $now,
             'status' => SaleStatus::COMPLETED,
             'subtotal' => 1000.00,
-            'total_discount' => 100.00,
+            'total_discount' => 150.00,
             'coupon_discount' => 50.00,
             'total' => 850.00,
             'payment_method' => PaymentMethod::UPI,
@@ -140,7 +141,7 @@ class AdminSalesReportTest extends TestCase
             ->test(SalesReport::class)
             ->assertViewHas('kpis', function (array $kpis) {
                 // Gross: 1000 + 500 + 2000 + 3000 = 6500
-                // Discounts: (100+50) + 0 + 200 + 0 = 350
+                // Discounts: 150 + 0 + 200 + 0 = 350
                 // Net: 850 + 500 + 1800 + 3000 = 6150
                 // Total orders: 4
                 // AOV: 6150 / 4 = 1537.50
@@ -222,6 +223,80 @@ class AdminSalesReportTest extends TestCase
             })
             ->assertSee('600.00')
             ->assertSee('60.0% margin');
+    }
+
+    public function test_invoices_table_reconciles_gross_discount_net_cost_and_profit(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $company = Company::create(['company_code' => 'C02', 'company_name' => 'Company 2']);
+        $cat = Category::create(['name' => 'Cat 2', 'slug' => 'cat-2']);
+        $unit = Unit::create(['name' => 'Unit 2', 'symbol' => 'u2']);
+
+        $product = Product::create([
+            'name' => 'Hair Cream',
+            'sku' => 'HC-01',
+            'company_id' => $company->id,
+            'category_id' => $cat->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 150.00,
+            'selling_price' => 300.00,
+            'mrp' => 300.00,
+            'is_active' => true,
+        ]);
+
+        $service = Service::create([
+            'name' => 'Facial Treatment',
+            'cost' => 0.00,
+            'price' => 700.00,
+            'is_active' => true,
+        ]);
+
+        // Sale: 1 product (300) + 1 service (700) = 1000 gross
+        // Discount: 100. Total Net: 900.
+        // Cost: 150. Profit: 750 (83.3% margin).
+        $sale = $this->createSale([
+            'invoice_number' => 'INV-RECONCILE-001',
+            'created_by' => $admin->id,
+            'sale_date' => Carbon::now(),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 1000.00,
+            'total_discount' => 100.00,
+            'coupon_discount' => 0.00,
+            'total' => 900.00,
+            'payment_method' => PaymentMethod::CASH,
+        ]);
+
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'cost_price' => 150.00,
+            'unit_price' => 300.00,
+            'discount' => 50.00,
+            'subtotal' => 250.00,
+            'final_price' => 250.00,
+        ]);
+
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'service_id' => $service->id,
+            'quantity' => 1,
+            'cost_price' => 0.00,
+            'unit_price' => 700.00,
+            'discount' => 50.00,
+            'subtotal' => 650.00,
+            'final_price' => 650.00,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(SalesReport::class)
+            ->assertSee('INV-RECONCILE-001')
+            ->assertSee('1,000.00') // Gross
+            ->assertSee('-₹ 100.00') // Discount
+            ->assertSee('900.00') // Net
+            ->assertSee('150.00') // Cost
+            ->assertSee('750.00') // Profit
+            ->assertSee('83.3% margin');
     }
 
     public function test_date_filter_updates_results(): void

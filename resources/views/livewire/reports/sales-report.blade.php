@@ -122,7 +122,7 @@
                 <div class="text-xl sm:text-2xl font-bold {{ $kpis['gross_profit'] >= 0 ? 'text-emerald-700' : 'text-red-600' }}">
                     ₹ {{ number_format($kpis['gross_profit'], 2) }}
                 </div>
-                <p class="text-xs mt-1" style="color: rgba(4, 120, 87, 0.8);">
+                <p class="text-xs mt-1 font-medium" style="color: rgba(4, 120, 87, 0.9);">
                     @if($kpis['net_sales'] > 0)
                         {{ number_format((float) $kpis['margin'], 1) }}% margin (COGS: ₹ {{ number_format($kpis['cogs'], 2) }})
                     @else
@@ -191,7 +191,7 @@
             <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
                 <h3 class="tracking-tight text-sm font-medium">{{ __('Average Order Value') }}</h3>
                 <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg" style="background-color: #e0e7ff; color: #4338ca;">
-                    <x-heroicon-o-chart-pie class="h-4 w-4" />
+                    <x-heroicon-o-chart-pie class="w-4 h-4" />
                 </span>
             </div>
             <div class="p-4 pt-0">
@@ -408,7 +408,7 @@
                             <td class="px-4 py-3 text-right whitespace-nowrap font-bold text-foreground">
                                 ₹ {{ number_format($row['net_sales'], 2) }}
                             </td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap font-bold text-emerald-700 dark:text-emerald-400">
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-bold {{ $row['gross_profit'] >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
                                 ₹ {{ number_format($row['gross_profit'], 2) }}
                                 <span class="text-xs font-normal opacity-80">({{ $row['margin'] }}%)</span>
                             </td>
@@ -444,7 +444,7 @@
                             <td class="px-4 py-3 text-right">₹ {{ number_format($kpis['gross_sales'], 2) }}</td>
                             <td class="px-4 py-3 text-right text-amber-600 dark:text-amber-400">₹ {{ number_format($kpis['total_discounts'], 2) }}</td>
                             <td class="px-4 py-3 text-right">₹ {{ number_format($kpis['net_sales'], 2) }}</td>
-                            <td class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400 font-bold">
+                            <td class="px-4 py-3 text-right font-bold {{ $kpis['gross_profit'] >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
                                 ₹ {{ number_format($kpis['gross_profit'], 2) }}
                                 <span class="text-xs font-normal opacity-80">({{ $kpis['margin'] }}%)</span>
                             </td>
@@ -459,7 +459,7 @@
         </div>
     </div>
 
-    <!-- Recent Sales Invoices List in Range -->
+    <!-- Completed Invoices in Period (Transparent, Reconciled Math: Gross - Disc = Net, Net - Cost = Profit) -->
     <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         <div class="p-5 border-b border-border flex items-center justify-between">
             <div>
@@ -468,7 +468,7 @@
                     <span>{{ __('Completed Invoices in Period') }}</span>
                 </h3>
                 <p class="text-xs text-muted-foreground">
-                    {{ __('List of completed transactions with customer details, payment methods, and profit.') }}
+                    {{ __('Complete itemized transaction audit: Gross Amount, Total Discount, Net Total, Product Cost (COGS), and Gross Profit.') }}
                 </p>
             </div>
             <span class="text-xs font-medium text-muted-foreground">
@@ -476,17 +476,20 @@
             </span>
         </div>
 
-        <div class="overflow-x-auto max-h-96">
+        <div class="overflow-x-auto max-h-[30rem]">
             <table class="w-full text-left text-sm text-foreground">
-                <thead class="bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground sticky top-0 border-b border-border">
+                <thead class="bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground sticky top-0 border-b border-border z-10">
                     <tr>
                         <th class="px-4 py-3">{{ __('Invoice #') }}</th>
                         <th class="px-4 py-3">{{ __('Date') }}</th>
                         <th class="px-4 py-3">{{ __('Customer') }}</th>
+                        <th class="px-4 py-3">{{ __('Items Type') }}</th>
                         <th class="px-4 py-3">{{ __('Payment Mode') }}</th>
+                        <th class="px-4 py-3 text-right">{{ __('Gross') }}</th>
                         <th class="px-4 py-3 text-right">{{ __('Discount') }}</th>
-                        <th class="px-4 py-3 text-right">{{ __('Total Amount') }}</th>
-                        <th class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400">{{ __('Profit') }}</th>
+                        <th class="px-4 py-3 text-right font-bold text-foreground">{{ __('Net Total') }}</th>
+                        <th class="px-4 py-3 text-right text-muted-foreground">{{ __('Cost (COGS)') }}</th>
+                        <th class="px-4 py-3 text-right font-bold">{{ __('Gross Profit') }}</th>
                         <th class="px-4 py-3 text-center">{{ __('Action') }}</th>
                     </tr>
                 </thead>
@@ -506,10 +509,17 @@
                                 'transfer' => 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300',
                                 default => 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
                             };
+
+                            $productCount = $sale->items->filter(fn($i) => !empty($i->product_id))->count();
+                            $serviceCount = $sale->items->filter(fn($i) => !empty($i->service_id))->count();
+                            $profit = (float) ($sale->gross_profit ?? 0);
+                            $margin = (float) ($sale->margin ?? 0);
+                            $cogs = (float) ($sale->cogs ?? 0);
+                            $discount = (float) ($sale->total_discount ?? 0);
                         @endphp
                         <tr class="hover:bg-muted/30 transition-colors">
                             <td class="px-4 py-3 font-semibold text-primary whitespace-nowrap">
-                                <a href="{{ route('sales.show', $sale) }}" class="hover:underline">
+                                <a href="{{ route('sales.show', $sale) }}" class="hover:underline flex items-center gap-1">
                                     {{ $sale->invoice_number }}
                                 </a>
                             </td>
@@ -522,19 +532,49 @@
                                     <div class="text-xs text-muted-foreground">{{ $sale->customer->phone }}</div>
                                 @endif
                             </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
+                                @if($productCount > 0 && $serviceCount > 0)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium text-[11px]">
+                                        {{ $productCount }}p + {{ $serviceCount }}s
+                                    </span>
+                                @elseif($serviceCount > 0)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-medium text-[11px]" title="Services have 0 merchandise inventory cost">
+                                        {{ $serviceCount }} {{ \Illuminate\Support\Str::plural('service', $serviceCount) }}
+                                    </span>
+                                @elseif($productCount > 0)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-muted text-foreground font-medium text-[11px]">
+                                        {{ $productCount }} {{ \Illuminate\Support\Str::plural('product', $productCount) }}
+                                    </span>
+                                @else
+                                    -
+                                @endif
+                            </td>
                             <td class="px-4 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold {{ $badgeClass }}">
                                     {{ $methodLabel }}
                                 </span>
                             </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap text-muted-foreground">
+                                ₹ {{ number_format((float) $sale->subtotal, 2) }}
+                            </td>
                             <td class="px-4 py-3 text-right whitespace-nowrap text-amber-600 dark:text-amber-400">
-                                ₹ {{ number_format((float) ($sale->total_discount ?? 0) + (float) ($sale->coupon_discount ?? 0), 2) }}
+                                @if($discount > 0)
+                                    -₹ {{ number_format($discount, 2) }}
+                                @else
+                                    <span class="text-muted-foreground opacity-60">₹ 0.00</span>
+                                @endif
                             </td>
                             <td class="px-4 py-3 text-right whitespace-nowrap font-bold text-foreground">
                                 ₹ {{ number_format((float) $sale->total, 2) }}
                             </td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap font-bold text-emerald-700 dark:text-emerald-400">
-                                ₹ {{ number_format((float) ($sale->gross_profit ?? 0), 2) }}
+                            <td class="px-4 py-3 text-right whitespace-nowrap text-muted-foreground text-xs">
+                                ₹ {{ number_format($cogs, 2) }}
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-bold {{ $profit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                                <div>₹ {{ number_format($profit, 2) }}</div>
+                                <div class="text-[10px] font-normal opacity-75">
+                                    {{ number_format($margin, 1) }}% margin
+                                </div>
                             </td>
                             <td class="px-4 py-3 text-center whitespace-nowrap">
                                 <a href="{{ route('sales.show', $sale) }}" class="inline-flex items-center text-xs text-primary hover:underline font-medium">
@@ -545,7 +585,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-4 py-6 text-center text-muted-foreground text-sm">
+                            <td colspan="11" class="px-4 py-6 text-center text-muted-foreground text-sm">
                                 {{ __('No completed sales in this range.') }}
                             </td>
                         </tr>
