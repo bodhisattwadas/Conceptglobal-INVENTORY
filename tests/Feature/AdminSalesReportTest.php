@@ -299,7 +299,11 @@ class AdminSalesReportTest extends TestCase
             ->assertSee('150.00') // Cost
             ->assertSee('750.00') // Profit
             ->assertSee('83.3% margin')
-            ->assertSee('Line Items & PO Net Price Audit');
+            ->assertSee('Line Items & PO Net Price Audit')
+            ->assertSee('Coupon Discount')
+            ->assertSee('Other / Bill Disc')
+            ->assertSee('Round Off')
+            ->assertSee('Invoice Bill Reconciliation & Profit Math');
     }
 
     public function test_date_filter_updates_results(): void

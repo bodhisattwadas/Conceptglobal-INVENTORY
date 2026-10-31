@@ -515,6 +515,21 @@
                         $margin = (float) ($sale->margin ?? 0);
                         $cogs = (float) ($sale->cogs ?? 0);
                         $discount = (float) ($sale->total_discount ?? 0);
+
+                        $itemDiscountsSum = (float) $sale->items->sum(fn($i) => ((float)$i->discount) * ((int)$i->quantity));
+                        $netItemsSubtotal = (float) $sale->items->sum(fn($i) => (float)$i->subtotal);
+                        $totalQty = (int) $sale->items->sum(fn($i) => (int)$i->quantity);
+                        $totalGrossItems = (float) $sale->items->sum(fn($i) => ((float)$i->unit_price) * ((int)$i->quantity));
+
+                        $saleCouponDiscount = (float) ($sale->coupon_discount ?? 0);
+                        if ($saleCouponDiscount == 0 && !empty($sale->coupon_code) && (float)($sale->global_discount ?? 0) > 0 && (float)($sale->round_off ?? 0) == 0) {
+                            $saleCouponDiscount = (float) $sale->global_discount;
+                        }
+                        $saleBillDiscount = max(0.0, round(((float) ($sale->global_discount ?? 0)) - $saleCouponDiscount, 2));
+                        $saleRoundOff = (float) ($sale->round_off ?? 0);
+                        if ($saleRoundOff == 0 && empty($sale->coupon_code) && (float)($sale->global_discount ?? 0) != 0) {
+                            $saleRoundOff = -((float) $sale->global_discount);
+                        }
                     @endphp
                     <tbody x-data="{ expanded: false }" class="divide-y divide-border border-b border-border">
                         <tr class="hover:bg-muted/30 transition-colors">
@@ -597,16 +612,18 @@
                         <tr x-show="expanded" x-cloak style="display: none;" class="bg-muted/15">
                             <td colspan="11" class="p-4">
                                 <div class="rounded-lg border border-border bg-card p-3 shadow-xs space-y-3">
+                                    <!-- Drawer Header -->
                                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-2 text-xs">
                                         <div class="font-semibold text-foreground flex items-center gap-1.5">
                                             <x-heroicon-o-clipboard-document-list class="w-4 h-4 text-primary" />
                                             <span>{{ __('Line Items & PO Net Price Audit for') }} {{ $sale->invoice_number }}</span>
                                         </div>
                                         <div class="text-muted-foreground font-mono">
-                                            {{ __('Formula: Cash Received') }} (₹{{ number_format((float) $sale->total, 2) }}) - {{ __('Items Net Cost') }} (₹{{ number_format($cogs, 2) }}) = <span class="font-bold {{ $profit >= 0 ? 'text-emerald-600' : 'text-red-600' }}">₹{{ number_format($profit, 2) }}</span>
+                                            {{ __('Formula: Cash Received') }} (₹{{ number_format((float) $sale->total, 2) }}) - {{ __('Items Net Cost') }} (₹{{ number_format($cogs, 2) }}) = <span class="font-bold {{ $profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">₹{{ number_format($profit, 2) }}</span>
                                         </div>
                                     </div>
 
+                                    <!-- Items Detail Table -->
                                     <table class="w-full text-xs">
                                         <thead class="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
                                             <tr>
@@ -646,7 +663,7 @@
                                                     </td>
                                                     <td class="py-1.5 px-2 text-center font-semibold">{{ $itemQty }}</td>
                                                     <td class="py-1.5 px-2 text-right">₹ {{ number_format((float) $item->unit_price, 2) }}</td>
-                                                    <td class="py-1.5 px-2 text-right text-amber-600">
+                                                    <td class="py-1.5 px-2 text-right text-amber-600 dark:text-amber-400">
                                                         {{ (float) $item->discount > 0 ? '-₹ ' . number_format((float) $item->discount, 2) : '₹ 0.00' }}
                                                     </td>
                                                     <td class="py-1.5 px-2 text-right font-semibold">₹ {{ number_format($lineSubtotal, 2) }}</td>
@@ -665,25 +682,142 @@
                                                 </tr>
                                             @endforeach
                                         </tbody>
-                                        @if($sale->coupon_discount > 0 || abs($sale->round_off) > 0)
-                                            <tfoot class="border-t border-border bg-muted/30 text-[11px]">
-                                                @if($sale->coupon_discount > 0)
-                                                    <tr>
-                                                        <td colspan="5" class="py-1 px-2 text-right text-emerald-700 font-medium">{{ __('Coupon Applied') }} ({{ $sale->coupon_code }}):</td>
-                                                        <td class="py-1 px-2 text-right text-emerald-700 font-bold">-₹ {{ number_format((float) $sale->coupon_discount, 2) }}</td>
-                                                        <td colspan="4" class="py-1 px-2 text-muted-foreground">{{ __('Reduces invoice Cash Received') }}</td>
-                                                    </tr>
-                                                @endif
-                                                @if(abs((float) $sale->round_off) > 0)
-                                                    <tr>
-                                                        <td colspan="5" class="py-1 px-2 text-right text-muted-foreground">{{ __('Round Off') }}:</td>
-                                                        <td class="py-1 px-2 text-right font-medium">₹ {{ number_format((float) $sale->round_off, 2) }}</td>
-                                                        <td colspan="4"></td>
-                                                    </tr>
-                                                @endif
-                                            </tfoot>
-                                        @endif
+                                        <tfoot class="bg-muted/40 font-semibold border-t-2 border-border text-[11px] text-foreground">
+                                            <tr>
+                                                <td class="py-1.5 px-2 uppercase text-muted-foreground">{{ __('Items Total') }}</td>
+                                                <td class="py-1.5 px-2 text-center text-muted-foreground">{{ count($sale->items) }} {{ \Illuminate\Support\Str::plural('line', count($sale->items)) }}</td>
+                                                <td class="py-1.5 px-2 text-center font-bold">{{ $totalQty }}</td>
+                                                <td class="py-1.5 px-2 text-right">₹ {{ number_format($totalGrossItems, 2) }}</td>
+                                                <td class="py-1.5 px-2 text-right text-amber-600 dark:text-amber-400">
+                                                    @if($itemDiscountsSum > 0)
+                                                        -₹ {{ number_format($itemDiscountsSum, 2) }}
+                                                    @else
+                                                        ₹ 0.00
+                                                    @endif
+                                                </td>
+                                                <td class="py-1.5 px-2 text-right font-bold text-foreground">₹ {{ number_format($netItemsSubtotal, 2) }}</td>
+                                                <td class="py-1.5 px-2 text-right text-muted-foreground">-</td>
+                                                <td class="py-1.5 px-2 text-right text-muted-foreground font-mono font-bold">₹ {{ number_format($cogs, 2) }}</td>
+                                                <td class="py-1.5 px-2 text-right font-bold {{ ($netItemsSubtotal - $cogs) >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                                                    ₹ {{ number_format($netItemsSubtotal - $cogs, 2) }}
+                                                </td>
+                                                <td class="py-1.5 px-2 text-muted-foreground text-[10px]">{{ __('Sum of line items') }}</td>
+                                            </tr>
+                                        </tfoot>
                                     </table>
+
+                                    <!-- Dedicated Invoice Bill Adjustments & Profit Summary Bar -->
+                                    <div class="rounded-md border border-border/80 bg-muted/20 p-3">
+                                        <div class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center justify-between">
+                                            <span class="flex items-center gap-1.5">
+                                                <x-heroicon-o-calculator class="w-3.5 h-3.5 text-primary" />
+                                                <span>{{ __('Invoice Bill Reconciliation & Profit Math') }}</span>
+                                            </span>
+                                            <span class="font-mono text-[10px] font-normal lowercase text-muted-foreground">
+                                                {{ __('items subtotal - coupon - other discounts + round off = cash received') }}
+                                            </span>
+                                        </div>
+
+                                        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-xs">
+                                            <!-- Items Subtotal -->
+                                            <div class="rounded border border-border bg-card p-2">
+                                                <div class="text-[10px] text-muted-foreground">{{ __('Items Subtotal') }}</div>
+                                                <div class="font-bold text-foreground font-mono text-sm mt-0.5">
+                                                    ₹ {{ number_format($netItemsSubtotal, 2) }}
+                                                </div>
+                                                <div class="text-[10px] text-muted-foreground mt-0.5">
+                                                    {{ __('After item discounts') }}
+                                                </div>
+                                            </div>
+
+                                            <!-- Coupon Discount -->
+                                            <div class="rounded border border-border bg-card p-2 {{ $saleCouponDiscount > 0 ? 'border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/60 dark:bg-emerald-950/20' : '' }}">
+                                                <div class="text-[10px] flex items-center justify-between text-muted-foreground">
+                                                    <span>{{ __('Coupon Discount') }}</span>
+                                                    @if($sale->coupon_code)
+                                                        <span class="text-[9px] font-bold uppercase px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300">
+                                                            {{ $sale->coupon_code }}
+                                                        </span>
+                                                    @endif
+                                                </div>
+                                                <div class="font-bold font-mono text-sm mt-0.5 {{ $saleCouponDiscount > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground' }}">
+                                                    @if($saleCouponDiscount > 0)
+                                                        -₹ {{ number_format($saleCouponDiscount, 2) }}
+                                                    @else
+                                                        ₹ 0.00
+                                                    @endif
+                                                </div>
+                                                <div class="text-[10px] text-muted-foreground mt-0.5">
+                                                    {{ $saleCouponDiscount > 0 ? __('Promo coupon applied') : __('No coupon') }}
+                                                </div>
+                                            </div>
+
+                                            <!-- Other / Bill Discount -->
+                                            <div class="rounded border border-border bg-card p-2 {{ $saleBillDiscount > 0 ? 'border-amber-200 bg-amber-50/40 dark:border-amber-900/60 dark:bg-amber-950/20' : '' }}">
+                                                <div class="text-[10px] text-muted-foreground">{{ __('Other / Bill Disc') }}</div>
+                                                <div class="font-bold font-mono text-sm mt-0.5 {{ $saleBillDiscount > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground' }}">
+                                                    @if($saleBillDiscount > 0)
+                                                        -₹ {{ number_format($saleBillDiscount, 2) }}
+                                                    @else
+                                                        ₹ 0.00
+                                                    @endif
+                                                </div>
+                                                <div class="text-[10px] text-muted-foreground mt-0.5">
+                                                    {{ $saleBillDiscount > 0 ? __('Special bill discount') : __('None') }}
+                                                </div>
+                                            </div>
+
+                                            <!-- Round Off -->
+                                            <div class="rounded border border-border bg-card p-2 {{ abs($saleRoundOff) > 0 ? 'border-indigo-200 bg-indigo-50/40 dark:border-indigo-900/60 dark:bg-indigo-950/20' : '' }}">
+                                                <div class="text-[10px] text-muted-foreground">{{ __('Round Off') }}</div>
+                                                <div class="font-bold font-mono text-sm mt-0.5 {{ abs($saleRoundOff) > 0 ? 'text-indigo-700 dark:text-indigo-400' : 'text-muted-foreground' }}">
+                                                    @if(abs($saleRoundOff) > 0)
+                                                        {{ $saleRoundOff > 0 ? '+' : '' }}₹ {{ number_format($saleRoundOff, 2) }}
+                                                    @else
+                                                        ₹ 0.00
+                                                    @endif
+                                                </div>
+                                                <div class="text-[10px] text-muted-foreground mt-0.5">
+                                                    {{ __('Coin / cash adjustment') }}
+                                                </div>
+                                            </div>
+
+                                            <!-- Cash Received (Net Payable) -->
+                                            <div class="rounded border border-primary/30 bg-primary/5 p-2">
+                                                <div class="text-[10px] font-semibold text-primary">{{ __('Cash Received') }}</div>
+                                                <div class="font-bold font-mono text-sm mt-0.5 text-foreground">
+                                                    ₹ {{ number_format((float) $sale->total, 2) }}
+                                                </div>
+                                                <div class="text-[10px] text-muted-foreground mt-0.5">
+                                                    {{ __('Via') }} {{ $methodLabel }}
+                                                </div>
+                                            </div>
+
+                                            <!-- Items Net Cost (PO Cost) -->
+                                            <div class="rounded border border-border bg-card p-2">
+                                                <div class="text-[10px] text-muted-foreground">{{ __('Items Net Cost') }}</div>
+                                                <div class="font-bold font-mono text-sm mt-0.5 text-muted-foreground">
+                                                    -₹ {{ number_format($cogs, 2) }}
+                                                </div>
+                                                <div class="text-[10px] text-muted-foreground mt-0.5">
+                                                    {{ __('Vendor PO net cost') }}
+                                                </div>
+                                            </div>
+
+                                            <!-- Final Gross Profit -->
+                                            <div class="rounded border p-2 {{ $profit >= 0 ? 'border-emerald-300 bg-emerald-100/50 dark:border-emerald-800 dark:bg-emerald-950/40' : 'border-red-300 bg-red-100/50 dark:border-red-800 dark:bg-red-950/40' }}">
+                                                <div class="text-[10px] font-bold {{ $profit >= 0 ? 'text-emerald-800 dark:text-emerald-300' : 'text-red-800 dark:text-red-300' }}">
+                                                    {{ __('Gross Profit') }}
+                                                </div>
+                                                <div class="font-bold font-mono text-sm mt-0.5 {{ $profit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                                                    ₹ {{ number_format($profit, 2) }}
+                                                </div>
+                                                <div class="text-[10px] font-semibold mt-0.5 {{ $profit >= 0 ? 'text-emerald-800 dark:text-emerald-300' : 'text-red-800 dark:text-red-300' }}">
+                                                    {{ number_format($margin, 1) }}% {{ __('margin') }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -697,10 +831,6 @@
                         </tr>
                     </tbody>
                 @endforelse
-            </table>
-        </div>
-    </div>
-</div>
             </table>
         </div>
     </div>
