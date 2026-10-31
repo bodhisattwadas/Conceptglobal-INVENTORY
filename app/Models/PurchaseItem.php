@@ -38,23 +38,18 @@ class PurchaseItem extends Model
         'selling_price' => 'decimal:2',
     ];
 
-    public function getLocationAttribute(?string $value): PurchaseLocation
-    {
-        if ($value) {
-            return PurchaseLocation::tryFrom($value) ?? PurchaseLocation::SHOP;
-        }
-
-        return $this->purchase?->location ?? PurchaseLocation::SHOP;
-    }
+    protected $attributes = [
+        'location' => 'shop',
+    ];
 
     public function isShop(): bool
     {
-        return $this->location === PurchaseLocation::SHOP;
+        return ($this->location ?? $this->purchase?->location ?? PurchaseLocation::SHOP) === PurchaseLocation::SHOP;
     }
 
     public function isParlour(): bool
     {
-        return $this->location === PurchaseLocation::PARLOUR;
+        return ($this->location ?? $this->purchase?->location) === PurchaseLocation::PARLOUR;
     }
 
     public function purchase(): BelongsTo

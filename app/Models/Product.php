@@ -41,14 +41,9 @@ class Product extends Model
         'is_active' => 'boolean',
     ];
 
-    public function getLocationAttribute(?string $value): PurchaseLocation
-    {
-        if ($value) {
-            return PurchaseLocation::tryFrom($value) ?? PurchaseLocation::SHOP;
-        }
-
-        return PurchaseLocation::SHOP;
-    }
+    protected $attributes = [
+        'location' => 'shop',
+    ];
 
     public function getStockByLocation(): array
     {
