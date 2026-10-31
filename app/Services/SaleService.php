@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\DTOs\SaleData;
+use App\Enums\CouponType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Exceptions\DiscountCouponException;
@@ -456,9 +457,11 @@ class SaleService
                 $couponDiscount = 0.0;
                 if ($appliedCoupon) {
                     try {
-                        $couponResult = $this->couponService->validateAndCalculate($appliedCoupon, $totalSubtotal);
-                        $couponDiscount = (float) $couponResult['discount_amount'];
-                        if (! $oldCouponId || $oldCouponId !== $appliedCoupon->id) {
+                        if ($oldCouponId && $oldCouponId === $appliedCoupon->id) {
+                            $couponDiscount = $this->calculateRetainedCouponDiscount($appliedCoupon, $totalSubtotal);
+                        } else {
+                            $couponResult = $this->couponService->validateAndCalculate($appliedCoupon, $totalSubtotal);
+                            $couponDiscount = (float) $couponResult['discount_amount'];
                             $this->couponService->incrementUsage($appliedCoupon);
                         }
                     } catch (DiscountCouponException $e) {
@@ -870,5 +873,34 @@ class SaleService
         $lastNumber = (int) substr($latest->invoice_number, -4);
 
         return $prefix.str_pad($lastNumber + 1, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Calculate coupon discount for a coupon retained from an existing historical sale,
+     * without failing on post-sale expiration or usage limit.
+     */
+    protected function calculateRetainedCouponDiscount(DiscountCoupon $coupon, float $subtotal): float
+    {
+        if ($coupon->min_purchase_amount !== null && $subtotal < (float) $coupon->min_purchase_amount) {
+            $diff = (float) $coupon->min_purchase_amount - $subtotal;
+            throw new DiscountCouponException(
+                'Minimum cart subtotal of '.format_money($coupon->min_purchase_amount)." required for coupon '{$coupon->code}' (Add ".format_money($diff).' more).'
+            );
+        }
+
+        $discount = 0.0;
+        if ($coupon->type === CouponType::Percentage) {
+            $raw = round(($subtotal * (float) $coupon->value) / 100, 2);
+            if ($coupon->max_discount_amount !== null && $raw > (float) $coupon->max_discount_amount) {
+                $discount = (float) $coupon->max_discount_amount;
+            } else {
+                $discount = $raw;
+            }
+            $discount = min($discount, $subtotal);
+        } else {
+            $discount = min((float) $coupon->value, $subtotal);
+        }
+
+        return round($discount, 2);
     }
 }

@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\DTOs\SaleData;
+use App\Enums\CouponType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Models\AuditLog;
 use App\Models\Category;
+use App\Models\DiscountCoupon;
 use App\Models\FinanceTransaction;
 use App\Models\InventoryStock;
 use App\Models\Product;
@@ -602,5 +604,166 @@ class HistoricalSaleEditTest extends TestCase
         $this->assertNotNull($serviceItem);
         $this->assertEquals(750, (float) $serviceItem->subtotal);
         $this->assertEquals(1150, (float) $sale->total); // 400 + 750
+    }
+
+    public function test_edit_view_renders_coupon_section_and_applied_coupon(): void
+    {
+        $coupon = DiscountCoupon::create([
+            'code' => 'SAVE50',
+            'type' => CouponType::Fixed,
+            'value' => 50,
+            'is_active' => true,
+        ]);
+
+        $sale = $this->createTestSale(2, PaymentMethod::CASH);
+        $sale->update([
+            'discount_coupon_id' => $coupon->id,
+            'coupon_code' => $coupon->code,
+            'coupon_discount' => 50,
+            'total' => 350,
+        ]);
+
+        $response = $this->actingAs($this->admin)->get(route('sales.edit', $sale));
+
+        $response->assertOk();
+        $response->assertSee('Discount Coupon');
+        $response->assertSee('SAVE50');
+        $response->assertSee('name="coupon_id"', false);
+        $response->assertSee('name="coupon_code"', false);
+    }
+
+    public function test_admin_can_update_sale_to_apply_coupon(): void
+    {
+        $coupon = DiscountCoupon::create([
+            'code' => 'FLAT100',
+            'type' => CouponType::Fixed,
+            'value' => 100,
+            'is_active' => true,
+            'used_count' => 0,
+        ]);
+
+        $sale = $this->createTestSale(3, PaymentMethod::UPI); // Subtotal: 600
+
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::UPI->value,
+            'coupon_id' => $coupon->id,
+            'coupon_code' => $coupon->code,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 3,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $sale->refresh();
+
+        $this->assertEquals($coupon->id, $sale->discount_coupon_id);
+        $this->assertEquals('FLAT100', $sale->coupon_code);
+        $this->assertEquals(100.00, (float) $sale->coupon_discount);
+        $this->assertEquals(500.00, (float) $sale->total); // 600 - 100
+        $this->assertEquals(1, $coupon->fresh()->used_count);
+    }
+
+    public function test_admin_can_update_sale_to_remove_coupon(): void
+    {
+        $coupon = DiscountCoupon::create([
+            'code' => 'SAVE40',
+            'type' => CouponType::Fixed,
+            'value' => 40,
+            'is_active' => true,
+            'used_count' => 1,
+        ]);
+
+        $sale = $this->createTestSale(2, PaymentMethod::CASH);
+        $sale->update([
+            'discount_coupon_id' => $coupon->id,
+            'coupon_code' => $coupon->code,
+            'coupon_discount' => 40,
+            'total' => 360,
+        ]);
+
+        // Submit update without coupon
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::CASH->value,
+            'cash_received' => 400,
+            'coupon_id' => '',
+            'coupon_code' => '',
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $sale->refresh();
+
+        $this->assertNull($sale->discount_coupon_id);
+        $this->assertNull($sale->coupon_code);
+        $this->assertEquals(0.00, (float) $sale->coupon_discount);
+        $this->assertEquals(400.00, (float) $sale->total);
+        $this->assertEquals(0, $coupon->fresh()->used_count);
+    }
+
+    public function test_admin_can_change_applied_coupon_to_another_coupon(): void
+    {
+        $couponA = DiscountCoupon::create([
+            'code' => 'COUPONA',
+            'type' => CouponType::Fixed,
+            'value' => 50,
+            'is_active' => true,
+            'used_count' => 1,
+        ]);
+
+        $couponB = DiscountCoupon::create([
+            'code' => 'COUPONB',
+            'type' => CouponType::Fixed,
+            'value' => 100,
+            'is_active' => true,
+            'used_count' => 0,
+        ]);
+
+        $sale = $this->createTestSale(2, PaymentMethod::UPI); // Subtotal: 400
+        $sale->update([
+            'discount_coupon_id' => $couponA->id,
+            'coupon_code' => $couponA->code,
+            'coupon_discount' => 50,
+            'total' => 350,
+        ]);
+
+        // Change coupon from A to B
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::UPI->value,
+            'coupon_id' => $couponB->id,
+            'coupon_code' => $couponB->code,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $sale->refresh();
+
+        $this->assertEquals($couponB->id, $sale->discount_coupon_id);
+        $this->assertEquals('COUPONB', $sale->coupon_code);
+        $this->assertEquals(100.00, (float) $sale->coupon_discount);
+        $this->assertEquals(300.00, (float) $sale->total); // 400 - 100
+        $this->assertEquals(0, $couponA->fresh()->used_count);
+        $this->assertEquals(1, $couponB->fresh()->used_count);
     }
 }

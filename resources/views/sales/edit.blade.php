@@ -82,13 +82,34 @@
                     cashReceived: {{ Js::from(old('cash_received', (float) $sale->cash_received)) }},
                     roundOff: {{ Js::from(old('round_off', $sale->round_off !== null ? (float) $sale->round_off : 0)) }},
                     billDiscount: {{ Js::from(old('bill_discount', 0)) }},
-                    couponId: {{ Js::from(old('coupon_id', $sale->discount_coupon_id)) }},
-                    couponDiscount: {{ Js::from((float) $sale->coupon_discount) }}
+                    appliedCoupon: {{ Js::from(
+                        $sale->coupon ? [
+                            'id' => $sale->coupon->id,
+                            'code' => $sale->coupon->code,
+                            'type' => $sale->coupon->type instanceof \BackedEnum ? $sale->coupon->type->value : (string) $sale->coupon->type,
+                            'value' => (float) $sale->coupon->value,
+                            'min_purchase_amount' => (float) ($sale->coupon->min_purchase_amount ?? 0),
+                            'max_discount_amount' => (float) ($sale->coupon->max_discount_amount ?? 0),
+                            'discount_amount' => (float) $sale->coupon_discount,
+                        ] : ($sale->coupon_code ? [
+                            'id' => $sale->discount_coupon_id,
+                            'code' => $sale->coupon_code,
+                            'type' => 'fixed',
+                            'value' => (float) $sale->coupon_discount,
+                            'min_purchase_amount' => 0,
+                            'max_discount_amount' => 0,
+                            'discount_amount' => (float) $sale->coupon_discount,
+                        ] : null)
+                    ) }}
                 })"
                 class="space-y-6"
             >
                 @csrf
                 @method('PUT')
+
+                <!-- Hidden Coupon Inputs for Form Submission -->
+                <input type="hidden" name="coupon_id" :value="appliedCoupon ? appliedCoupon.id : ''">
+                <input type="hidden" name="coupon_code" :value="appliedCoupon ? appliedCoupon.code : ''">
 
                 <!-- Top Metadata Section -->
                 <div class="bg-white rounded-xl shadow-xs border border-gray-200 p-6 space-y-4">
@@ -611,6 +632,123 @@
                                 <span class="font-mono font-bold" x-text="formatMoney(netSubtotal)"></span>
                             </div>
 
+                            <!-- Coupon Discount Summary Line -->
+                            <template x-if="appliedCoupon && couponDiscount > 0">
+                                <div class="flex justify-between text-emerald-600 font-semibold">
+                                    <span x-text="'Coupon Discount (' + appliedCoupon.code + ')'"></span>
+                                    <span class="font-mono font-bold" x-text="'-' + formatMoney(couponDiscount)"></span>
+                                </div>
+                            </template>
+
+                            <!-- Coupon Control Section -->
+                            <div class="py-2.5 px-3 rounded-lg bg-gray-50 border border-gray-200/80 space-y-2">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="font-bold text-gray-700 uppercase tracking-wider">{{ __('Discount Coupon') }}</span>
+                                    <span class="text-[11px] text-gray-400 font-medium" x-show="!appliedCoupon">{{ __('Optional') }}</span>
+                                </div>
+
+                                <!-- If Coupon Applied -->
+                                <template x-if="appliedCoupon">
+                                    <div class="py-1.5 px-2.5 rounded-md bg-emerald-50 border border-emerald-200 text-xs flex items-center justify-between">
+                                        <div class="flex items-center gap-1.5 overflow-hidden">
+                                            <div class="flex items-center justify-center w-4 h-4 rounded bg-emerald-200/80 text-emerald-800 shrink-0 text-[10px] font-bold">
+                                                ✓
+                                            </div>
+                                            <span class="font-mono font-bold text-emerald-900 uppercase truncate" x-text="appliedCoupon.code"></span>
+                                            <span class="text-[10px] font-semibold px-1 py-0.5 rounded shrink-0"
+                                                  :class="appliedCoupon.type === 'percentage' ? 'bg-emerald-200/70 text-emerald-800' : 'bg-blue-100 text-blue-800'"
+                                                  x-text="appliedCoupon.type === 'percentage' ? (appliedCoupon.value + '%') : 'Flat'"></span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5 shrink-0">
+                                            <span class="font-bold text-emerald-700" x-text="'- ' + formatMoney(couponDiscount)"></span>
+                                            <button
+                                                type="button"
+                                                @click="removeCoupon()"
+                                                class="text-gray-400 hover:text-red-600 p-0.5 rounded transition-colors"
+                                                title="{{ __('Remove coupon') }}"
+                                            >
+                                                <x-heroicon-o-x-mark class="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- If No Coupon: Available Coupons Dropdown & Manual Entry -->
+                                <div x-show="!appliedCoupon">
+                                    <!-- Dropdown View -->
+                                    <div x-show="!manualCouponMode" class="flex items-center gap-1.5">
+                                        <div class="relative flex-1 min-w-0">
+                                            <select
+                                                x-model="selectedCouponCode"
+                                                @change="handleCouponSelection($event.target.value)"
+                                                :disabled="isApplyingCoupon"
+                                                class="block w-full py-1 pl-2 pr-7 text-xs font-semibold border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-700 shadow-xs truncate disabled:opacity-50"
+                                            >
+                                                <option value="">🎟️ {{ __('Select Coupon') }} ({{ count($availableCoupons) }} {{ __('available') }})...</option>
+                                                @forelse($availableCoupons as $coupon)
+                                                    <option value="{{ $coupon->code }}">
+                                                        {{ $coupon->code }} - {{ $coupon->type->value === 'percentage' ? $coupon->value . '% OFF' : 'Flat ' . format_money($coupon->value) . ' OFF' }}
+                                                    </option>
+                                                @empty
+                                                    <option value="" disabled>{{ __('No active coupons found') }}</option>
+                                                @endforelse
+                                                <option value="__manual__">✍️ {{ __('Enter promo code manually...') }}</option>
+                                            </select>
+                                            <template x-if="isApplyingCoupon">
+                                                <div class="absolute inset-y-0 right-7 flex items-center pointer-events-none">
+                                                    <svg class="animate-spin h-3.5 w-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            @click="toggleManualCouponMode(true)"
+                                            class="p-1.5 text-gray-500 hover:text-indigo-600 border border-gray-300 rounded-md bg-white hover:bg-gray-50 transition-colors shrink-0 shadow-xs"
+                                            title="{{ __('Type promo code manually') }}"
+                                        >
+                                            <x-heroicon-o-pencil-square class="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+
+                                    <!-- Manual Promo Code Input View -->
+                                    <div x-show="manualCouponMode" class="flex items-center gap-1.5" style="display: none;">
+                                        <div class="relative flex-1 min-w-0">
+                                            <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-gray-400">
+                                                <x-heroicon-o-ticket class="w-3.5 h-3.5" />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                x-ref="manualCouponInput"
+                                                x-model="manualCouponCode"
+                                                @keydown.enter.prevent="applyCoupon(manualCouponCode)"
+                                                placeholder="{{ __('PROMO CODE...') }}"
+                                                class="block w-full pl-7 pr-2 py-1 text-xs uppercase font-semibold border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 bg-white shadow-xs"
+                                                :disabled="isApplyingCoupon"
+                                            >
+                                        </div>
+                                        <button
+                                            type="button"
+                                            @click="applyCoupon(manualCouponCode)"
+                                            :disabled="isApplyingCoupon || !manualCouponCode.trim()"
+                                            class="px-2.5 py-1 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors flex items-center gap-1 shrink-0 shadow-xs"
+                                        >
+                                            <template x-if="isApplyingCoupon">
+                                                <svg class="animate-spin h-3 w-3 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                            </template>
+                                            <span>{{ __('Apply') }}</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            @click="toggleManualCouponMode(false)"
+                                            class="p-1 text-gray-400 hover:text-gray-600 border border-gray-300 rounded-md bg-white hover:bg-gray-50 transition-colors shrink-0 shadow-xs"
+                                            title="{{ __('Back to dropdown') }}"
+                                        >
+                                            <x-heroicon-o-x-mark class="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="flex items-center justify-between text-gray-600">
                                 <label for="round_off" class="text-xs uppercase font-semibold">{{ __('Round Off Adjustment') }}</label>
                                 <div class="w-32">
@@ -662,8 +800,11 @@
                 cashReceived: config.cashReceived || 0,
                 roundOff: config.roundOff || 0,
                 billDiscount: config.billDiscount || 0,
-                couponId: config.couponId,
-                couponDiscount: config.couponDiscount || 0,
+                appliedCoupon: config.appliedCoupon || null,
+                selectedCouponCode: '',
+                manualCouponCode: '',
+                manualCouponMode: false,
+                isApplyingCoupon: false,
 
                 itemSearchQuery: '',
                 searchFilter: 'all',
@@ -713,10 +854,30 @@
                     return this.items.reduce((sum, item) => sum + (parseFloat(item.subtotal) || 0), 0);
                 },
 
+                get couponDiscount() {
+                    if (!this.appliedCoupon) return 0;
+                    const sub = this.netSubtotal;
+                    if (sub <= 0) return 0;
+                    if (this.appliedCoupon.min_purchase_amount && sub < this.appliedCoupon.min_purchase_amount) {
+                        return 0;
+                    }
+                    let disc = 0;
+                    if (this.appliedCoupon.type === 'percentage') {
+                        disc = (sub * parseFloat(this.appliedCoupon.value)) / 100;
+                        if (this.appliedCoupon.max_discount_amount && disc > parseFloat(this.appliedCoupon.max_discount_amount)) {
+                            disc = parseFloat(this.appliedCoupon.max_discount_amount);
+                        }
+                    } else {
+                        disc = Math.min(sub, parseFloat(this.appliedCoupon.value));
+                    }
+                    return Math.round(disc * 100) / 100;
+                },
+
                 get total() {
                     const net = this.netSubtotal;
+                    const coupon = this.couponDiscount;
                     const ro = parseFloat(this.roundOff) || 0;
-                    return Math.max(0, parseFloat((net + ro).toFixed(2)));
+                    return Math.max(0, parseFloat((net - coupon + ro).toFixed(2)));
                 },
 
                 calculateChange() {
@@ -748,6 +909,86 @@
                         case 'transfer': return 'Bank Transfer';
                         default: return this.paymentMethod;
                     }
+                },
+
+                handleCouponSelection(code) {
+                    if (!code) return;
+                    if (code === '__manual__') {
+                        this.toggleManualCouponMode(true);
+                        return;
+                    }
+                    this.applyCoupon(code);
+                },
+
+                toggleManualCouponMode(show) {
+                    this.manualCouponMode = show;
+                    if (show) {
+                        this.selectedCouponCode = '';
+                        this.$nextTick(() => {
+                            this.$refs.manualCouponInput?.focus();
+                        });
+                    } else {
+                        this.manualCouponCode = '';
+                    }
+                },
+
+                async applyCoupon(code) {
+                    if (!code || !code.trim()) return;
+                    const eligibleSubtotal = this.netSubtotal;
+                    if (eligibleSubtotal <= 0) {
+                        alert('Cart total must be greater than zero to apply a coupon.');
+                        return;
+                    }
+
+                    this.isApplyingCoupon = true;
+                    try {
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+                        const res = await fetch('{{ route("ajax.coupons.apply") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken
+                            },
+                            body: JSON.stringify({
+                                code: code.trim(),
+                                subtotal: eligibleSubtotal
+                            })
+                        });
+
+                        const data = await res.json();
+                        if (res.ok && data.valid && data.coupon) {
+                            this.appliedCoupon = {
+                                id: data.coupon.id,
+                                code: data.coupon.code,
+                                type: data.coupon.type,
+                                value: parseFloat(data.coupon.value),
+                                min_purchase_amount: parseFloat(data.coupon.min_purchase_amount || 0),
+                                max_discount_amount: parseFloat(data.coupon.max_discount_amount || 0),
+                                discount_amount: parseFloat(data.discount_amount || 0)
+                            };
+                            this.manualCouponCode = '';
+                            this.selectedCouponCode = '';
+                            this.manualCouponMode = false;
+                            this.onPaymentMethodChange();
+                        } else {
+                            this.selectedCouponCode = '';
+                            alert(data.message || 'Invalid coupon code.');
+                        }
+                    } catch (err) {
+                        console.error('Coupon apply error:', err);
+                        this.selectedCouponCode = '';
+                        alert('Failed to apply coupon.');
+                    } finally {
+                        this.isApplyingCoupon = false;
+                    }
+                },
+
+                removeCoupon() {
+                    this.appliedCoupon = null;
+                    this.manualCouponCode = '';
+                    this.selectedCouponCode = '';
+                    this.onPaymentMethodChange();
                 },
 
                 openSearch(type) {

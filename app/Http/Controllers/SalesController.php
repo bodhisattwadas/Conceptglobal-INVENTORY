@@ -82,8 +82,12 @@ class SalesController extends Controller
 
     public function edit(Sale $sale, DiscountCouponService $discountCouponService)
     {
-        $sale->load(['items.product.unit', 'items.service', 'customer', 'creator']);
+        $sale->load(['items.product.unit', 'items.service', 'customer', 'creator', 'coupon']);
         $availableCoupons = $discountCouponService->getAvailableCoupons();
+
+        if ($sale->coupon && ! $availableCoupons->contains('id', $sale->coupon->id)) {
+            $availableCoupons->prepend($sale->coupon);
+        }
 
         return view('sales.edit', compact('sale', 'availableCoupons'));
     }
