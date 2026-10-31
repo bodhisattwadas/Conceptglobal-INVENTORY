@@ -459,7 +459,7 @@
         </div>
     </div>
 
-    <!-- Completed Invoices in Period (Transparent, Reconciled Math: Gross - Disc = Net, Net - Cost = Profit) -->
+    <!-- Completed Invoices in Period (Transparent, Reconciled Math: Cash Received - Items Net Cost = Profit) -->
     <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         <div class="p-5 border-b border-border flex items-center justify-between">
             <div>
@@ -468,7 +468,7 @@
                     <span>{{ __('Completed Invoices in Period') }}</span>
                 </h3>
                 <p class="text-xs text-muted-foreground">
-                    {{ __('Complete itemized transaction audit: Gross Amount, Total Discount, Net Total, Product Cost (COGS), and Gross Profit.') }}
+                    {{ __('Itemized transaction audit: Gross, Discount, Cash Received, Items Net Purchase Cost (MRP - vendor discount), and Profit.') }}
                 </p>
             </div>
             <span class="text-xs font-medium text-muted-foreground">
@@ -476,7 +476,7 @@
             </span>
         </div>
 
-        <div class="overflow-x-auto max-h-[30rem]">
+        <div class="overflow-x-auto max-h-[36rem]">
             <table class="w-full text-left text-sm text-foreground">
                 <thead class="bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground sticky top-0 border-b border-border z-10">
                     <tr>
@@ -487,41 +487,44 @@
                         <th class="px-4 py-3">{{ __('Payment Mode') }}</th>
                         <th class="px-4 py-3 text-right">{{ __('Gross') }}</th>
                         <th class="px-4 py-3 text-right">{{ __('Discount') }}</th>
-                        <th class="px-4 py-3 text-right font-bold text-foreground">{{ __('Net Total') }}</th>
-                        <th class="px-4 py-3 text-right text-muted-foreground">{{ __('Cost (COGS)') }}</th>
-                        <th class="px-4 py-3 text-right font-bold">{{ __('Gross Profit') }}</th>
-                        <th class="px-4 py-3 text-center">{{ __('Action') }}</th>
+                        <th class="px-4 py-3 text-right font-bold text-foreground" title="Total amount collected from customer">{{ __('Cash Received') }}</th>
+                        <th class="px-4 py-3 text-right text-muted-foreground" title="Sum of Net Purchase Prices (MRP - Vendor Discount) of items in invoice">{{ __('Items Net Cost') }}</th>
+                        <th class="px-4 py-3 text-right font-bold" title="Cash Received minus Items Net Cost">{{ __('Gross Profit') }}</th>
+                        <th class="px-4 py-3 text-center">{{ __('Audit / Action') }}</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-border">
-                    @forelse($sales as $sale)
-                        @php
-                            $methodVal = $sale->payment_method instanceof \App\Enums\PaymentMethod
-                                ? $sale->payment_method->value
-                                : (string) $sale->payment_method;
-                            $methodLabel = $sale->payment_method instanceof \App\Enums\PaymentMethod
-                                ? $sale->payment_method->label()
-                                : ucfirst((string) $sale->payment_method);
-                            $badgeClass = match($methodVal) {
-                                'upi' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300',
-                                'card' => 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300',
-                                'cash' => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300',
-                                'transfer' => 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300',
-                                default => 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
-                            };
+                @forelse($sales as $sale)
+                    @php
+                        $methodVal = $sale->payment_method instanceof \App\Enums\PaymentMethod
+                            ? $sale->payment_method->value
+                            : (string) $sale->payment_method;
+                        $methodLabel = $sale->payment_method instanceof \App\Enums\PaymentMethod
+                            ? $sale->payment_method->label()
+                            : ucfirst((string) $sale->payment_method);
+                        $badgeClass = match($methodVal) {
+                            'upi' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300',
+                            'card' => 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300',
+                            'cash' => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300',
+                            'transfer' => 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300',
+                            default => 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+                        };
 
-                            $productCount = $sale->items->filter(fn($i) => !empty($i->product_id))->count();
-                            $serviceCount = $sale->items->filter(fn($i) => !empty($i->service_id))->count();
-                            $profit = (float) ($sale->gross_profit ?? 0);
-                            $margin = (float) ($sale->margin ?? 0);
-                            $cogs = (float) ($sale->cogs ?? 0);
-                            $discount = (float) ($sale->total_discount ?? 0);
-                        @endphp
+                        $productCount = $sale->items->filter(fn($i) => !empty($i->product_id))->count();
+                        $serviceCount = $sale->items->filter(fn($i) => !empty($i->service_id))->count();
+                        $profit = (float) ($sale->gross_profit ?? 0);
+                        $margin = (float) ($sale->margin ?? 0);
+                        $cogs = (float) ($sale->cogs ?? 0);
+                        $discount = (float) ($sale->total_discount ?? 0);
+                    @endphp
+                    <tbody x-data="{ expanded: false }" class="divide-y divide-border border-b border-border">
                         <tr class="hover:bg-muted/30 transition-colors">
                             <td class="px-4 py-3 font-semibold text-primary whitespace-nowrap">
-                                <a href="{{ route('sales.show', $sale) }}" class="hover:underline flex items-center gap-1">
-                                    {{ $sale->invoice_number }}
-                                </a>
+                                <button type="button" @click="expanded = !expanded" class="hover:underline flex items-center gap-1.5 text-left font-mono font-bold text-primary">
+                                    <svg class="w-3.5 h-3.5 transition-transform duration-200 text-muted-foreground" :class="{ 'rotate-90 text-primary': expanded }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                    <span>{{ $sale->invoice_number }}</span>
+                                </button>
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-muted-foreground text-xs">
                                 {{ $sale->sale_date ? $sale->sale_date->format('d M Y, h:i A') : '-' }}
@@ -577,20 +580,127 @@
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-center whitespace-nowrap">
-                                <a href="{{ route('sales.show', $sale) }}" class="inline-flex items-center text-xs text-primary hover:underline font-medium">
-                                    <x-heroicon-o-eye class="w-4 h-4 mr-1" />
-                                    {{ __('View') }}
-                                </a>
+                                <div class="flex items-center justify-center gap-2">
+                                    <button type="button" @click="expanded = !expanded" class="inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors">
+                                        <span x-text="expanded ? 'Hide' : 'Items'"></span>
+                                    </button>
+                                    <span class="text-border">|</span>
+                                    <a href="{{ route('sales.show', $sale) }}" class="inline-flex items-center text-xs text-primary hover:underline font-medium">
+                                        <x-heroicon-o-eye class="w-3.5 h-3.5 mr-0.5" />
+                                        {{ __('View') }}
+                                    </a>
+                                </div>
                             </td>
                         </tr>
-                    @empty
+
+                        <!-- Expandable Item-by-Item Net Price Breakdown Row -->
+                        <tr x-show="expanded" x-cloak style="display: none;" class="bg-muted/15">
+                            <td colspan="11" class="p-4">
+                                <div class="rounded-lg border border-border bg-card p-3 shadow-xs space-y-3">
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-2 text-xs">
+                                        <div class="font-semibold text-foreground flex items-center gap-1.5">
+                                            <x-heroicon-o-clipboard-document-list class="w-4 h-4 text-primary" />
+                                            <span>{{ __('Line Items & PO Net Price Audit for') }} {{ $sale->invoice_number }}</span>
+                                        </div>
+                                        <div class="text-muted-foreground font-mono">
+                                            {{ __('Formula: Cash Received') }} (₹{{ number_format((float) $sale->total, 2) }}) - {{ __('Items Net Cost') }} (₹{{ number_format($cogs, 2) }}) = <span class="font-bold {{ $profit >= 0 ? 'text-emerald-600' : 'text-red-600' }}">₹{{ number_format($profit, 2) }}</span>
+                                        </div>
+                                    </div>
+
+                                    <table class="w-full text-xs">
+                                        <thead class="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                                            <tr>
+                                                <th class="py-1.5 px-2 text-left">{{ __('Item Name') }}</th>
+                                                <th class="py-1.5 px-2 text-center">{{ __('Type') }}</th>
+                                                <th class="py-1.5 px-2 text-center">{{ __('Qty') }}</th>
+                                                <th class="py-1.5 px-2 text-right">{{ __('MRP / Unit') }}</th>
+                                                <th class="py-1.5 px-2 text-right">{{ __('Discount') }}</th>
+                                                <th class="py-1.5 px-2 text-right">{{ __('Net Received') }}</th>
+                                                <th class="py-1.5 px-2 text-right text-muted-foreground">{{ __('PO Net Price') }}</th>
+                                                <th class="py-1.5 px-2 text-right text-muted-foreground">{{ __('Total Cost') }}</th>
+                                                <th class="py-1.5 px-2 text-right font-bold">{{ __('Line Profit') }}</th>
+                                                <th class="py-1.5 px-2 text-left">{{ __('PO / Cost Source') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-border">
+                                            @foreach($sale->items as $item)
+                                                @php
+                                                    $isServ = !empty($item->service_id);
+                                                    $itemQty = (int) $item->quantity;
+                                                    $lineSubtotal = (float) $item->subtotal;
+                                                    $itemPoUnit = (float) ($item->po_unit_price ?? 0);
+                                                    $itemPoCost = (float) ($item->po_cost_total ?? 0);
+                                                    $lineProfit = round($lineSubtotal - $itemPoCost, 2);
+                                                    $sourceDesc = $item->po_source ?? ($isServ ? 'Service (0 COGS)' : 'Catalog price');
+                                                @endphp
+                                                <tr class="hover:bg-muted/30">
+                                                    <td class="py-1.5 px-2 font-medium text-foreground">
+                                                        {{ $item->item_name }}
+                                                    </td>
+                                                    <td class="py-1.5 px-2 text-center">
+                                                        @if($isServ)
+                                                            <span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-medium">Service</span>
+                                                        @else
+                                                            <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium">Product</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="py-1.5 px-2 text-center font-semibold">{{ $itemQty }}</td>
+                                                    <td class="py-1.5 px-2 text-right">₹ {{ number_format((float) $item->unit_price, 2) }}</td>
+                                                    <td class="py-1.5 px-2 text-right text-amber-600">
+                                                        {{ (float) $item->discount > 0 ? '-₹ ' . number_format((float) $item->discount, 2) : '₹ 0.00' }}
+                                                    </td>
+                                                    <td class="py-1.5 px-2 text-right font-semibold">₹ {{ number_format($lineSubtotal, 2) }}</td>
+                                                    <td class="py-1.5 px-2 text-right text-muted-foreground font-mono">
+                                                        ₹ {{ number_format($itemPoUnit, 2) }}
+                                                    </td>
+                                                    <td class="py-1.5 px-2 text-right text-muted-foreground font-mono">
+                                                        ₹ {{ number_format($itemPoCost, 2) }}
+                                                    </td>
+                                                    <td class="py-1.5 px-2 text-right font-bold {{ $lineProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                                                        ₹ {{ number_format($lineProfit, 2) }}
+                                                    </td>
+                                                    <td class="py-1.5 px-2 text-muted-foreground text-[11px] truncate max-w-xs" title="{{ $sourceDesc }}">
+                                                        {{ $sourceDesc }}
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                        @if($sale->coupon_discount > 0 || abs($sale->round_off) > 0)
+                                            <tfoot class="border-t border-border bg-muted/30 text-[11px]">
+                                                @if($sale->coupon_discount > 0)
+                                                    <tr>
+                                                        <td colspan="5" class="py-1 px-2 text-right text-emerald-700 font-medium">{{ __('Coupon Applied') }} ({{ $sale->coupon_code }}):</td>
+                                                        <td class="py-1 px-2 text-right text-emerald-700 font-bold">-₹ {{ number_format((float) $sale->coupon_discount, 2) }}</td>
+                                                        <td colspan="4" class="py-1 px-2 text-muted-foreground">{{ __('Reduces invoice Cash Received') }}</td>
+                                                    </tr>
+                                                @endif
+                                                @if(abs((float) $sale->round_off) > 0)
+                                                    <tr>
+                                                        <td colspan="5" class="py-1 px-2 text-right text-muted-foreground">{{ __('Round Off') }}:</td>
+                                                        <td class="py-1 px-2 text-right font-medium">₹ {{ number_format((float) $sale->round_off, 2) }}</td>
+                                                        <td colspan="4"></td>
+                                                    </tr>
+                                                @endif
+                                            </tfoot>
+                                        @endif
+                                    </table>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                @empty
+                    <tbody>
                         <tr>
                             <td colspan="11" class="px-4 py-6 text-center text-muted-foreground text-sm">
                                 {{ __('No completed sales in this range.') }}
                             </td>
                         </tr>
-                    @endforelse
-                </tbody>
+                    </tbody>
+                @endforelse
+            </table>
+        </div>
+    </div>
+</div>
             </table>
         </div>
     </div>

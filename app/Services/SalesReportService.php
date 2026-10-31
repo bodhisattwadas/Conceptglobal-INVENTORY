@@ -82,7 +82,8 @@ class SalesReportService
 
         $latestPoItemsByProductId = $productIds->isNotEmpty()
             ? PurchaseItem::whereIn('product_id', $productIds)
-                ->whereHas('purchase')
+                ->whereHas('purchase', fn ($q) => $q->where('status', '!=', 'cancelled'))
+                ->where('unit_price', '>', 0)
                 ->orderByDesc('id')
                 ->get(['id', 'product_id', 'unit_price', 'purchase_id'])
                 ->groupBy('product_id')
@@ -99,7 +100,8 @@ class SalesReportService
                     $hasOnlyServices = false;
                     $hasAnyPhysicalProducts = true;
                 }
-                $saleCogs += $this->calculateItemCogs($item, $latestPoItemsByProductId);
+                $itemCogs = $this->calculateItemCogs($item, $latestPoItemsByProductId);
+                $saleCogs += $itemCogs;
             }
 
             $sale->cogs = round($saleCogs, 2);
@@ -109,17 +111,27 @@ class SalesReportService
             $netRevenue = (float) $sale->total;
             $grossProfit = round($netRevenue - $sale->cogs, 2);
             $sale->gross_profit = $grossProfit;
-            $sale->margin = $netRevenue > 0 ? round(($grossProfit / $netRevenue) * 100, 1) : 0.0;
+
+            $margin = $netRevenue > 0 ? round(($grossProfit / $netRevenue) * 100, 1) : 0.0;
+            if (abs($margin) < 0.05) {
+                $margin = 0.0;
+            }
+            $sale->margin = $margin;
         }
     }
 
     /**
      * Calculate single line item COGS following FIFO and Dashboard priority logic.
+     * Net price is the PO vendor buying price (MRP - vendor discount).
      */
     protected function calculateItemCogs(SaleItem $item, Collection $latestPoItemsByProductId): float
     {
         // Services have 0 inventory cost
         if ($item->product_id === null || ! empty($item->service_id)) {
+            $item->po_unit_price = 0.0;
+            $item->po_cost_total = 0.0;
+            $item->po_source = 'Service (No inventory cost)';
+
             return 0.0;
         }
 
@@ -142,14 +154,24 @@ class SalesReportService
         if ($deductions->isNotEmpty()) {
             $movementCogs = 0.0;
             $movementQty = 0;
+            $sources = [];
+
             foreach ($deductions as $m) {
                 $take = abs((int) $m->quantity);
-                $movementCogs += ($take * (float) $m->purchaseItem->unit_price);
+                $pPrice = (float) $m->purchaseItem->unit_price;
+                $movementCogs += ($take * $pPrice);
                 $movementQty += $take;
+                $ref = $m->purchaseItem->purchase?->invoice_number ?: "PO #{$m->purchaseItem->purchase_id}";
+                $sources[] = "{$take}x @ ₹".number_format($pPrice, 2)." ({$ref})";
             }
 
             if ($movementQty >= $qty) {
-                return (float) $movementCogs;
+                $totalCogs = round($movementCogs, 2);
+                $item->po_unit_price = $qty > 0 ? round($totalCogs / $qty, 2) : 0.0;
+                $item->po_cost_total = $totalCogs;
+                $item->po_source = implode(', ', $sources);
+
+                return (float) $totalCogs;
             }
 
             // Partially covered by FIFO; cover remainder with fallback
@@ -159,27 +181,41 @@ class SalesReportService
                 : ($productBuy > 0 && ($mrp <= 0 || $productBuy < $mrp) ? $productBuy
                 : ($recordedCost ?: $productBuy)));
 
-            return (float) ($movementCogs + ($remainingQty * $unitCost));
+            $totalCogs = round($movementCogs + ($remainingQty * $unitCost), 2);
+            $item->po_unit_price = $qty > 0 ? round($totalCogs / $qty, 2) : 0.0;
+            $item->po_cost_total = $totalCogs;
+            $item->po_source = implode(', ', $sources)." + {$remainingQty}x @ ₹".number_format($unitCost, 2);
+
+            return (float) $totalCogs;
         }
 
-        // Priority 2: Latest PO item placed for this product
+        // Priority 2: Latest PO item placed for this product (MRP - vendor discount)
         if ($latestPoPrice !== null && $latestPoPrice > 0) {
             $unitCost = $latestPoPrice;
+            $source = 'Latest PO (MRP - vendor discount)';
         }
         // Priority 3: Recorded cost_price if lower than MRP
         elseif ($recordedCost > 0 && ($mrp <= 0 || $recordedCost < $mrp)) {
             $unitCost = $recordedCost;
+            $source = 'Recorded cost price';
         }
         // Priority 4: Product catalog purchase price if lower than MRP
         elseif ($productBuy > 0 && ($mrp <= 0 || $productBuy < $mrp)) {
             $unitCost = $productBuy;
+            $source = 'Catalog purchase price';
         }
         // Priority 5: Fallback to recorded cost or catalog purchase price
         else {
             $unitCost = $recordedCost ?: $productBuy;
+            $source = 'Catalog fallback price';
         }
 
-        return (float) ($qty * $unitCost);
+        $totalCogs = round($qty * $unitCost, 2);
+        $item->po_unit_price = round($unitCost, 2);
+        $item->po_cost_total = $totalCogs;
+        $item->po_source = $source;
+
+        return (float) $totalCogs;
     }
 
     /**
@@ -193,6 +229,9 @@ class SalesReportService
         $totalCogs = (float) $sales->sum(fn ($sale) => (float) ($sale->cogs ?? 0));
         $grossProfit = (float) ($netSales - $totalCogs);
         $margin = $netSales > 0 ? round(($grossProfit / $netSales) * 100, 1) : 0.0;
+        if (abs($margin) < 0.05) {
+            $margin = 0.0;
+        }
 
         // In database, total_discount already includes item discounts, coupons, and bill discounts
         $totalDiscounts = (float) $sales->sum(fn ($sale) => (float) ($sale->total_discount ?? 0));
@@ -290,6 +329,9 @@ class SalesReportService
                 $cogs = (float) $daySales->sum(fn ($s) => (float) ($s->cogs ?? 0));
                 $profit = (float) ($net - $cogs);
                 $margin = $net > 0 ? round(($profit / $net) * 100, 1) : 0.0;
+                if (abs($margin) < 0.05) {
+                    $margin = 0.0;
+                }
 
                 $cash = (float) $daySales->where(function ($s) {
                     $val = $s->payment_method instanceof PaymentMethod ? $s->payment_method->value : $s->payment_method;
@@ -387,8 +429,8 @@ class SalesReportService
                 'Payment Method',
                 'Gross Amount (INR)',
                 'Discount (INR)',
-                'Net Total (INR)',
-                'Cost (COGS) (INR)',
+                'Cash Received / Total (INR)',
+                'Items Net Cost (PO Price) (INR)',
                 'Gross Profit (INR)',
                 'Margin (%)',
                 'Cashier',

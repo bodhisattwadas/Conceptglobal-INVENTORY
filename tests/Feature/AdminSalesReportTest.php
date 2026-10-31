@@ -291,12 +291,15 @@ class AdminSalesReportTest extends TestCase
         Livewire::actingAs($admin)
             ->test(SalesReport::class)
             ->assertSee('INV-RECONCILE-001')
+            ->assertSee('Cash Received')
+            ->assertSee('Items Net Cost')
             ->assertSee('1,000.00') // Gross
             ->assertSee('-₹ 100.00') // Discount
-            ->assertSee('900.00') // Net
+            ->assertSee('900.00') // Cash Received
             ->assertSee('150.00') // Cost
             ->assertSee('750.00') // Profit
-            ->assertSee('83.3% margin');
+            ->assertSee('83.3% margin')
+            ->assertSee('Line Items & PO Net Price Audit');
     }
 
     public function test_date_filter_updates_results(): void
