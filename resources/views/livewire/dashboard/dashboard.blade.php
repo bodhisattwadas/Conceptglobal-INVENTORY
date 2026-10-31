@@ -65,9 +65,14 @@
                 <div class="text-xl sm:text-2xl font-bold">
                     @money($stats['total_sales'] ?? 0)
                 </div>
-                <p class="text-xs mt-1" style="color: rgba(29, 78, 216, 0.8);">
-                    {{ $stats['sales_count'] ?? 0 }} {{ \Illuminate\Support\Str::plural('transaction', $stats['sales_count'] ?? 0) }}
-                </p>
+                <div class="flex items-center justify-between text-xs mt-1" style="color: rgba(29, 78, 216, 0.8);">
+                    <span>{{ $stats['sales_count'] ?? 0 }} {{ \Illuminate\Support\Str::plural('transaction', $stats['sales_count'] ?? 0) }}</span>
+                    @if(($stats['coupon_discount'] ?? 0) > 0)
+                        <span class="inline-flex items-center font-medium bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px]" title="Total Coupon Discount Applied">
+                            🎟️ -@money($stats['coupon_discount'])
+                        </span>
+                    @endif
+                </div>
             </div>
         </button>
 

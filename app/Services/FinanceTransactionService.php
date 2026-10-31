@@ -38,6 +38,8 @@ class FinanceTransactionService
                 'created_by' => $sale->created_by ?? Auth::id() ?? 1,
             ]
         );
+
+        $this->clearDashboardStats();
     }
 
     /**
@@ -62,6 +64,8 @@ class FinanceTransactionService
                 'created_by' => $purchase->created_by ?? Auth::id() ?? 1,
             ]
         );
+
+        $this->clearDashboardStats();
     }
 
     /**
@@ -72,6 +76,8 @@ class FinanceTransactionService
         FinanceTransaction::where('reference_type', get_class($model))
             ->where('reference_id', $model->id)
             ->delete();
+
+        $this->clearDashboardStats();
     }
 
     /**
@@ -80,7 +86,7 @@ class FinanceTransactionService
     public function createTransaction(FinanceTransactionData $data): FinanceTransaction
     {
         try {
-            return DB::transaction(function () use ($data) {
+            $txn = DB::transaction(function () use ($data) {
                 return FinanceTransaction::create([
                     'code' => $this->generateTransactionCode(),
                     'transaction_date' => $data->transaction_date,
@@ -91,6 +97,10 @@ class FinanceTransactionService
                     'created_by' => $data->created_by,
                 ]);
             });
+
+            $this->clearDashboardStats();
+
+            return $txn;
         } catch (\Exception $e) {
             throw new FinanceTransactionException('Failed to create transaction: '.$e->getMessage());
         }
@@ -106,7 +116,7 @@ class FinanceTransactionService
         }
 
         try {
-            return DB::transaction(function () use ($transaction, $data) {
+            $updated = DB::transaction(function () use ($transaction, $data) {
                 $transaction->update([
                     'transaction_date' => $data->transaction_date,
                     'finance_category_id' => $data->finance_category_id,
@@ -117,6 +127,10 @@ class FinanceTransactionService
 
                 return $transaction;
             });
+
+            $this->clearDashboardStats();
+
+            return $updated;
         } catch (\Exception $e) {
             throw new FinanceTransactionException('Failed to update transaction: '.$e->getMessage());
         }
@@ -137,8 +151,21 @@ class FinanceTransactionService
 
         try {
             $transaction->delete();
+            $this->clearDashboardStats();
         } catch (\Exception $e) {
             throw new FinanceTransactionException('Failed to delete transaction: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Invalidate dashboard statistics caches whenever finance transactions change.
+     */
+    private function clearDashboardStats(): void
+    {
+        try {
+            app(DashboardStatsService::class)->clearDashboardCache();
+        } catch (\Throwable) {
+            // Ignore if service is not resolvable
         }
     }
 

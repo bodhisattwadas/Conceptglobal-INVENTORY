@@ -82,8 +82,10 @@ class DashboardStatsService
                 foreach ($completedSales as $saleIndex => $sale) {
                     $saleTotal = (float) $sale->total;
                     $saleSubtotal = (float) $sale->subtotal;
-                    $saleBillDiscount = (float) $sale->global_discount;
                     $saleCouponDiscount = (float) $sale->coupon_discount;
+                    // In database, global_discount stores (coupon_discount - round_off).
+                    // Pure bill discount (excluding coupon) is max(0, global_discount - coupon_discount):
+                    $saleBillDiscount = max(0.0, round((float) $sale->global_discount - $saleCouponDiscount, 2));
                     $saleRoundOff = (float) $sale->round_off;
 
                     $totalCalculatedRevenue += $saleTotal;
@@ -117,7 +119,7 @@ class DashboardStatsService
                     );
 
                     $lines[] = sprintf(
-                        '     Header -> Subtotal: INR %0.2f | Global Disc: INR %0.2f | Coupon: INR %0.2f (%s) | Round Off: INR %0.2f | Invoice Total: INR %0.2f',
+                        '     Header -> Subtotal: INR %0.2f | Bill Disc: INR %0.2f | Coupon: INR %0.2f (%s) | Round Off: INR %0.2f | Invoice Total: INR %0.2f',
                         $saleSubtotal,
                         $saleBillDiscount,
                         $saleCouponDiscount,
@@ -388,11 +390,12 @@ class DashboardStatsService
             // Optimize: Use aggregate queries instead of loading all models into memory
             $salesData = Sale::whereBetween('sale_date', [$startStr, $endStr])
                 ->where('status', 'completed')
-                ->selectRaw('COUNT(*) as count, SUM(total) as total_revenue')
+                ->selectRaw('COUNT(*) as count, SUM(total) as total_revenue, SUM(coupon_discount) as total_coupon_discount')
                 ->first();
 
             $totalRevenue = (float) ($salesData->total_revenue ?? 0);
             $count = (int) ($salesData->count ?? 0);
+            $totalCouponDiscount = (float) ($salesData->total_coupon_discount ?? 0);
 
             // COGS = Sum of (Sales Item Quantity * Cost Price) for physical products only.
             // Priority:
@@ -459,6 +462,7 @@ class DashboardStatsService
                 'cogs' => $cogs,
                 'gross_profit' => $grossProfit,
                 'margin' => $margin,
+                'coupon_discount' => $totalCouponDiscount,
             ];
         });
     }
@@ -729,5 +733,18 @@ class DashboardStatsService
                 })
                 ->toArray();
         });
+    }
+
+    /**
+     * Clear all cached dashboard statistics across all periods.
+     */
+    public function clearDashboardCache(): void
+    {
+        Cache::forget('dashboard_recent_sales');
+        Cache::forget('dashboard_low_stock');
+        Cache::forget('dashboard_low_stock_count');
+
+        // Flush application cache to ensure all dynamic date keys (today, yesterday, this_month, custom, etc.) are purged
+        Cache::flush();
     }
 }

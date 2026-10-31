@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PurchaseLocation;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -23,6 +24,7 @@ class Product extends Model
         'selling_price',
         'quantity',
         'min_stock',
+        'location',
         'is_active',
         'description',
         'notes',
@@ -35,8 +37,40 @@ class Product extends Model
         'mrp' => 'decimal:2',
         'quantity' => 'integer',
         'min_stock' => 'integer',
+        'location' => PurchaseLocation::class,
         'is_active' => 'boolean',
     ];
+
+    public function getLocationAttribute(?string $value): PurchaseLocation
+    {
+        if ($value) {
+            return PurchaseLocation::tryFrom($value) ?? PurchaseLocation::SHOP;
+        }
+
+        return PurchaseLocation::SHOP;
+    }
+
+    public function getStockByLocation(): array
+    {
+        $activeBatches = $this->purchaseItems
+            ?->filter(fn ($item) => (int) ($item->received_quantity ?? 0) > 0) ?? collect();
+
+        $shop = 0;
+        $parlour = 0;
+
+        foreach ($activeBatches as $item) {
+            if ($item->location === PurchaseLocation::PARLOUR) {
+                $parlour += (int) $item->received_quantity;
+            } else {
+                $shop += (int) $item->received_quantity;
+            }
+        }
+
+        return [
+            'shop' => $shop,
+            'parlour' => $parlour,
+        ];
+    }
 
     public function getImageUrlAttribute(): ?string
     {

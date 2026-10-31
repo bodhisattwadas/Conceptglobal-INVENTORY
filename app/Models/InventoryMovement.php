@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PurchaseLocation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -14,6 +15,7 @@ class InventoryMovement extends Model
         'sale_id',
         'sale_item_id',
         'type',
+        'location',
         'quantity',
         'balance_after',
         'reference',
@@ -26,6 +28,7 @@ class InventoryMovement extends Model
         'purchase_item_id' => 'integer',
         'sale_id' => 'integer',
         'sale_item_id' => 'integer',
+        'location' => PurchaseLocation::class,
         'quantity' => 'integer',
         'balance_after' => 'integer',
     ];

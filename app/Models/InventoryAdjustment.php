@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PurchaseLocation;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,6 +12,8 @@ class InventoryAdjustment extends Model
     protected $fillable = [
         'adjustment_number',
         'type',
+        'source_location',
+        'target_location',
         'source_product_id',
         'source_purchase_item_id',
         'target_product_id',
@@ -23,6 +26,8 @@ class InventoryAdjustment extends Model
     ];
 
     protected $casts = [
+        'source_location' => PurchaseLocation::class,
+        'target_location' => PurchaseLocation::class,
         'source_product_id' => 'integer',
         'source_purchase_item_id' => 'integer',
         'target_product_id' => 'integer',

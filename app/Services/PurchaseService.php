@@ -118,6 +118,7 @@ class PurchaseService
             'location' => $data->location,
         ]);
 
+        $locationChanged = $purchase->location !== $data->location;
         $purchase->update([
             'supplier_id' => $data->supplier_id,
             'company_id' => $data->company_id,
@@ -127,6 +128,10 @@ class PurchaseService
             'notes' => $data->notes,
             'proof_image' => $data->proof_image,
         ]);
+
+        if ($locationChanged) {
+            $purchase->items()->update(['location' => $data->location->value]);
+        }
 
         $submittedItemsByProductId = collect($data->items)->keyBy('product_id');
 
@@ -325,6 +330,7 @@ class PurchaseService
                     : (float) $item->selling_price;
 
                 $item->update([
+                    'location' => $purchase->location?->value ?? 'shop',
                     'received_quantity' => $receivedQuantity,
                     'batch_number' => $batchNumber,
                     'manufacturing_date' => $itemReceiptDates[$item->id]['manufacturing_date'] ?? null,
@@ -454,6 +460,7 @@ class PurchaseService
             PurchaseItem::create([
                 'purchase_id' => $purchase->id,
                 'product_id' => $itemData->product_id,
+                'location' => $purchase->location?->value ?? 'shop',
                 'quantity' => $itemData->quantity,
                 'unit_price' => $itemData->unit_price,
                 'subtotal' => $subtotal,

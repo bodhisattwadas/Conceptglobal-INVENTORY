@@ -50,9 +50,11 @@ class Dashboard extends Component
         }
     }
 
-    public function refreshDashboard(): void
+    public function refreshDashboard(?DashboardStatsService $service = null): void
     {
-        $this->loadStats(app(DashboardStatsService::class));
+        $service = $service ?? app(DashboardStatsService::class);
+        $service->clearDashboardCache();
+        $this->loadStats($service);
     }
 
     public function updateCustomRange($startDate, $endDate)
@@ -84,6 +86,7 @@ class Dashboard extends Component
             'gross_profit' => $salesStats['gross_profit'],
             'cogs' => $salesStats['cogs'],
             'margin' => $salesStats['margin'],
+            'coupon_discount' => $salesStats['coupon_discount'] ?? 0.0,
             'income' => $cashFlowStats['income'],
             'expense' => $cashFlowStats['expense'],
             'net_cash_flow' => $cashFlowStats['net_cash_flow'],

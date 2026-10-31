@@ -237,6 +237,8 @@ class SaleService
                     $this->financeService->recordIncomeFromSale($sale);
                 }
 
+                $this->clearDashboardStats();
+
                 return $sale;
 
             } catch (Exception $e) {
@@ -585,6 +587,8 @@ class SaleService
                     'changed_at' => now(),
                 ]);
 
+                $this->clearDashboardStats();
+
                 return $sale->refresh();
 
             } catch (Exception $e) {
@@ -647,6 +651,8 @@ class SaleService
                 // Void Finance
                 $this->financeService->voidTransaction($sale);
 
+                $this->clearDashboardStats();
+
                 return $sale;
 
             } catch (Exception $e) {
@@ -684,6 +690,8 @@ class SaleService
 
             // Sync Finance
             $this->financeService->recordIncomeFromSale($sale);
+
+            $this->clearDashboardStats();
 
             return $sale;
         });
@@ -738,6 +746,8 @@ class SaleService
 
             // No Finance Sync needed as it goes to PENDING
 
+            $this->clearDashboardStats();
+
             return $sale;
         });
     }
@@ -760,6 +770,8 @@ class SaleService
             // Manually delete items first due to restrictOnDelete constraint
             $sale->items()->delete();
             $sale->delete();
+
+            $this->clearDashboardStats();
         });
     }
 
@@ -781,6 +793,8 @@ class SaleService
                 ->update([
                     'transaction_date' => $parsedDate,
                 ]);
+
+            $this->clearDashboardStats();
 
             return $sale;
         });
@@ -850,6 +864,8 @@ class SaleService
                 'changed_at' => now(),
             ]);
 
+            $this->clearDashboardStats();
+
             return $sale->refresh();
         });
     }
@@ -902,5 +918,17 @@ class SaleService
         }
 
         return round($discount, 2);
+    }
+
+    /**
+     * Invalidate dashboard statistics caches whenever sales change.
+     */
+    private function clearDashboardStats(): void
+    {
+        try {
+            app(DashboardStatsService::class)->clearDashboardCache();
+        } catch (\Throwable) {
+            // Ignore if service is not resolvable
+        }
     }
 }
