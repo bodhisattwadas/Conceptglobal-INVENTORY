@@ -8,6 +8,7 @@ use App\Services\SalesReportService;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -33,7 +34,7 @@ class SalesReport extends Component
 
     public int|string $invoicePerPage = 10;
 
-    // Sales by Brand & Items Container Server-Side State
+    // Sales by Brand Container Server-Side State
     public string $brandSearch = '';
 
     public string $brandSortField = 'net_sales';
@@ -41,6 +42,19 @@ class SalesReport extends Component
     public string $brandSortDirection = 'desc';
 
     public int|string $brandPerPage = 10;
+
+    // Sales by Item Container Server-Side State
+    public string $itemSearch = '';
+
+    public string $itemBrandFilter = 'all';
+
+    public string $itemTypeFilter = 'all';
+
+    public string $itemSortField = 'net_sales';
+
+    public string $itemSortDirection = 'desc';
+
+    public int|string $itemPerPage = 10;
 
     // Daily Breakdown Container Server-Side State
     public string $dailySearch = '';
@@ -101,6 +115,26 @@ class SalesReport extends Component
         $this->resetPage('brandsPage');
     }
 
+    public function updatedItemSearch(): void
+    {
+        $this->resetPage('itemsPage');
+    }
+
+    public function updatedItemBrandFilter(): void
+    {
+        $this->resetPage('itemsPage');
+    }
+
+    public function updatedItemTypeFilter(): void
+    {
+        $this->resetPage('itemsPage');
+    }
+
+    public function updatedItemPerPage(): void
+    {
+        $this->resetPage('itemsPage');
+    }
+
     public function updatedDailySearch(): void
     {
         $this->resetPage('dailyPage');
@@ -115,6 +149,7 @@ class SalesReport extends Component
     {
         $this->resetPage('invoicesPage');
         $this->resetPage('brandsPage');
+        $this->resetPage('itemsPage');
         $this->resetPage('dailyPage');
     }
 
@@ -138,6 +173,17 @@ class SalesReport extends Component
             $this->brandSortDirection = in_array($field, ['brand_name']) ? 'asc' : 'desc';
         }
         $this->resetPage('brandsPage');
+    }
+
+    public function sortByItem(string $field): void
+    {
+        if ($this->itemSortField === $field) {
+            $this->itemSortDirection = $this->itemSortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->itemSortField = $field;
+            $this->itemSortDirection = in_array($field, ['name', 'brand_name']) ? 'asc' : 'desc';
+        }
+        $this->resetPage('itemsPage');
     }
 
     public function sortByDaily(string $field): void
@@ -293,6 +339,7 @@ class SalesReport extends Component
         $sortedBrands = $filteredBrands->sortBy(function ($b) {
             return match ($this->brandSortField) {
                 'brand_name' => strtolower($b['name'] ?? $b['brand_name'] ?? ''),
+                'items_count' => (int) ($b['items_count'] ?? 0),
                 'quantity' => (int) ($b['total_quantity'] ?? 0),
                 'gross_sales' => (float) ($b['gross_sales'] ?? 0),
                 'total_discounts' => (float) ($b['total_discounts'] ?? 0),
@@ -305,6 +352,91 @@ class SalesReport extends Component
         }, descending: $this->brandSortDirection === 'desc');
 
         $paginatedBrands = $this->paginateCollection($sortedBrands, $this->brandPerPage, 'brandsPage');
+
+        // Filter and Sort Items
+        $filteredItems = $data['item_breakdown']->filter(function ($item) {
+            // Brand filter
+            if ($this->itemBrandFilter !== 'all') {
+                if ($item['brand_key'] !== $this->itemBrandFilter && $item['brand_name'] !== $this->itemBrandFilter) {
+                    return false;
+                }
+            }
+
+            // Type filter
+            if ($this->itemTypeFilter === 'products' && ! empty($item['is_service'])) {
+                return false;
+            }
+            if ($this->itemTypeFilter === 'services' && empty($item['is_service'])) {
+                return false;
+            }
+
+            // Search filter
+            if (trim($this->itemSearch) !== '') {
+                $q = strtolower(trim($this->itemSearch));
+                $matchName = str_contains(strtolower($item['name'] ?? ''), $q);
+                $matchCode = str_contains(strtolower($item['code'] ?? ''), $q);
+                $matchBrand = str_contains(strtolower($item['brand_name'] ?? ''), $q);
+                if (! $matchName && ! $matchCode && ! $matchBrand) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+
+        $sortedItems = $filteredItems->sortBy(function ($item) {
+            return match ($this->itemSortField) {
+                'name' => strtolower($item['name']),
+                'brand_name' => strtolower($item['brand_name']),
+                'quantity' => (int) $item['quantity'],
+                'unit_price' => (float) $item['unit_price'],
+                'gross_sales' => (float) $item['gross_sales'],
+                'total_discounts' => (float) $item['total_discounts'],
+                'cogs' => (float) $item['cogs'],
+                'gross_profit' => (float) $item['gross_profit'],
+                'margin' => (float) $item['margin'],
+                'invoices_count' => (int) $item['invoices_count'],
+                default => (float) $item['net_sales'],
+            };
+        }, descending: $this->itemSortDirection === 'desc');
+
+        $paginatedItems = $this->paginateCollection($sortedItems, $this->itemPerPage, 'itemsPage');
+
+        // Brand Chart Data (Top 8 brands by net sales)
+        $topBrands = $data['brand_breakdown']->take(8);
+        $brandChartData = [
+            'categories' => $topBrands->pluck('name')->values()->toArray(),
+            'series' => [
+                [
+                    'name' => 'Net Sales',
+                    'data' => $topBrands->pluck('net_sales')->values()->toArray(),
+                ],
+                [
+                    'name' => 'Gross Profit',
+                    'data' => $topBrands->pluck('gross_profit')->values()->toArray(),
+                ],
+            ],
+            'donut' => [
+                'labels' => $topBrands->pluck('name')->values()->toArray(),
+                'series' => $topBrands->pluck('percentage')->values()->toArray(),
+            ],
+        ];
+
+        // Item Chart Data (Top 10 items by net sales)
+        $topItems = $data['item_breakdown']->take(10);
+        $itemChartData = [
+            'categories' => $topItems->map(fn ($i) => Str::limit($i['name'], 22))->values()->toArray(),
+            'series' => [
+                [
+                    'name' => 'Net Sales',
+                    'data' => $topItems->pluck('net_sales')->values()->toArray(),
+                ],
+                [
+                    'name' => 'Gross Profit',
+                    'data' => $topItems->pluck('gross_profit')->values()->toArray(),
+                ],
+            ],
+        ];
 
         // Filter and Sort Daily Breakdown
         $filteredDaily = $data['daily_breakdown']->filter(function ($row) {
@@ -341,6 +473,11 @@ class SalesReport extends Component
             'allDaily' => $data['daily_breakdown'],
             'brandBreakdown' => $paginatedBrands,
             'allBrands' => $data['brand_breakdown'],
+            'brandChartData' => $brandChartData,
+            'itemBreakdown' => $paginatedItems,
+            'allItems' => $data['item_breakdown'],
+            'itemChartData' => $itemChartData,
+            'brandOptions' => $data['brand_breakdown']->pluck('name')->unique()->values(),
             'sales' => $paginatedSales,
             'allSales' => $data['sales'],
             'startDate' => $this->startDate,

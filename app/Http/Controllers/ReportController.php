@@ -42,7 +42,8 @@ class ReportController extends Controller
 
         $prefix = match ($section) {
             'invoices' => 'sales-invoices',
-            'brands' => 'sales-brands-and-items',
+            'brands' => 'sales-brands',
+            'items' => 'sales-items',
             'daily' => 'sales-daily-breakdown',
             default => 'sales-report',
         };
@@ -59,6 +60,7 @@ class ReportController extends Controller
             'paymentMethods' => $data['payment_methods'],
             'dailyBreakdown' => $data['daily_breakdown'],
             'brandBreakdown' => $data['brand_breakdown'],
+            'itemBreakdown' => $data['item_breakdown'],
             'sales' => $data['sales'],
             'startDate' => $startDate,
             'endDate' => $endDate,

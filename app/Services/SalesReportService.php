@@ -63,12 +63,14 @@ class SalesReportService
         $paymentMethods = $this->calculatePaymentMethodBreakdown($sales, $kpis['net_sales']);
         $dailyBreakdown = $this->calculateDailyBreakdown($sales);
         $brandBreakdown = $this->calculateBrandBreakdown($sales, $kpis['net_sales']);
+        $itemBreakdown = $this->calculateItemBreakdown($sales, $kpis['net_sales']);
 
         return [
             'kpis' => $kpis,
             'payment_methods' => $paymentMethods,
             'daily_breakdown' => $dailyBreakdown,
             'brand_breakdown' => $brandBreakdown,
+            'item_breakdown' => $itemBreakdown,
             'sales' => $sales,
         ];
     }
@@ -530,6 +532,114 @@ class SalesReportService
     }
 
     /**
+     * Group sales by individual item (product or service) across all brands.
+     *
+     * @return Collection<int, array{
+     *     key: string,
+     *     name: string,
+     *     code: string,
+     *     brand_name: string,
+     *     brand_key: string,
+     *     is_service: bool,
+     *     quantity: int,
+     *     unit_price: float,
+     *     gross_sales: float,
+     *     total_discounts: float,
+     *     net_sales: float,
+     *     cogs: float,
+     *     gross_profit: float,
+     *     margin: float,
+     *     invoices_count: int,
+     *     invoices: array<string>,
+     *     po_unit_price: float,
+     *     po_source: string
+     * }>
+     */
+    public function calculateItemBreakdown(Collection $sales, float $totalNetSales): Collection
+    {
+        $itemsData = [];
+
+        foreach ($sales as $sale) {
+            foreach ($sale->items as $item) {
+                $isProduct = $item->isProduct();
+                $isService = ! empty($item->service_id);
+                $itemKey = $isProduct ? 'prod_'.$item->product_id : 'serv_'.$item->service_id;
+                $itemName = $item->item_name;
+                $itemCode = $isProduct
+                    ? ($item->product?->product_code ?? $item->product?->sku ?? '-')
+                    : ($item->service?->code ?? '-');
+
+                $brandName = 'Unbranded / Other';
+                $brandKey = 'unbranded';
+                if ($isProduct && $item->product && $item->product->company) {
+                    $brandName = $item->product->company->short_name ?: $item->product->company->company_name;
+                    $brandKey = 'brand_'.$item->product->company_id;
+                } elseif ($isService) {
+                    $brandName = 'Salon Services';
+                    $brandKey = 'brand_services';
+                }
+
+                if (! isset($itemsData[$itemKey])) {
+                    $itemsData[$itemKey] = [
+                        'key' => $itemKey,
+                        'name' => $itemName,
+                        'code' => $itemCode,
+                        'brand_name' => $brandName,
+                        'brand_key' => $brandKey,
+                        'is_service' => $isService,
+                        'quantity' => 0,
+                        'unit_price' => (float) $item->unit_price,
+                        'gross_sales' => 0.0,
+                        'total_discounts' => 0.0,
+                        'net_sales' => 0.0,
+                        'cogs' => 0.0,
+                        'gross_profit' => 0.0,
+                        'margin' => 0.0,
+                        'invoices_count' => 0,
+                        'invoices' => [],
+                        'po_unit_price' => (float) ($item->po_unit_price ?? 0.0),
+                        'po_source' => $item->po_source ?? '-',
+                    ];
+                }
+
+                $qty = (int) $item->quantity;
+                $gross = (float) ($item->unit_price * $qty);
+                $discount = (float) ($item->discount * $qty);
+                $net = (float) $item->subtotal;
+                $cogs = (float) ($item->po_cost_total ?? 0.0);
+                $profit = (float) ($net - $cogs);
+
+                $itemsData[$itemKey]['quantity'] += $qty;
+                $itemsData[$itemKey]['gross_sales'] += $gross;
+                $itemsData[$itemKey]['total_discounts'] += $discount;
+                $itemsData[$itemKey]['net_sales'] += $net;
+                $itemsData[$itemKey]['cogs'] += $cogs;
+                $itemsData[$itemKey]['gross_profit'] += $profit;
+
+                if (! in_array($sale->invoice_number, $itemsData[$itemKey]['invoices'], true)) {
+                    $itemsData[$itemKey]['invoices'][] = $sale->invoice_number;
+                    $itemsData[$itemKey]['invoices_count']++;
+                }
+            }
+        }
+
+        return collect($itemsData)->map(function ($item) {
+            $item['gross_sales'] = round($item['gross_sales'], 2);
+            $item['total_discounts'] = round($item['total_discounts'], 2);
+            $item['net_sales'] = round($item['net_sales'], 2);
+            $item['cogs'] = round($item['cogs'], 2);
+            $item['gross_profit'] = round($item['gross_profit'], 2);
+            $margin = $item['net_sales'] > 0 ? round(($item['gross_profit'] / $item['net_sales']) * 100, 1) : 0.0;
+            if (abs($margin) < 0.05) {
+                $margin = 0.0;
+            }
+            $item['margin'] = $margin;
+
+            return $item;
+        })->sortByDesc('net_sales')->values();
+    }
+
+    /**
      * Generate streamed CSV file of all sales in the date range.
      */
     public function exportCsv(Carbon $startDate, Carbon $endDate): StreamedResponse
@@ -636,6 +746,11 @@ class SalesReportService
                 $filename = sprintf('sales-brands-and-items-%s-to-%s.xlsx', $startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
                 $this->writeBrandsSheet($writer, $data['brand_breakdown'], false);
                 $this->writeBrandItemsSheet($writer, $data['brand_breakdown'], true);
+                break;
+
+            case 'items':
+                $filename = sprintf('sales-items-%s-to-%s.xlsx', $startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
+                $this->writeItemsSheet($writer, $data['item_breakdown'], false);
                 break;
 
             case 'daily':
@@ -1080,6 +1195,50 @@ class SalesReportService
                     $source,
                 ]));
             }
+        }
+    }
+
+    protected function writeItemsSheet(Writer $writer, Collection $itemBreakdown, bool $isAdditionalSheet = false): void
+    {
+        if ($isAdditionalSheet) {
+            $sheet = $writer->addNewSheetAndMakeItCurrent();
+            $sheet->setName('Sales by Item');
+        } else {
+            $writer->getCurrentSheet()->setName('Sales by Item');
+        }
+
+        $writer->addRow(Row::fromValues([
+            'Item Name',
+            'Code / SKU',
+            'Brand / Category',
+            'Type',
+            'Units Sold',
+            'Unit MRP (INR)',
+            'Discounts (INR)',
+            'Net Sales (INR)',
+            'PO Net Unit Price (INR)',
+            'Total PO Cost (INR)',
+            'Gross Profit (INR)',
+            'Margin (%)',
+            'Invoices Count',
+        ]));
+
+        foreach ($itemBreakdown as $item) {
+            $writer->addRow(Row::fromValues([
+                $item['name'],
+                $item['code'],
+                $item['brand_name'],
+                $item['is_service'] ? 'Service' : 'Product',
+                (int) $item['quantity'],
+                (float) $item['unit_price'],
+                (float) $item['total_discounts'],
+                (float) $item['net_sales'],
+                (float) $item['po_unit_price'],
+                (float) $item['cogs'],
+                (float) $item['gross_profit'],
+                $item['margin'].'%',
+                (int) $item['invoices_count'],
+            ]));
         }
     }
 }

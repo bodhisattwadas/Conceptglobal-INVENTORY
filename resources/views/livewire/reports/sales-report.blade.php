@@ -1,4 +1,5 @@
 <div class="space-y-6">
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <!-- Filter and Action Bar (Matched to Dashboard Overview Header) -->
     <div class="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm space-y-4">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -641,16 +642,17 @@
         </div>
     </div>
 
-    <!-- Sales by Brand & Sales by Item by Brand Section -->
-    <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden" x-data="{ expandAllBrands: false }">
+    <!-- Sales by Brand Container -->
+    <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+        <!-- Header & Controls -->
         <div class="p-5 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
                     <x-heroicon-o-tag class="w-5 h-5 text-primary" />
-                    <span>{{ __('Sales by Brand & Items Breakdown') }}</span>
+                    <span>{{ __('Sales by Brand') }}</span>
                 </h3>
                 <p class="text-xs text-muted-foreground">
-                    {{ __('Revenue, volume, PO net purchase cost, and gross profit margins grouped by brand and item.') }}
+                    {{ __('Revenue, volume, PO net purchase cost, and gross profit margins aggregated by brand.') }}
                 </p>
             </div>
             <!-- Server-Side Controls & Exports -->
@@ -661,7 +663,7 @@
                     <input
                         type="text"
                         wire:model.live.debounce.300ms="brandSearch"
-                        placeholder="{{ __('Search brand or item...') }}"
+                        placeholder="{{ __('Search brand...') }}"
                         class="w-full pl-9 pr-7 py-1.5 text-xs rounded-lg border border-border bg-background focus:ring-1 focus:ring-primary focus:outline-none placeholder:text-muted-foreground"
                     />
                     @if($brandSearch)
@@ -674,7 +676,7 @@
                 <!-- Per Page -->
                 <select
                     wire:model.live="brandPerPage"
-                    class="text-xs py-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
+                    class="text-xs py-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
                 >
                     <option value="10">10 / page</option>
                     <option value="25">25 / page</option>
@@ -682,22 +684,11 @@
                     <option value="all">{{ __('All') }}</option>
                 </select>
 
-                @if($allBrands->isNotEmpty())
-                    <button
-                        type="button"
-                        @click="expandAllBrands = !expandAllBrands; $dispatch('toggle-all-brands', { expanded: expandAllBrands })"
-                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer"
-                    >
-                        <x-heroicon-o-arrows-up-down class="w-3.5 h-3.5 text-muted-foreground" />
-                        <span x-text="expandAllBrands ? '{{ __('Collapse All') }}' : '{{ __('Expand All') }}'"></span>
-                    </button>
-                @endif
-
                 <!-- Export XLS -->
                 <a
                     href="{{ route('reports.sales.xls', ['start_date' => $startDate, 'end_date' => $endDate, 'section' => 'brands']) }}"
                     class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 transition-colors"
-                    title="{{ __('Download Brands & Items Excel Spreadsheet') }}"
+                    title="{{ __('Download Brands Excel Spreadsheet') }}"
                 >
                     <x-heroicon-o-table-cells class="w-3.5 h-3.5" />
                     <span>{{ __('XLS') }}</span>
@@ -708,7 +699,7 @@
                     href="{{ route('reports.sales.pdf', ['start_date' => $startDate, 'end_date' => $endDate, 'section' => 'brands']) }}"
                     target="_blank"
                     class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/70 border border-red-200 dark:border-red-800 transition-colors"
-                    title="{{ __('Download Brands & Items PDF') }}"
+                    title="{{ __('Download Brands PDF') }}"
                 >
                     <x-heroicon-o-document-arrow-down class="w-3.5 h-3.5" />
                     <span>{{ __('PDF') }}</span>
@@ -716,6 +707,140 @@
             </div>
         </div>
 
+        <!-- Brand Visual Charts -->
+        @if(!empty($brandChartData['categories']))
+            <div
+                class="p-5 border-b border-border bg-muted/10 grid grid-cols-1 lg:grid-cols-3 gap-6"
+                wire:key="brand-charts-{{ md5(json_encode($brandChartData)) }}"
+                x-data="{
+                    init() {
+                        const data = @js($brandChartData);
+                        if (!data.categories || data.categories.length === 0) return;
+
+                        // Bar Chart
+                        const barOptions = {
+                            chart: {
+                                type: 'bar',
+                                height: 260,
+                                toolbar: { show: false },
+                                fontFamily: 'inherit',
+                                parentHeightOffset: 0
+                            },
+                            plotOptions: {
+                                bar: {
+                                    horizontal: false,
+                                    columnWidth: '48%',
+                                    borderRadius: 4
+                                }
+                            },
+                            dataLabels: { enabled: false },
+                            colors: ['#3b82f6', '#10b981'],
+                            series: data.series,
+                            xaxis: {
+                                categories: data.categories,
+                                labels: {
+                                    style: { fontSize: '11px', colors: '#64748b' },
+                                    rotate: -20,
+                                    trim: true,
+                                    maxHeight: 60
+                                },
+                                axisBorder: { show: false },
+                                axisTicks: { show: false }
+                            },
+                            yaxis: {
+                                labels: {
+                                    style: { fontSize: '11px', colors: '#64748b' },
+                                    formatter: (val) => '₹' + Number(val).toLocaleString('en-IN')
+                                }
+                            },
+                            tooltip: {
+                                y: {
+                                    formatter: (val) => '₹' + Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                                }
+                            },
+                            legend: {
+                                position: 'top',
+                                horizontalAlign: 'right',
+                                fontSize: '12px'
+                            },
+                            grid: {
+                                borderColor: 'rgba(156, 163, 175, 0.15)',
+                                strokeDashArray: 4
+                            }
+                        };
+                        const barChart = new ApexCharts(this.$refs.brandBarChart, barOptions);
+                        barChart.render();
+
+                        // Donut Chart
+                        if (data.donut && data.donut.series && data.donut.series.length > 0) {
+                            const donutOptions = {
+                                chart: {
+                                    type: 'donut',
+                                    height: 260,
+                                    fontFamily: 'inherit',
+                                    parentHeightOffset: 0
+                                },
+                                series: data.donut.series.map(Number),
+                                labels: data.donut.labels,
+                                colors: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#64748b'],
+                                dataLabels: { enabled: false },
+                                legend: {
+                                    position: 'bottom',
+                                    fontSize: '11px',
+                                    offsetY: 0,
+                                    height: 50
+                                },
+                                tooltip: {
+                                    y: {
+                                        formatter: (val) => Number(val).toFixed(1) + '%'
+                                    }
+                                },
+                                plotOptions: {
+                                    pie: {
+                                        donut: {
+                                            size: '68%',
+                                            labels: {
+                                                show: true,
+                                                name: { fontSize: '12px' },
+                                                value: {
+                                                    fontSize: '14px',
+                                                    formatter: (val) => Number(val).toFixed(1) + '%'
+                                                },
+                                                total: {
+                                                    show: true,
+                                                    label: 'Total Share',
+                                                    formatter: (w) => {
+                                                        const total = w.globals.seriesTotals.reduce((a, b) => a + b, 0);
+                                                        return total.toFixed(0) + '%';
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            };
+                            const donutChart = new ApexCharts(this.$refs.brandDonutChart, donutOptions);
+                            donutChart.render();
+                        }
+                    }
+                }"
+            >
+                <div class="lg:col-span-2 bg-card rounded-lg border border-border p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ __('Top Brands: Revenue vs Gross Profit') }}</span>
+                    </div>
+                    <div x-ref="brandBarChart" class="w-full"></div>
+                </div>
+                <div class="bg-card rounded-lg border border-border p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ __('Brand Revenue Share %') }}</span>
+                    </div>
+                    <div x-ref="brandDonutChart" class="w-full flex items-center justify-center"></div>
+                </div>
+            </div>
+        @endif
+
+        <!-- Table View: Clean borderless layout, NO harsh grid -->
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm text-foreground">
                 <thead class="bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
@@ -730,7 +855,16 @@
                                 @endif
                             </div>
                         </th>
-                        <th class="px-4 py-3 text-center">{{ __('Items') }}</th>
+                        <th class="px-4 py-3 text-center cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByBrand('items_count')">
+                            <div class="flex items-center justify-center gap-1">
+                                <span>{{ __('Items') }}</span>
+                                @if($brandSortField === 'items_count')
+                                    <span class="text-primary">{{ $brandSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
                         <th class="px-4 py-3 text-center cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByBrand('quantity')">
                             <div class="flex items-center justify-center gap-1">
                                 <span>{{ __('Units Sold') }}</span>
@@ -801,195 +935,85 @@
                                 @endif
                             </div>
                         </th>
-                        <th class="px-4 py-3 text-center">{{ __('Items Action') }}</th>
+                        <th class="px-4 py-3 text-right cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByBrand('margin')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Margin') }}</span>
+                                @if($brandSortField === 'margin')
+                                    <span class="text-primary">{{ $brandSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
                     </tr>
                 </thead>
-                @forelse($brandBreakdown as $b)
-                    @php
-                        $bProfit = (float) $b['gross_profit'];
-                        $bMargin = (float) $b['margin'];
-                    @endphp
-                    <tbody
-                        x-data="{ openBrand: false }"
-                        x-on:toggle-all-brands.window="openBrand = $event.detail.expanded"
-                        class="divide-y divide-border border-b border-border"
-                    >
-                        <!-- Brand Summary Row -->
+                <tbody class="divide-y divide-border border-b border-border">
+                    @forelse($brandBreakdown as $b)
+                        @php
+                            $bProfit = (float) $b['gross_profit'];
+                            $bMargin = (float) $b['margin'];
+                        @endphp
                         <tr class="hover:bg-muted/30 transition-colors">
                             <td class="px-4 py-3 whitespace-nowrap">
-                                <button type="button" @click="openBrand = !openBrand" class="hover:underline flex items-center gap-2 text-left font-semibold text-foreground cursor-pointer">
-                                    <svg class="w-4 h-4 transition-transform duration-200 text-muted-foreground" :class="{ 'rotate-90 text-primary': openBrand }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                    </svg>
-                                    @if($b['is_service'])
-                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300">
-                                            <x-heroicon-o-sparkles class="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                                            {{ $b['name'] }}
+                                <div class="flex items-center gap-2">
+                                    @if(!empty($b['is_service']))
+                                        <span class="p-1 rounded bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
+                                            <x-heroicon-o-sparkles class="w-4 h-4" />
                                         </span>
                                     @else
-                                        <span class="inline-flex items-center gap-1.5 font-bold text-sm text-foreground">
-                                            <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
-                                            {{ $b['name'] }}
+                                        <span class="p-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                                            <x-heroicon-o-building-storefront class="w-4 h-4" />
                                         </span>
                                     @endif
-                                </button>
+                                    <span class="font-semibold text-foreground">{{ $b['name'] }}</span>
+                                </div>
                             </td>
-                            <td class="px-4 py-3 text-center whitespace-nowrap text-xs text-muted-foreground">
-                                <span class="px-2 py-0.5 rounded bg-muted font-medium">
-                                    {{ $b['items_count'] }} {{ \Illuminate\Support\Str::plural('item', $b['items_count']) }}
+                            <td class="px-4 py-3 text-center whitespace-nowrap">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
+                                    {{ $b['items_count'] }} {{ __('items') }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-center whitespace-nowrap font-semibold">
+                            <td class="px-4 py-3 text-center whitespace-nowrap font-medium text-foreground">
                                 {{ number_format($b['total_quantity']) }}
                             </td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap text-muted-foreground">
-                                ₹ {{ number_format($b['gross_sales'], 2) }}
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-mono text-muted-foreground">
+                                @money($b['gross_sales'])
                             </td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap text-amber-600 dark:text-amber-400">
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-mono">
                                 @if($b['total_discounts'] > 0)
-                                    -₹ {{ number_format($b['total_discounts'], 2) }}
+                                    <span class="text-amber-600 dark:text-amber-400 font-medium">-@money($b['total_discounts'])</span>
                                 @else
-                                    <span class="text-muted-foreground opacity-60">₹ 0.00</span>
+                                    <span class="text-muted-foreground/60">₹0.00</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap font-bold text-foreground">
-                                ₹ {{ number_format($b['net_sales'], 2) }}
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-mono font-bold text-foreground">
+                                @money($b['net_sales'])
                             </td>
                             <td class="px-4 py-3 text-center whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
-                                    {{ $b['percentage'] }}%
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">
+                                    {{ number_format($b['percentage'], 1) }}%
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap text-muted-foreground text-xs font-mono">
-                                ₹ {{ number_format($b['cogs'], 2) }}
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-mono text-muted-foreground">
+                                @money($b['cogs'])
                             </td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap font-bold {{ $bProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
-                                <div>₹ {{ number_format($bProfit, 2) }}</div>
-                                <div class="text-[10px] font-normal opacity-75">
-                                    {{ number_format($bMargin, 1) }}% margin
-                                </div>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-mono font-bold {{ $bProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                                @money($bProfit)
                             </td>
-                            <td class="px-4 py-3 text-center whitespace-nowrap">
-                                <button
-                                    type="button"
-                                    @click="openBrand = !openBrand"
-                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium border border-border bg-card hover:bg-muted text-foreground transition-colors cursor-pointer"
-                                >
-                                    <span x-text="openBrand ? '{{ __('Hide Items') }}' : '{{ __('View Items') }}'"></span>
-                                    <span class="text-muted-foreground font-semibold">({{ $b['items_count'] }})</span>
-                                </button>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold {{ $bMargin >= 25 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' : ($bMargin >= 10 ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300' : ($bMargin >= 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300')) }}">
+                                    {{ number_format($bMargin, 1) }}%
+                                </span>
                             </td>
                         </tr>
-
-                        <!-- Expandable Sales by Item by Brand Row -->
-                        <tr x-show="openBrand" x-cloak style="display: none;" class="bg-muted/15">
-                            <td colspan="10" class="p-4">
-                                <div class="rounded-lg border border-border bg-card p-3.5 shadow-xs space-y-3">
-                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-2 text-xs">
-                                        <div class="font-semibold text-foreground flex items-center gap-1.5">
-                                            <x-heroicon-o-cube class="w-4 h-4 text-primary" />
-                                            <span>{{ __('Sales by Item for') }} <span class="font-bold text-primary">{{ $b['name'] }}</span></span>
-                                        </div>
-                                        <div class="text-muted-foreground text-[11px]">
-                                            {{ count($b['items']) }} {{ __('unique item lines sold') }}
-                                        </div>
-                                    </div>
-
-                                    <table class="w-full text-xs">
-                                        <thead class="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
-                                            <tr>
-                                                <th class="py-2 px-2.5 text-left">{{ __('Product / Item Name') }}</th>
-                                                <th class="py-2 px-2 text-center">{{ __('Code / SKU') }}</th>
-                                                <th class="py-2 px-2 text-center">{{ __('Qty Sold') }}</th>
-                                                <th class="py-2 px-2 text-right">{{ __('Unit MRP') }}</th>
-                                                <th class="py-2 px-2 text-right">{{ __('Discounts') }}</th>
-                                                <th class="py-2 px-2 text-right font-bold text-foreground">{{ __('Net Sales') }}</th>
-                                                <th class="py-2 px-2 text-right text-muted-foreground">{{ __('PO Net Cost') }}</th>
-                                                <th class="py-2 px-2 text-right font-bold">{{ __('Gross Profit') }}</th>
-                                                <th class="py-2 px-2 text-center">{{ __('Margin') }}</th>
-                                                <th class="py-2 px-2.5 text-left">{{ __('Invoices / PO Source') }}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="divide-y divide-border">
-                                            @foreach($b['items'] as $item)
-                                                @php
-                                                    $itemProfit = (float) $item['gross_profit'];
-                                                    $itemMargin = (float) $item['margin'];
-                                                @endphp
-                                                <tr class="hover:bg-muted/30 transition-colors">
-                                                    <td class="py-2 px-2.5 font-medium text-foreground">
-                                                        {{ $item['name'] }}
-                                                    </td>
-                                                    <td class="py-2 px-2 text-center font-mono text-[11px] text-muted-foreground">
-                                                        {{ $item['code'] }}
-                                                    </td>
-                                                    <td class="py-2 px-2 text-center font-bold">
-                                                        {{ number_format($item['quantity']) }}
-                                                    </td>
-                                                    <td class="py-2 px-2 text-right text-muted-foreground">
-                                                        ₹ {{ number_format($item['unit_price'], 2) }}
-                                                    </td>
-                                                    <td class="py-2 px-2 text-right text-amber-600 dark:text-amber-400">
-                                                        @if($item['total_discounts'] > 0)
-                                                            -₹ {{ number_format($item['total_discounts'], 2) }}
-                                                        @else
-                                                            <span class="text-muted-foreground opacity-60">₹ 0.00</span>
-                                                        @endif
-                                                    </td>
-                                                    <td class="py-2 px-2 text-right font-bold text-foreground">
-                                                        ₹ {{ number_format($item['net_sales'], 2) }}
-                                                    </td>
-                                                    <td class="py-2 px-2 text-right text-muted-foreground font-mono">
-                                                        ₹ {{ number_format($item['cogs'], 2) }}
-                                                    </td>
-                                                    <td class="py-2 px-2 text-right font-bold {{ $itemProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
-                                                        ₹ {{ number_format($itemProfit, 2) }}
-                                                    </td>
-                                                    <td class="py-2 px-2 text-center font-semibold text-[11px] {{ $itemProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
-                                                        {{ number_format($itemMargin, 1) }}%
-                                                    </td>
-                                                    <td class="py-2 px-2.5 text-muted-foreground text-[11px] truncate max-w-xs" title="{{ $item['po_source'] }}">
-                                                        <span class="font-medium text-foreground">{{ $item['invoices_count'] }} {{ \Illuminate\Support\Str::plural('invoice', $item['invoices_count']) }}</span>
-                                                        <span class="text-muted-foreground text-[10px] ml-1">({{ $item['po_source'] }})</span>
-                                                    </td>
-                                                </tr>
-                                            @endforeach
-                                        </tbody>
-                                        <tfoot class="bg-muted/40 font-bold border-t border-border text-[11px] text-foreground">
-                                            <tr>
-                                                <td colspan="2" class="py-1.5 px-2.5 uppercase">{{ __('Total for') }} {{ $b['name'] }}</td>
-                                                <td class="py-1.5 px-2 text-center">{{ number_format($b['total_quantity']) }}</td>
-                                                <td class="py-1.5 px-2 text-right">₹ {{ number_format($b['gross_sales'], 2) }}</td>
-                                                <td class="py-1.5 px-2 text-right text-amber-600 dark:text-amber-400">
-                                                    @if($b['total_discounts'] > 0)
-                                                        -₹ {{ number_format($b['total_discounts'], 2) }}
-                                                    @else
-                                                        ₹ 0.00
-                                                    @endif
-                                                </td>
-                                                <td class="py-1.5 px-2 text-right font-bold text-foreground">₹ {{ number_format($b['net_sales'], 2) }}</td>
-                                                <td class="py-1.5 px-2 text-right text-muted-foreground font-mono">₹ {{ number_format($b['cogs'], 2) }}</td>
-                                                <td class="py-1.5 px-2 text-right font-bold {{ $bProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
-                                                    ₹ {{ number_format($bProfit, 2) }}
-                                                </td>
-                                                <td class="py-1.5 px-2 text-center">{{ number_format($bMargin, 1) }}%</td>
-                                                <td class="py-1.5 px-2.5 text-[10px] text-muted-foreground">{{ $b['items_count'] }} {{ __('items') }}</td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                @empty
-                    <tbody>
+                    @empty
                         <tr>
                             <td colspan="10" class="px-4 py-8 text-center text-muted-foreground">
                                 {{ __('No brand sales recorded in this period.') }}
                             </td>
                         </tr>
-                    </tbody>
-                @endforelse
+                    @endforelse
+                </tbody>
             </table>
         </div>
 
@@ -1021,6 +1045,389 @@
                         type="button"
                         wire:click="nextPage('brandsPage')"
                         @disabled(!$brandBreakdown->hasMorePages())
+                        class="px-2.5 py-1 rounded border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted text-xs font-medium cursor-pointer"
+                    >
+                        {{ __('Next') }}
+                    </button>
+                </div>
+            @endif
+        </div>
+    </div>
+
+    <!-- Sales by Item Container -->
+    <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+        <!-- Header & Controls -->
+        <div class="p-5 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
+                    <x-heroicon-o-cube class="w-5 h-5 text-primary" />
+                    <span>{{ __('Sales by Item') }}</span>
+                </h3>
+                <p class="text-xs text-muted-foreground">
+                    {{ __('Itemized sales performance, PO net unit cost, margins, and sales volume across all products and services.') }}
+                </p>
+            </div>
+            <!-- Server-Side Controls & Exports -->
+            <div class="flex flex-wrap items-center gap-2.5">
+                <!-- Search -->
+                <div class="relative min-w-[180px] sm:min-w-[210px]">
+                    <x-heroicon-o-magnifying-glass class="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                        type="text"
+                        wire:model.live.debounce.300ms="itemSearch"
+                        placeholder="{{ __('Search item or SKU...') }}"
+                        class="w-full pl-9 pr-7 py-1.5 text-xs rounded-lg border border-border bg-background focus:ring-1 focus:ring-primary focus:outline-none placeholder:text-muted-foreground"
+                    />
+                    @if($itemSearch)
+                        <button type="button" wire:click="$set('itemSearch', '')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            <x-heroicon-s-x-mark class="w-3.5 h-3.5" />
+                        </button>
+                    @endif
+                </div>
+
+                <!-- Brand Filter -->
+                <select
+                    wire:model.live="itemBrandFilter"
+                    class="text-xs py-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+                >
+                    <option value="all">{{ __('All Brands') }}</option>
+                    @foreach($brandOptions as $brandOpt)
+                        <option value="{{ $brandOpt }}">{{ $brandOpt }}</option>
+                    @endforeach
+                </select>
+
+                <!-- Type Filter -->
+                <select
+                    wire:model.live="itemTypeFilter"
+                    class="text-xs py-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+                >
+                    <option value="all">{{ __('All Types') }}</option>
+                    <option value="products">{{ __('Products') }}</option>
+                    <option value="services">{{ __('Services') }}</option>
+                </select>
+
+                <!-- Per Page -->
+                <select
+                    wire:model.live="itemPerPage"
+                    class="text-xs py-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+                >
+                    <option value="10">10 / page</option>
+                    <option value="25">25 / page</option>
+                    <option value="50">50 / page</option>
+                    <option value="all">{{ __('All') }}</option>
+                </select>
+
+                <!-- Export XLS -->
+                <a
+                    href="{{ route('reports.sales.xls', ['start_date' => $startDate, 'end_date' => $endDate, 'section' => 'items']) }}"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 transition-colors"
+                    title="{{ __('Download Items Excel Spreadsheet') }}"
+                >
+                    <x-heroicon-o-table-cells class="w-3.5 h-3.5" />
+                    <span>{{ __('XLS') }}</span>
+                </a>
+
+                <!-- Export PDF -->
+                <a
+                    href="{{ route('reports.sales.pdf', ['start_date' => $startDate, 'end_date' => $endDate, 'section' => 'items']) }}"
+                    target="_blank"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/70 border border-red-200 dark:border-red-800 transition-colors"
+                    title="{{ __('Download Items PDF') }}"
+                >
+                    <x-heroicon-o-document-arrow-down class="w-3.5 h-3.5" />
+                    <span>{{ __('PDF') }}</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Item Visual Chart -->
+        @if(!empty($itemChartData['categories']))
+            <div
+                class="p-5 border-b border-border bg-muted/10"
+                wire:key="item-charts-{{ md5(json_encode($itemChartData)) }}"
+                x-data="{
+                    init() {
+                        const data = @js($itemChartData);
+                        if (!data.categories || data.categories.length === 0) return;
+
+                        const barOptions = {
+                            chart: {
+                                type: 'bar',
+                                height: Math.max(260, data.categories.length * 30),
+                                toolbar: { show: false },
+                                fontFamily: 'inherit',
+                                parentHeightOffset: 0
+                            },
+                            plotOptions: {
+                                bar: {
+                                    horizontal: true,
+                                    barHeight: '60%',
+                                    borderRadius: 4
+                                }
+                            },
+                            dataLabels: { enabled: false },
+                            colors: ['#3b82f6', '#10b981'],
+                            series: data.series,
+                            xaxis: {
+                                categories: data.categories,
+                                labels: {
+                                    style: { fontSize: '11px', colors: '#64748b' },
+                                    formatter: (val) => '₹' + Number(val).toLocaleString('en-IN')
+                                },
+                                axisBorder: { show: false },
+                                axisTicks: { show: false }
+                            },
+                            yaxis: {
+                                labels: {
+                                    style: { fontSize: '11px', colors: '#64748b' },
+                                    maxWidth: 220
+                                }
+                            },
+                            tooltip: {
+                                y: {
+                                    formatter: (val) => '₹' + Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                                }
+                            },
+                            legend: {
+                                position: 'top',
+                                horizontalAlign: 'right',
+                                fontSize: '12px'
+                            },
+                            grid: {
+                                borderColor: 'rgba(156, 163, 175, 0.15)',
+                                strokeDashArray: 4
+                            }
+                        };
+                        const chart = new ApexCharts(this.$refs.itemBarChart, barOptions);
+                        chart.render();
+                    }
+                }"
+            >
+                <div class="bg-card rounded-lg border border-border p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ __('Top Selling Items: Net Revenue vs Gross Profit') }}</span>
+                    </div>
+                    <div x-ref="itemBarChart" class="w-full"></div>
+                </div>
+            </div>
+        @endif
+
+        <!-- Table View: Clean borderless layout, NO harsh grid -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-foreground">
+                <thead class="bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
+                    <tr>
+                        <th class="px-4 py-3 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByItem('name')">
+                            <div class="flex items-center gap-1">
+                                <span>{{ __('Product / Item Name') }}</span>
+                                @if($itemSortField === 'name')
+                                    <span class="text-primary">{{ $itemSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByItem('brand_name')">
+                            <div class="flex items-center gap-1">
+                                <span>{{ __('Brand') }}</span>
+                                @if($itemSortField === 'brand_name')
+                                    <span class="text-primary">{{ $itemSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByItem('is_service')">
+                            <div class="flex items-center justify-center gap-1">
+                                <span>{{ __('Type') }}</span>
+                                @if($itemSortField === 'is_service')
+                                    <span class="text-primary">{{ $itemSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByItem('quantity')">
+                            <div class="flex items-center justify-center gap-1">
+                                <span>{{ __('Qty Sold') }}</span>
+                                @if($itemSortField === 'quantity')
+                                    <span class="text-primary">{{ $itemSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByItem('unit_price')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Unit MRP') }}</span>
+                                @if($itemSortField === 'unit_price')
+                                    <span class="text-primary">{{ $itemSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByItem('total_discounts')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Discounts') }}</span>
+                                @if($itemSortField === 'total_discounts')
+                                    <span class="text-primary">{{ $itemSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right font-bold text-foreground cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByItem('net_sales')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Net Sales') }}</span>
+                                @if($itemSortField === 'net_sales')
+                                    <span class="text-primary">{{ $itemSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByItem('cogs')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('PO Net Cost') }}</span>
+                                @if($itemSortField === 'cogs')
+                                    <span class="text-primary">{{ $itemSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right font-bold cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByItem('gross_profit')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Gross Profit') }}</span>
+                                @if($itemSortField === 'gross_profit')
+                                    <span class="text-primary">{{ $itemSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByItem('margin')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Margin') }}</span>
+                                @if($itemSortField === 'margin')
+                                    <span class="text-primary">{{ $itemSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByItem('invoices_count')">
+                            <div class="flex items-center justify-center gap-1">
+                                <span>{{ __('Invoices') }}</span>
+                                @if($itemSortField === 'invoices_count')
+                                    <span class="text-primary">{{ $itemSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border border-b border-border">
+                    @forelse($itemBreakdown as $item)
+                        @php
+                            $iProfit = (float) $item['gross_profit'];
+                            $iMargin = (float) $item['margin'];
+                        @endphp
+                        <tr class="hover:bg-muted/30 transition-colors">
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <div class="font-medium text-foreground">{{ $item['name'] }}</div>
+                                @if(!empty($item['code']) && $item['code'] !== '-')
+                                    <div class="text-[11px] font-mono text-muted-foreground">{{ $item['code'] }}</div>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-muted text-foreground">
+                                    {{ $item['brand_name'] }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-center whitespace-nowrap">
+                                @if(!empty($item['is_service']))
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
+                                        {{ __('Service') }}
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                                        {{ __('Product') }}
+                                    </span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-center whitespace-nowrap font-medium text-foreground">
+                                {{ number_format($item['quantity']) }}
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-mono text-muted-foreground">
+                                @money($item['unit_price'])
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-mono">
+                                @if($item['total_discounts'] > 0)
+                                    <span class="text-amber-600 dark:text-amber-400 font-medium">-@money($item['total_discounts'])</span>
+                                @else
+                                    <span class="text-muted-foreground/60">₹0.00</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-mono font-bold text-foreground">
+                                @money($item['net_sales'])
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-mono text-muted-foreground" title="{{ $item['po_source'] }}: @money($item['po_unit_price'])/unit">
+                                @money($item['cogs'])
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-mono font-bold {{ $iProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                                @money($iProfit)
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold {{ $iMargin >= 25 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' : ($iMargin >= 10 ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300' : ($iMargin >= 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300')) }}">
+                                    {{ number_format($iMargin, 1) }}%
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-center whitespace-nowrap font-mono text-xs text-muted-foreground">
+                                {{ $item['invoices_count'] }}
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="11" class="px-4 py-8 text-center text-muted-foreground">
+                                {{ __('No items sold matching your criteria.') }}
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Items Pagination Footer -->
+        <div class="px-5 py-3 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-muted/20">
+            <div>
+                {{ __('Showing') }} <span class="font-semibold text-foreground">{{ $itemBreakdown->firstItem() ?? 0 }}</span>
+                {{ __('to') }} <span class="font-semibold text-foreground">{{ $itemBreakdown->lastItem() ?? 0 }}</span>
+                {{ __('of') }} <span class="font-semibold text-foreground">{{ $itemBreakdown->total() }}</span> {{ __('items') }}
+                @if($itemSearch || $itemBrandFilter !== 'all' || $itemTypeFilter !== 'all')
+                    <span class="text-primary font-medium">({{ __('filtered from') }} {{ $allItems->count() }})</span>
+                @endif
+            </div>
+
+            @if($itemBreakdown->hasPages())
+                <div class="flex items-center gap-1">
+                    <button
+                        type="button"
+                        wire:click="previousPage('itemsPage')"
+                        @disabled($itemBreakdown->onFirstPage())
+                        class="px-2.5 py-1 rounded border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted text-xs font-medium cursor-pointer"
+                    >
+                        {{ __('Previous') }}
+                    </button>
+                    <span class="px-2 font-mono text-xs">
+                        {{ $itemBreakdown->currentPage() }} / {{ $itemBreakdown->lastPage() }}
+                    </span>
+                    <button
+                        type="button"
+                        wire:click="nextPage('itemsPage')"
+                        @disabled(!$itemBreakdown->hasMorePages())
                         class="px-2.5 py-1 rounded border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted text-xs font-medium cursor-pointer"
                     >
                         {{ __('Next') }}

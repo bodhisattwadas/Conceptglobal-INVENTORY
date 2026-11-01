@@ -304,7 +304,8 @@ class AdminSalesReportTest extends TestCase
             ->assertSee('Other / Bill Disc')
             ->assertSee('Round Off')
             ->assertSee('Invoice Bill Reconciliation & Profit Math')
-            ->assertSee('Sales by Brand & Items Breakdown')
+            ->assertSee('Sales by Brand')
+            ->assertSee('Sales by Item')
             ->assertSee('Company 2')
             ->assertSee('Salon Services');
     }
@@ -398,7 +399,8 @@ class AdminSalesReportTest extends TestCase
                     && $garnier['items']->count() === 1
                     && $garnier['items']->first()['name'] === 'Garnier Mask';
             })
-            ->assertSee('Sales by Brand & Items Breakdown')
+            ->assertSee('Sales by Brand')
+            ->assertSee('Sales by Item')
             ->assertSee('Loreal')
             ->assertSee('Loreal Serum')
             ->assertSee('Garnier')
@@ -523,6 +525,11 @@ class AdminSalesReportTest extends TestCase
         $dailyXls = $this->actingAs($admin)->get(route('reports.sales.xls', ['section' => 'daily']));
         $dailyXls->assertOk();
         $this->assertStringContainsString('spreadsheetml.sheet', $dailyXls->headers->get('Content-Type'));
+
+        // Items XLSX
+        $itemsXls = $this->actingAs($admin)->get(route('reports.sales.xls', ['section' => 'items']));
+        $itemsXls->assertOk();
+        $this->assertStringContainsString('spreadsheetml.sheet', $itemsXls->headers->get('Content-Type'));
     }
 
     public function test_admin_can_download_section_specific_pdf_reports(): void
@@ -539,7 +546,7 @@ class AdminSalesReportTest extends TestCase
             'payment_method' => PaymentMethod::UPI,
         ]);
 
-        foreach (['invoices', 'brands', 'daily'] as $section) {
+        foreach (['invoices', 'brands', 'items', 'daily'] as $section) {
             $resp = $this->actingAs($admin)->get(route('reports.sales.pdf', ['section' => $section]));
             $resp->assertOk();
             $this->assertStringContainsString('application/pdf', $resp->headers->get('Content-Type'));
@@ -603,5 +610,101 @@ class AdminSalesReportTest extends TestCase
             ->call('sortByInvoice', 'subtotal');
 
         $this->assertEquals('subtotal', $component->get('invoiceSortField'));
+    }
+
+    public function test_sales_by_brand_and_sales_by_item_datatables_and_filters(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $companyA = Company::create(['company_code' => 'BR-A1', 'company_name' => 'Wella Professionals', 'short_name' => 'Wella']);
+        $companyB = Company::create(['company_code' => 'BR-B1', 'company_name' => 'Schwarzkopf', 'short_name' => 'Schwarzkopf']);
+        $cat = Category::create(['name' => 'Hair', 'slug' => 'hair']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc']);
+
+        $productA = Product::create([
+            'name' => 'Wella Shampoo',
+            'sku' => 'WEL-01',
+            'company_id' => $companyA->id,
+            'category_id' => $cat->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 400.00,
+            'selling_price' => 800.00,
+            'mrp' => 800.00,
+            'is_active' => true,
+        ]);
+
+        $productB = Product::create([
+            'name' => 'Schwarzkopf Conditioner',
+            'sku' => 'SCH-01',
+            'company_id' => $companyB->id,
+            'category_id' => $cat->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 500.00,
+            'selling_price' => 1000.00,
+            'mrp' => 1000.00,
+            'is_active' => true,
+        ]);
+
+        $sale = $this->createSale([
+            'invoice_number' => 'INV-ITEMS-001',
+            'created_by' => $admin->id,
+            'sale_date' => Carbon::now(),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 1800.00,
+            'total' => 1800.00,
+            'payment_method' => PaymentMethod::CASH,
+        ]);
+
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'product_id' => $productA->id,
+            'quantity' => 1,
+            'cost_price' => 400.00,
+            'unit_price' => 800.00,
+            'discount' => 0.00,
+            'subtotal' => 800.00,
+            'final_price' => 800.00,
+        ]);
+
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'product_id' => $productB->id,
+            'quantity' => 1,
+            'cost_price' => 500.00,
+            'unit_price' => 1000.00,
+            'discount' => 0.00,
+            'subtotal' => 1000.00,
+            'final_price' => 1000.00,
+        ]);
+
+        // Test Brand search
+        Livewire::actingAs($admin)
+            ->test(SalesReport::class)
+            ->set('brandSearch', 'Wella')
+            ->assertViewHas('brandBreakdown', function ($brands) {
+                return $brands->count() === 1 && $brands->first()['name'] === 'Wella';
+            });
+
+        // Test Item search
+        Livewire::actingAs($admin)
+            ->test(SalesReport::class)
+            ->set('itemSearch', 'Conditioner')
+            ->assertViewHas('itemBreakdown', function ($items) {
+                return $items->count() === 1 && $items->first()['name'] === 'Schwarzkopf Conditioner';
+            });
+
+        // Test Item Brand filter
+        Livewire::actingAs($admin)
+            ->test(SalesReport::class)
+            ->set('itemBrandFilter', 'Wella')
+            ->assertViewHas('itemBreakdown', function ($items) {
+                return $items->count() === 1 && $items->first()['name'] === 'Wella Shampoo';
+            });
+
+        // Test Item sorting
+        $comp = Livewire::actingAs($admin)
+            ->test(SalesReport::class)
+            ->call('sortByItem', 'quantity');
+
+        $this->assertEquals('quantity', $comp->get('itemSortField'));
     }
 }

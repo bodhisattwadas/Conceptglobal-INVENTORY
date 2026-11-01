@@ -7,7 +7,8 @@
 
     $reportTitle = match($section) {
         'invoices' => 'Completed Invoices Audit Report',
-        'brands' => 'Sales by Brand & Items Breakdown Report',
+        'brands' => 'Sales by Brand Report',
+        'items' => 'Sales by Item Performance Report',
         'daily' => 'Daily Sales Breakdown Report',
         default => 'Sales & Profit Report',
     };
@@ -365,6 +366,45 @@
                 </tbody>
             </table>
         @endif
+    @endif
+
+    @if(($section === 'full' || $section === 'items') && isset($itemBreakdown) && $itemBreakdown->isNotEmpty())
+        <!-- Sales by Item Performance Table -->
+        <div class="section-title">Sales by Item Performance & Profit Audit</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>Code / SKU</th>
+                    <th>Brand / Category</th>
+                    <th class="text-center">Type</th>
+                    <th class="text-center">Qty Sold</th>
+                    <th class="text-right">Unit MRP</th>
+                    <th class="text-right">Discounts</th>
+                    <th class="text-right font-bold">Net Sales</th>
+                    <th class="text-right">PO Net Cost</th>
+                    <th class="text-right font-bold" style="color: #047857;">Gross Profit</th>
+                    <th class="text-center">Margin</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($itemBreakdown as $item)
+                    <tr>
+                        <td class="font-bold">{{ $item['name'] }}</td>
+                        <td class="font-mono text-center">{{ $item['code'] }}</td>
+                        <td>{{ $item['brand_name'] }}</td>
+                        <td class="text-center">{{ $item['is_service'] ? 'Service' : 'Product' }}</td>
+                        <td class="text-center font-bold">{{ number_format($item['quantity']) }}</td>
+                        <td class="text-right">Rs. {{ number_format($item['unit_price'], 2) }}</td>
+                        <td class="text-right" style="color: #b45309;">Rs. {{ number_format($item['total_discounts'], 2) }}</td>
+                        <td class="text-right font-bold">Rs. {{ number_format($item['net_sales'], 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($item['cogs'], 2) }}</td>
+                        <td class="text-right font-bold" style="color: #047857;">Rs. {{ number_format($item['gross_profit'], 2) }}</td>
+                        <td class="text-center font-bold">{{ $item['margin'] }}%</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
     @endif
 
     @if($section === 'full' || $section === 'invoices')
