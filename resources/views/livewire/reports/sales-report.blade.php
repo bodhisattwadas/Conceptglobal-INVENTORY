@@ -14,34 +14,55 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-                <!-- Period Selector -->
-                <select
-                    id="dateFilter"
-                    wire:model.live="dateFilter"
-                    class="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                <!-- Inline Fetching Loader Pill -->
+                <div
+                    wire:loading.flex
+                    wire:target="dateFilter, startDate, endDate"
+                    class="items-center gap-1.5 h-9 px-3 rounded-md bg-primary/10 text-primary text-xs font-semibold border border-primary/20 shadow-xs"
                 >
-                    <option value="today">{{ __('Today') }}</option>
-                    <option value="yesterday">{{ __('Yesterday') }}</option>
-                    <option value="this_week">{{ __('This Week') }}</option>
-                    <option value="this_month">{{ __('This Month') }}</option>
-                    <option value="last_month">{{ __('Last Month') }}</option>
-                    <option value="this_year">{{ __('This Year') }}</option>
-                    <option value="all_time">{{ __('All Time') }}</option>
-                    <option value="custom">{{ __('Custom Range') }}</option>
-                </select>
+                    <svg class="w-4 h-4 animate-spin text-primary shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>{{ __('Fetching data...') }}</span>
+                </div>
+
+                <!-- Period Selector -->
+                <div class="relative inline-flex items-center">
+                    <select
+                        id="dateFilter"
+                        wire:model.live="dateFilter"
+                        wire:loading.attr="disabled"
+                        wire:target="dateFilter, startDate, endDate"
+                        class="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60 cursor-pointer"
+                    >
+                        <option value="today">{{ __('Today') }}</option>
+                        <option value="yesterday">{{ __('Yesterday') }}</option>
+                        <option value="this_week">{{ __('This Week') }}</option>
+                        <option value="this_month">{{ __('This Month') }}</option>
+                        <option value="last_month">{{ __('Last Month') }}</option>
+                        <option value="this_year">{{ __('This Year') }}</option>
+                        <option value="all_time">{{ __('All Time') }}</option>
+                        <option value="custom">{{ __('Custom Range') }}</option>
+                    </select>
+                </div>
 
                 <!-- Custom Range Inputs -->
                 <div class="flex items-center gap-2">
                     <input
                         type="date"
                         wire:model.live="startDate"
-                        class="h-9 rounded-md border border-input bg-background px-2.5 py-1 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        wire:loading.attr="disabled"
+                        wire:target="dateFilter, startDate, endDate"
+                        class="h-9 rounded-md border border-input bg-background px-2.5 py-1 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
                     />
                     <span class="text-xs text-muted-foreground">{{ __('to') }}</span>
                     <input
                         type="date"
                         wire:model.live="endDate"
-                        class="h-9 rounded-md border border-input bg-background px-2.5 py-1 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        wire:loading.attr="disabled"
+                        wire:target="dateFilter, startDate, endDate"
+                        class="h-9 rounded-md border border-input bg-background px-2.5 py-1 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
                     />
                 </div>
 
@@ -94,6 +115,17 @@
                 {{ __('to') }}
                 <strong class="text-foreground">{{ \Carbon\Carbon::parse($endDate)->format('d M Y') }}</strong>
             </span>
+            <span
+                wire:loading.inline-flex
+                wire:target="dateFilter, startDate, endDate"
+                class="items-center gap-1.5 ml-2 text-primary font-semibold"
+            >
+                <svg class="w-3.5 h-3.5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>{{ __('Loading report metrics...') }}</span>
+            </span>
             <span class="ml-auto font-medium text-foreground">
                 {{ $kpis['total_orders'] }} {{ \Illuminate\Support\Str::plural('transaction', $kpis['total_orders']) }}
             </span>
@@ -101,7 +133,11 @@
     </div>
 
     <!-- Stats Grid (Matched to Dashboard Names & Visual Style) -->
-    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div
+        wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-150"
+        wire:target="dateFilter, startDate, endDate"
+        class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+    >
         <!-- Total Sales (Matched to Dashboard Total Sales) -->
         <div class="rounded-xl border shadow-sm text-left transition hover:-translate-y-0.5 hover:shadow-md" style="background-color: #eff6ff; border-color: #bfdbfe; color: #172554;">
             <div class="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
@@ -366,7 +402,11 @@
     </div>
 
     <!-- Daily Sales, Profit & Collections Summary Table -->
-    <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+    <div
+        wire:loading.class="opacity-60 transition-opacity duration-150"
+        wire:target="dateFilter, startDate, endDate, dailySearch, dailyPerPage, sortByDaily"
+        class="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
+    >
         <div class="p-5 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
@@ -379,6 +419,18 @@
             </div>
             <!-- Server-Side Controls & Exports -->
             <div class="flex flex-wrap items-center gap-2.5">
+                <div
+                    wire:loading.flex
+                    wire:target="dailySearch, dailyPerPage, sortByDaily"
+                    class="items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-semibold border border-primary/20"
+                >
+                    <svg class="w-3.5 h-3.5 animate-spin text-primary shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>{{ __('Fetching...') }}</span>
+                </div>
+
                 <!-- Search -->
                 <div class="relative min-w-[180px] sm:min-w-[210px]">
                     <x-heroicon-o-magnifying-glass class="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -643,7 +695,11 @@
     </div>
 
     <!-- Sales by Brand Container -->
-    <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+    <div
+        wire:loading.class="opacity-60 transition-opacity duration-150"
+        wire:target="dateFilter, startDate, endDate, brandSearch, brandPerPage, sortByBrand"
+        class="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
+    >
         <!-- Header & Controls -->
         <div class="p-5 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -657,6 +713,18 @@
             </div>
             <!-- Server-Side Controls & Exports -->
             <div class="flex flex-wrap items-center gap-2.5">
+                <div
+                    wire:loading.flex
+                    wire:target="brandSearch, brandPerPage, sortByBrand"
+                    class="items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-semibold border border-primary/20"
+                >
+                    <svg class="w-3.5 h-3.5 animate-spin text-primary shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>{{ __('Fetching...') }}</span>
+                </div>
+
                 <!-- Search -->
                 <div class="relative min-w-[180px] sm:min-w-[210px]">
                     <x-heroicon-o-magnifying-glass class="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1055,7 +1123,12 @@
     </div>
 
     <!-- Sales by Item Container -->
-    <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden" x-data="{ expandAllItems: false }">
+    <div
+        wire:loading.class="opacity-60 transition-opacity duration-150"
+        wire:target="dateFilter, startDate, endDate, itemSearch, itemBrandFilter, itemTypeFilter, itemPerPage, sortByItem"
+        class="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
+        x-data="{ expandAllItems: false }"
+    >
         <!-- Header & Controls -->
         <div class="p-5 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -1069,6 +1142,18 @@
             </div>
             <!-- Server-Side Controls & Exports -->
             <div class="flex flex-wrap items-center gap-2.5">
+                <div
+                    wire:loading.flex
+                    wire:target="itemSearch, itemBrandFilter, itemTypeFilter, itemPerPage, sortByItem"
+                    class="items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-semibold border border-primary/20"
+                >
+                    <svg class="w-3.5 h-3.5 animate-spin text-primary shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>{{ __('Fetching...') }}</span>
+                </div>
+
                 <!-- Search -->
                 <div class="relative min-w-[180px] sm:min-w-[210px]">
                     <x-heroicon-o-magnifying-glass class="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1609,7 +1694,11 @@
     </div>
 
     <!-- Completed Invoices in Period (Transparent, Reconciled Math: Cash Received - Items Net Cost = Profit) -->
-    <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+    <div
+        wire:loading.class="opacity-60 transition-opacity duration-150"
+        wire:target="dateFilter, startDate, endDate, invoiceSearch, invoicePaymentMethod, invoicePerPage, sortByInvoice"
+        class="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
+    >
         <div class="p-5 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
@@ -1622,6 +1711,18 @@
             </div>
             <!-- Server-Side Controls & Exports -->
             <div class="flex flex-wrap items-center gap-2.5">
+                <div
+                    wire:loading.flex
+                    wire:target="invoiceSearch, invoicePaymentMethod, invoicePerPage, sortByInvoice"
+                    class="items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-semibold border border-primary/20"
+                >
+                    <svg class="w-3.5 h-3.5 animate-spin text-primary shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>{{ __('Fetching...') }}</span>
+                </div>
+
                 <!-- Search -->
                 <div class="relative min-w-[200px] sm:min-w-[240px]">
                     <x-heroicon-o-magnifying-glass class="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
