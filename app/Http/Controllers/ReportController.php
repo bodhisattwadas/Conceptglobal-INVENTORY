@@ -23,6 +23,9 @@ class ReportController extends Controller
      */
     public function salesPdf(Request $request, SalesReportService $service)
     {
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
         $startDate = $request->query('start_date')
             ? Carbon::parse($request->query('start_date'))->startOfDay()
             : Carbon::now()->startOfMonth();
@@ -65,7 +68,11 @@ class ReportController extends Controller
             'startDate' => $startDate,
             'endDate' => $endDate,
             'section' => $section,
-        ])->setPaper('a4', 'portrait');
+        ])
+            ->setPaper('a4', 'portrait')
+            ->setOption('isPhpEnabled', false)
+            ->setOption('isRemoteEnabled', false)
+            ->setOption('isHtml5ParserEnabled', true);
 
         if ($request->query('stream') === '1') {
             return $pdf->stream($filename);
@@ -79,6 +86,8 @@ class ReportController extends Controller
      */
     public function salesXls(Request $request, SalesReportService $service)
     {
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
         $startDate = $request->query('start_date')
             ? Carbon::parse($request->query('start_date'))->startOfDay()
             : Carbon::now()->startOfMonth();

@@ -50,7 +50,7 @@ class SalesReportService
                 'creator',
                 'items.product.company',
                 'items.service',
-                'items.inventoryMovements.purchaseItem',
+                'items.inventoryMovements.purchaseItem.purchase',
             ])
             ->where('status', SaleStatus::COMPLETED)
             ->whereBetween('sale_date', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
@@ -703,7 +703,7 @@ class SalesReportService
                 'creator',
                 'items.product.company',
                 'items.service',
-                'items.inventoryMovements.purchaseItem',
+                'items.inventoryMovements.purchaseItem.purchase',
             ])
             ->where('status', SaleStatus::COMPLETED)
             ->whereBetween('sale_date', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
