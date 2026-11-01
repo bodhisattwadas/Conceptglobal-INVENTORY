@@ -422,77 +422,109 @@
         <!-- Navigation Tab Bar -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-2">
             <div class="flex items-center gap-1.5 p-1 bg-muted/70 dark:bg-muted/30 rounded-xl border border-border/80 overflow-x-auto max-w-full">
-                <!-- Tab: Completed Invoices -->
+                <!-- Tab: Completed Invoices (Blue) -->
                 <button
                     type="button"
                     @click="setTab('invoices')"
-                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer"
-                    :class="activeTab === 'invoices' ? 'bg-card text-foreground shadow-xs border border-border/80 ring-1 ring-border/40 font-bold' : 'text-muted-foreground hover:text-foreground hover:bg-card/40'"
+                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer border"
+                    :class="activeTab === 'invoices' 
+                        ? 'bg-blue-50/90 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 shadow-xs ring-1 ring-blue-500/20 font-bold' 
+                        : 'border-transparent text-muted-foreground hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/30'"
                 >
-                    <x-heroicon-o-receipt-percent class="w-4 h-4 text-primary" />
+                    <x-heroicon-o-receipt-percent class="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>{{ __('Completed Invoices') }}</span>
-                    <span class="px-1.5 py-0.5 rounded-full text-[11px] font-mono" :class="activeTab === 'invoices' ? 'bg-primary/10 text-primary font-bold' : 'bg-muted text-muted-foreground'">
+                    <span 
+                        class="px-1.5 py-0.5 rounded-full text-[11px] font-mono transition-colors" 
+                        :class="activeTab === 'invoices' ? 'bg-blue-200/80 dark:bg-blue-900/80 text-blue-800 dark:text-blue-200 font-bold' : 'bg-muted text-muted-foreground'"
+                    >
                         {{ $sales->total() }}
                     </span>
                 </button>
 
-                <!-- Tab: Sales by Brand -->
+                <!-- Tab: Sales by Brand (Purple) -->
                 <button
                     type="button"
                     @click="setTab('brands')"
-                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer"
-                    :class="activeTab === 'brands' ? 'bg-card text-foreground shadow-xs border border-border/80 ring-1 ring-border/40 font-bold' : 'text-muted-foreground hover:text-foreground hover:bg-card/40'"
+                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer border"
+                    :class="activeTab === 'brands' 
+                        ? 'bg-purple-50/90 dark:bg-purple-950/60 border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 shadow-xs ring-1 ring-purple-500/20 font-bold' 
+                        : 'border-transparent text-muted-foreground hover:text-purple-700 dark:hover:text-purple-300 hover:bg-purple-50/50 dark:hover:bg-purple-950/30'"
                 >
-                    <x-heroicon-o-tag class="w-4 h-4 text-primary" />
+                    <x-heroicon-o-tag class="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
                     <span>{{ __('Sales by Brand') }}</span>
-                    <span class="px-1.5 py-0.5 rounded-full text-[11px] font-mono" :class="activeTab === 'brands' ? 'bg-primary/10 text-primary font-bold' : 'bg-muted text-muted-foreground'">
+                    <span 
+                        class="px-1.5 py-0.5 rounded-full text-[11px] font-mono transition-colors" 
+                        :class="activeTab === 'brands' ? 'bg-purple-200/80 dark:bg-purple-900/80 text-purple-800 dark:text-purple-200 font-bold' : 'bg-muted text-muted-foreground'"
+                    >
                         {{ $brandBreakdown->total() }}
                     </span>
                 </button>
 
-                <!-- Tab: Sales by Item -->
+                <!-- Tab: Sales by Item (Emerald) -->
                 <button
                     type="button"
                     @click="setTab('items')"
-                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer"
-                    :class="activeTab === 'items' ? 'bg-card text-foreground shadow-xs border border-border/80 ring-1 ring-border/40 font-bold' : 'text-muted-foreground hover:text-foreground hover:bg-card/40'"
+                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer border"
+                    :class="activeTab === 'items' 
+                        ? 'bg-emerald-50/90 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 shadow-xs ring-1 ring-emerald-500/20 font-bold' 
+                        : 'border-transparent text-muted-foreground hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30'"
                 >
-                    <x-heroicon-o-cube class="w-4 h-4 text-primary" />
+                    <x-heroicon-o-cube class="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <span>{{ __('Sales by Item') }}</span>
-                    <span class="px-1.5 py-0.5 rounded-full text-[11px] font-mono" :class="activeTab === 'items' ? 'bg-primary/10 text-primary font-bold' : 'bg-muted text-muted-foreground'">
+                    <span 
+                        class="px-1.5 py-0.5 rounded-full text-[11px] font-mono transition-colors" 
+                        :class="activeTab === 'items' ? 'bg-emerald-200/80 dark:bg-emerald-900/80 text-emerald-800 dark:text-emerald-200 font-bold' : 'bg-muted text-muted-foreground'"
+                    >
                         {{ $itemBreakdown->total() }}
                     </span>
                 </button>
 
-                <!-- Tab: Daily Breakdown -->
+                <!-- Tab: Daily Breakdown (Amber) -->
                 <button
                     type="button"
                     @click="setTab('daily')"
-                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer"
-                    :class="activeTab === 'daily' ? 'bg-card text-foreground shadow-xs border border-border/80 ring-1 ring-border/40 font-bold' : 'text-muted-foreground hover:text-foreground hover:bg-card/40'"
+                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer border"
+                    :class="activeTab === 'daily' 
+                        ? 'bg-amber-50/90 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 shadow-xs ring-1 ring-amber-500/20 font-bold' 
+                        : 'border-transparent text-muted-foreground hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50/50 dark:hover:bg-amber-950/30'"
                 >
-                    <x-heroicon-o-calendar-days class="w-4 h-4 text-primary" />
+                    <x-heroicon-o-calendar-days class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                     <span>{{ __('Daily Summary') }}</span>
-                    <span class="px-1.5 py-0.5 rounded-full text-[11px] font-mono" :class="activeTab === 'daily' ? 'bg-primary/10 text-primary font-bold' : 'bg-muted text-muted-foreground'">
+                    <span 
+                        class="px-1.5 py-0.5 rounded-full text-[11px] font-mono transition-colors" 
+                        :class="activeTab === 'daily' ? 'bg-amber-200/80 dark:bg-amber-900/80 text-amber-800 dark:text-amber-200 font-bold' : 'bg-muted text-muted-foreground'"
+                    >
                         {{ $dailyBreakdown->total() }}
                     </span>
                 </button>
 
-                <!-- Tab: All Views -->
+                <!-- Tab: All Views (Indigo) -->
                 <button
                     type="button"
                     @click="setTab('all')"
-                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer"
-                    :class="activeTab === 'all' ? 'bg-card text-foreground shadow-xs border border-border/80 ring-1 ring-border/40 font-bold' : 'text-muted-foreground hover:text-foreground hover:bg-card/40'"
+                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer border"
+                    :class="activeTab === 'all' 
+                        ? 'bg-indigo-50/90 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 shadow-xs ring-1 ring-indigo-500/20 font-bold' 
+                        : 'border-transparent text-muted-foreground hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30'"
                 >
-                    <x-heroicon-o-squares-2x2 class="w-4 h-4 text-primary" />
+                    <x-heroicon-o-squares-2x2 class="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                     <span>{{ __('All Views') }}</span>
                 </button>
             </div>
 
             <div class="text-xs text-muted-foreground hidden sm:flex items-center gap-2">
                 <span>{{ __('Active Tab:') }}</span>
-                <span class="font-semibold text-foreground" x-text="activeTab === 'all' ? '{{ __('All Views (Continuous)') }}' : (activeTab === 'brands' ? '{{ __('Sales by Brand') }}' : (activeTab === 'items' ? '{{ __('Sales by Item') }}' : (activeTab === 'daily' ? '{{ __('Daily Sales & Collections') }}' : '{{ __('Completed Invoices') }}')))"></span>
+                <span 
+                    class="font-bold px-2 py-0.5 rounded-md text-xs transition-colors" 
+                    :class="{
+                        'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300': activeTab === 'invoices',
+                        'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300': activeTab === 'brands',
+                        'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300': activeTab === 'items',
+                        'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300': activeTab === 'daily',
+                        'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300': activeTab === 'all',
+                    }"
+                    x-text="activeTab === 'all' ? '{{ __('All Views (Continuous)') }}' : (activeTab === 'brands' ? '{{ __('Sales by Brand') }}' : (activeTab === 'items' ? '{{ __('Sales by Item') }}' : (activeTab === 'daily' ? '{{ __('Daily Sales & Collections') }}' : '{{ __('Completed Invoices') }}')))"
+                ></span>
             </div>
         </div>
 
