@@ -692,12 +692,23 @@ class AdminSalesReportTest extends TestCase
                 return $items->count() === 1 && $items->first()['name'] === 'Schwarzkopf Conditioner';
             });
 
-        // Test Item Brand filter
+        // Test Item Brand filter & Related Invoices Breakdown
         Livewire::actingAs($admin)
             ->test(SalesReport::class)
             ->set('itemBrandFilter', 'Wella')
+            ->assertSee('Related Invoices Breakdown for')
+            ->assertSee('INV-ITEMS-001')
             ->assertViewHas('itemBreakdown', function ($items) {
-                return $items->count() === 1 && $items->first()['name'] === 'Wella Shampoo';
+                $first = $items->first();
+                $invBreakdown = $first['invoice_breakdown'] ?? [];
+
+                return $items->count() === 1
+                    && $first['name'] === 'Wella Shampoo'
+                    && count($invBreakdown) === 1
+                    && $invBreakdown[0]['invoice_number'] === 'INV-ITEMS-001'
+                    && $invBreakdown[0]['net_received'] == 800.00
+                    && $invBreakdown[0]['cogs'] == 400.00
+                    && $invBreakdown[0]['gross_profit'] == 400.00;
             });
 
         // Test Item sorting

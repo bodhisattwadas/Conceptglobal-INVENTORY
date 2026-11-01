@@ -597,6 +597,7 @@ class SalesReportService
                         'margin' => 0.0,
                         'invoices_count' => 0,
                         'invoices' => [],
+                        'invoice_breakdown' => [],
                         'po_unit_price' => (float) ($item->po_unit_price ?? 0.0),
                         'po_source' => $item->po_source ?? '-',
                     ];
@@ -620,6 +621,51 @@ class SalesReportService
                     $itemsData[$itemKey]['invoices'][] = $sale->invoice_number;
                     $itemsData[$itemKey]['invoices_count']++;
                 }
+
+                $invKey = $sale->id;
+                if (! isset($itemsData[$itemKey]['invoice_breakdown'][$invKey])) {
+                    $methodVal = $sale->payment_method instanceof PaymentMethod
+                        ? $sale->payment_method->value
+                        : (string) $sale->payment_method;
+                    $methodLabel = $sale->payment_method instanceof PaymentMethod
+                        ? $sale->payment_method->label()
+                        : ucfirst((string) $sale->payment_method);
+
+                    $itemsData[$itemKey]['invoice_breakdown'][$invKey] = [
+                        'sale_id' => $sale->id,
+                        'invoice_number' => $sale->invoice_number,
+                        'sale_date' => $sale->sale_date ? $sale->sale_date->format('d M Y, h:i A') : '-',
+                        'customer_name' => $sale->customer?->name ?? 'Walk-in Customer',
+                        'customer_phone' => $sale->customer?->phone ?? null,
+                        'payment_method' => $methodVal,
+                        'payment_label' => $methodLabel,
+                        'quantity' => 0,
+                        'unit_price' => round((float) $item->unit_price, 2),
+                        'gross' => 0.0,
+                        'discount' => 0.0,
+                        'net_received' => 0.0,
+                        'po_unit_price' => round((float) ($item->po_unit_price ?? 0.0), 2),
+                        'cogs' => 0.0,
+                        'gross_profit' => 0.0,
+                        'margin' => 0.0,
+                        'po_source' => $item->po_source ?? '-',
+                        'invoice_total' => round((float) $sale->total, 2),
+                    ];
+                }
+
+                $itemsData[$itemKey]['invoice_breakdown'][$invKey]['quantity'] += $qty;
+                $itemsData[$itemKey]['invoice_breakdown'][$invKey]['gross'] = round($itemsData[$itemKey]['invoice_breakdown'][$invKey]['gross'] + $gross, 2);
+                $itemsData[$itemKey]['invoice_breakdown'][$invKey]['discount'] = round($itemsData[$itemKey]['invoice_breakdown'][$invKey]['discount'] + $discount, 2);
+                $itemsData[$itemKey]['invoice_breakdown'][$invKey]['net_received'] = round($itemsData[$itemKey]['invoice_breakdown'][$invKey]['net_received'] + $net, 2);
+                $itemsData[$itemKey]['invoice_breakdown'][$invKey]['cogs'] = round($itemsData[$itemKey]['invoice_breakdown'][$invKey]['cogs'] + $cogs, 2);
+                $itemsData[$itemKey]['invoice_breakdown'][$invKey]['gross_profit'] = round($itemsData[$itemKey]['invoice_breakdown'][$invKey]['gross_profit'] + $profit, 2);
+                $invNet = $itemsData[$itemKey]['invoice_breakdown'][$invKey]['net_received'];
+                $invProfit = $itemsData[$itemKey]['invoice_breakdown'][$invKey]['gross_profit'];
+                $invMargin = $invNet > 0 ? round(($invProfit / $invNet) * 100, 1) : 0.0;
+                if (abs($invMargin) < 0.05) {
+                    $invMargin = 0.0;
+                }
+                $itemsData[$itemKey]['invoice_breakdown'][$invKey]['margin'] = $invMargin;
             }
         }
 
@@ -634,6 +680,7 @@ class SalesReportService
                 $margin = 0.0;
             }
             $item['margin'] = $margin;
+            $item['invoice_breakdown'] = array_values($item['invoice_breakdown']);
 
             return $item;
         })->sortByDesc('net_sales')->values();
@@ -751,6 +798,7 @@ class SalesReportService
             case 'items':
                 $filename = sprintf('sales-items-%s-to-%s.xlsx', $startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
                 $this->writeItemsSheet($writer, $data['item_breakdown'], false);
+                $this->writeItemInvoicesSheet($writer, $data['item_breakdown'], true);
                 break;
 
             case 'daily':
@@ -1221,6 +1269,7 @@ class SalesReportService
             'Gross Profit (INR)',
             'Margin (%)',
             'Invoices Count',
+            'Related Invoices',
         ]));
 
         foreach ($itemBreakdown as $item) {
@@ -1238,7 +1287,60 @@ class SalesReportService
                 (float) $item['gross_profit'],
                 $item['margin'].'%',
                 (int) $item['invoices_count'],
+                implode(', ', $item['invoices'] ?? []),
             ]));
+        }
+    }
+
+    protected function writeItemInvoicesSheet(Writer $writer, Collection $itemBreakdown, bool $isAdditionalSheet = false): void
+    {
+        if ($isAdditionalSheet) {
+            $sheet = $writer->addNewSheetAndMakeItCurrent();
+            $sheet->setName('Item Invoices Breakdown');
+        } else {
+            $writer->getCurrentSheet()->setName('Item Invoices Breakdown');
+        }
+
+        $writer->addRow(Row::fromValues([
+            'Item Name',
+            'Code / SKU',
+            'Brand',
+            'Invoice #',
+            'Date',
+            'Customer',
+            'Phone',
+            'Payment Mode',
+            'Qty Sold',
+            'Unit MRP (INR)',
+            'Gross (INR)',
+            'Discount (INR)',
+            'Net Sales (INR)',
+            'PO Net Cost (INR)',
+            'Gross Profit (INR)',
+            'Margin (%)',
+        ]));
+
+        foreach ($itemBreakdown as $item) {
+            foreach ($item['invoice_breakdown'] ?? [] as $inv) {
+                $writer->addRow(Row::fromValues([
+                    $item['name'],
+                    $item['code'],
+                    $item['brand_name'],
+                    $inv['invoice_number'],
+                    $inv['sale_date'],
+                    $inv['customer_name'],
+                    $inv['customer_phone'] ?? '-',
+                    $inv['payment_label'],
+                    (int) $inv['quantity'],
+                    (float) $inv['unit_price'],
+                    (float) $inv['gross'],
+                    (float) $inv['discount'],
+                    (float) $inv['net_received'],
+                    (float) $inv['cogs'],
+                    (float) $inv['gross_profit'],
+                    $inv['margin'].'%',
+                ]));
+            }
         }
     }
 }
