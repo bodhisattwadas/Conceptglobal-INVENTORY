@@ -303,7 +303,106 @@ class AdminSalesReportTest extends TestCase
             ->assertSee('Coupon Discount')
             ->assertSee('Other / Bill Disc')
             ->assertSee('Round Off')
-            ->assertSee('Invoice Bill Reconciliation & Profit Math');
+            ->assertSee('Invoice Bill Reconciliation & Profit Math')
+            ->assertSee('Sales by Brand & Items Breakdown')
+            ->assertSee('Company 2')
+            ->assertSee('Salon Services');
+    }
+
+    public function test_sales_report_calculates_sales_by_brand_and_sales_by_item_by_brand(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $companyA = Company::create(['company_code' => 'BR-A', 'company_name' => 'Loreal Paris', 'short_name' => 'Loreal']);
+        $companyB = Company::create(['company_code' => 'BR-B', 'company_name' => 'Garnier Skin', 'short_name' => 'Garnier']);
+        $cat = Category::create(['name' => 'Skin', 'slug' => 'skin']);
+        $unit = Unit::create(['name' => 'Piece', 'symbol' => 'pc']);
+
+        $productA = Product::create([
+            'name' => 'Loreal Serum',
+            'sku' => 'LOR-01',
+            'company_id' => $companyA->id,
+            'category_id' => $cat->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 300.00,
+            'selling_price' => 600.00,
+            'mrp' => 600.00,
+            'is_active' => true,
+        ]);
+
+        $productB = Product::create([
+            'name' => 'Garnier Mask',
+            'sku' => 'GAR-01',
+            'company_id' => $companyB->id,
+            'category_id' => $cat->id,
+            'unit_id' => $unit->id,
+            'purchase_price' => 100.00,
+            'selling_price' => 200.00,
+            'mrp' => 200.00,
+            'is_active' => true,
+        ]);
+
+        $sale = $this->createSale([
+            'invoice_number' => 'INV-BRAND-001',
+            'created_by' => $admin->id,
+            'sale_date' => Carbon::now(),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 1400.00,
+            'total' => 1400.00,
+            'payment_method' => PaymentMethod::CASH,
+        ]);
+
+        // 2x Loreal Serum @ 600 = 1200 (Cost: 2 * 300 = 600, Profit: 600)
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'product_id' => $productA->id,
+            'quantity' => 2,
+            'cost_price' => 300.00,
+            'unit_price' => 600.00,
+            'discount' => 0.00,
+            'subtotal' => 1200.00,
+            'final_price' => 600.00,
+        ]);
+
+        // 1x Garnier Mask @ 200 = 200 (Cost: 1 * 100 = 100, Profit: 100)
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'product_id' => $productB->id,
+            'quantity' => 1,
+            'cost_price' => 100.00,
+            'unit_price' => 200.00,
+            'discount' => 0.00,
+            'subtotal' => 200.00,
+            'final_price' => 200.00,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(SalesReport::class)
+            ->assertViewHas('brandBreakdown', function ($brands) {
+                // Should have 2 brands: Loreal and Garnier
+                $loreal = $brands->firstWhere('name', 'Loreal');
+                $garnier = $brands->firstWhere('name', 'Garnier');
+
+                return $brands->count() === 2
+                    && $loreal !== null
+                    && $loreal['total_quantity'] === 2
+                    && $loreal['net_sales'] == 1200.00
+                    && $loreal['cogs'] == 600.00
+                    && $loreal['gross_profit'] == 600.00
+                    && $loreal['items']->count() === 1
+                    && $loreal['items']->first()['name'] === 'Loreal Serum'
+                    && $garnier !== null
+                    && $garnier['total_quantity'] === 1
+                    && $garnier['net_sales'] == 200.00
+                    && $garnier['cogs'] == 100.00
+                    && $garnier['gross_profit'] == 100.00
+                    && $garnier['items']->count() === 1
+                    && $garnier['items']->first()['name'] === 'Garnier Mask';
+            })
+            ->assertSee('Sales by Brand & Items Breakdown')
+            ->assertSee('Loreal')
+            ->assertSee('Loreal Serum')
+            ->assertSee('Garnier')
+            ->assertSee('Garnier Mask');
     }
 
     public function test_date_filter_updates_results(): void

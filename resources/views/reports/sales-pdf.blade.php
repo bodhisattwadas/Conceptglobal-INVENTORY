@@ -280,5 +280,79 @@
             </tfoot>
         @endif
     </table>
+
+    <!-- Sales by Brand Summary Table -->
+    @if(isset($brandBreakdown) && $brandBreakdown->isNotEmpty())
+        <div class="section-title">Sales & Profit by Brand Summary</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Brand / Category</th>
+                    <th class="text-center">Items</th>
+                    <th class="text-center">Units Sold</th>
+                    <th class="text-right">Gross Sales</th>
+                    <th class="text-right">Discounts</th>
+                    <th class="text-right font-bold">Net Sales</th>
+                    <th class="text-center">Share</th>
+                    <th class="text-right">PO Net Cost</th>
+                    <th class="text-right font-bold" style="color: #047857;">Gross Profit</th>
+                    <th class="text-center">Margin</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($brandBreakdown as $b)
+                    <tr>
+                        <td class="font-bold">{{ $b['name'] }}</td>
+                        <td class="text-center">{{ $b['items_count'] }}</td>
+                        <td class="text-center font-bold">{{ number_format($b['total_quantity']) }}</td>
+                        <td class="text-right">Rs. {{ number_format($b['gross_sales'], 2) }}</td>
+                        <td class="text-right" style="color: #b45309;">Rs. {{ number_format($b['total_discounts'], 2) }}</td>
+                        <td class="text-right font-bold">Rs. {{ number_format($b['net_sales'], 2) }}</td>
+                        <td class="text-center">{{ $b['percentage'] }}%</td>
+                        <td class="text-right">Rs. {{ number_format($b['cogs'], 2) }}</td>
+                        <td class="text-right font-bold" style="color: #047857;">Rs. {{ number_format($b['gross_profit'], 2) }}</td>
+                        <td class="text-center font-bold">{{ $b['margin'] }}%</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        <!-- Sales by Item by Brand Breakdown Table -->
+        <div class="section-title">Sales by Item by Brand Breakdown</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Brand</th>
+                    <th>Product / Service Name</th>
+                    <th>Code / SKU</th>
+                    <th class="text-center">Qty Sold</th>
+                    <th class="text-right">Unit MRP</th>
+                    <th class="text-right">Discounts</th>
+                    <th class="text-right font-bold">Net Sales</th>
+                    <th class="text-right">PO Net Cost</th>
+                    <th class="text-right font-bold" style="color: #047857;">Gross Profit</th>
+                    <th class="text-center">Margin</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($brandBreakdown as $b)
+                    @foreach($b['items'] as $item)
+                        <tr>
+                            <td class="font-bold">{{ $b['name'] }}</td>
+                            <td>{{ $item['name'] }}</td>
+                            <td class="font-mono text-center">{{ $item['code'] }}</td>
+                            <td class="text-center font-bold">{{ number_format($item['quantity']) }}</td>
+                            <td class="text-right">Rs. {{ number_format($item['unit_price'], 2) }}</td>
+                            <td class="text-right" style="color: #b45309;">Rs. {{ number_format($item['total_discounts'], 2) }}</td>
+                            <td class="text-right font-bold">Rs. {{ number_format($item['net_sales'], 2) }}</td>
+                            <td class="text-right">Rs. {{ number_format($item['cogs'], 2) }}</td>
+                            <td class="text-right font-bold" style="color: #047857;">Rs. {{ number_format($item['gross_profit'], 2) }}</td>
+                            <td class="text-center">{{ $item['margin'] }}%</td>
+                        </tr>
+                    @endforeach
+                @endforeach
+            </tbody>
+        </table>
+    @endif
 </body>
 </html>

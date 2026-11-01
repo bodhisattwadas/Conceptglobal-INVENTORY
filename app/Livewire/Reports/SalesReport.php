@@ -91,6 +91,7 @@ class SalesReport extends Component
             'kpis' => $data['kpis'],
             'paymentMethods' => $data['payment_methods'],
             'dailyBreakdown' => $data['daily_breakdown'],
+            'brandBreakdown' => $data['brand_breakdown'],
             'sales' => $data['sales'],
             'startDate' => $this->startDate,
             'endDate' => $this->endDate,

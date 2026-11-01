@@ -129,16 +129,22 @@ class DashboardKpiLoggerTest extends TestCase
             'subtotal' => 600.00,
         ]);
 
+        $loggedAuditYesterday = false;
         Log::shouldReceive('info')
-            ->atLeast()->once()
-            ->withArgs(function ($message) use ($sale) {
-                return is_string($message)
+            ->zeroOrMoreTimes()
+            ->withArgs(function ($message) use ($sale, &$loggedAuditYesterday) {
+                if (is_string($message)
                     && str_contains($message, '[DASHBOARD KPI AUDIT]')
                     && str_contains($message, $sale->invoice_number)
                     && str_contains($message, 'Herbal Shampoo')
                     && str_contains($message, 'Hair Spa')
                     && str_contains($message, 'COGS')
-                    && str_contains($message, 'Gross Profit');
+                    && str_contains($message, 'Gross Profit')
+                ) {
+                    $loggedAuditYesterday = true;
+                }
+
+                return true;
             });
 
         Log::shouldReceive('error')->never();
@@ -147,6 +153,8 @@ class DashboardKpiLoggerTest extends TestCase
             ->test(Dashboard::class)
             ->set('dateFilter', 'yesterday')
             ->assertOk();
+
+        $this->assertTrue($loggedAuditYesterday, 'Expected KPI audit log for yesterday was not emitted.');
     }
 
     public function test_artisan_dashboard_audit_kpi_command_outputs_report(): void

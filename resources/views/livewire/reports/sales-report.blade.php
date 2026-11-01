@@ -459,6 +459,241 @@
         </div>
     </div>
 
+    <!-- Sales by Brand & Sales by Item by Brand Section -->
+    <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden" x-data="{ expandAllBrands: false }">
+        <div class="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+                <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
+                    <x-heroicon-o-tag class="w-5 h-5 text-primary" />
+                    <span>{{ __('Sales by Brand & Items Breakdown') }}</span>
+                </h3>
+                <p class="text-xs text-muted-foreground">
+                    {{ __('Revenue, volume, PO net purchase cost, and gross profit margins grouped by brand and item.') }}
+                </p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-muted-foreground font-medium">
+                    {{ $brandBreakdown->count() }} {{ __('Brands / Categories') }}
+                </span>
+                @if($brandBreakdown->isNotEmpty())
+                    <button
+                        type="button"
+                        @click="expandAllBrands = !expandAllBrands; $dispatch('toggle-all-brands', { expanded: expandAllBrands })"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer"
+                    >
+                        <x-heroicon-o-arrows-up-down class="w-3.5 h-3.5 text-muted-foreground" />
+                        <span x-text="expandAllBrands ? '{{ __('Collapse All Items') }}' : '{{ __('Expand All Items') }}'"></span>
+                    </button>
+                @endif
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-foreground">
+                <thead class="bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
+                    <tr>
+                        <th class="px-4 py-3">{{ __('Brand / Category') }}</th>
+                        <th class="px-4 py-3 text-center">{{ __('Items') }}</th>
+                        <th class="px-4 py-3 text-center">{{ __('Units Sold') }}</th>
+                        <th class="px-4 py-3 text-right">{{ __('Gross Sales') }}</th>
+                        <th class="px-4 py-3 text-right">{{ __('Discounts') }}</th>
+                        <th class="px-4 py-3 text-right font-bold text-foreground">{{ __('Net Sales') }}</th>
+                        <th class="px-4 py-3 text-center">{{ __('Share') }}</th>
+                        <th class="px-4 py-3 text-right text-muted-foreground">{{ __('PO Net Cost') }}</th>
+                        <th class="px-4 py-3 text-right font-bold">{{ __('Gross Profit') }}</th>
+                        <th class="px-4 py-3 text-center">{{ __('Items Action') }}</th>
+                    </tr>
+                </thead>
+                @forelse($brandBreakdown as $b)
+                    @php
+                        $bProfit = (float) $b['gross_profit'];
+                        $bMargin = (float) $b['margin'];
+                    @endphp
+                    <tbody
+                        x-data="{ openBrand: false }"
+                        x-on:toggle-all-brands.window="openBrand = $event.detail.expanded"
+                        class="divide-y divide-border border-b border-border"
+                    >
+                        <!-- Brand Summary Row -->
+                        <tr class="hover:bg-muted/30 transition-colors">
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <button type="button" @click="openBrand = !openBrand" class="hover:underline flex items-center gap-2 text-left font-semibold text-foreground cursor-pointer">
+                                    <svg class="w-4 h-4 transition-transform duration-200 text-muted-foreground" :class="{ 'rotate-90 text-primary': openBrand }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                    @if($b['is_service'])
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300">
+                                            <x-heroicon-o-sparkles class="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                            {{ $b['name'] }}
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1.5 font-bold text-sm text-foreground">
+                                            <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
+                                            {{ $b['name'] }}
+                                        </span>
+                                    @endif
+                                </button>
+                            </td>
+                            <td class="px-4 py-3 text-center whitespace-nowrap text-xs text-muted-foreground">
+                                <span class="px-2 py-0.5 rounded bg-muted font-medium">
+                                    {{ $b['items_count'] }} {{ \Illuminate\Support\Str::plural('item', $b['items_count']) }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-center whitespace-nowrap font-semibold">
+                                {{ number_format($b['total_quantity']) }}
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap text-muted-foreground">
+                                ₹ {{ number_format($b['gross_sales'], 2) }}
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap text-amber-600 dark:text-amber-400">
+                                @if($b['total_discounts'] > 0)
+                                    -₹ {{ number_format($b['total_discounts'], 2) }}
+                                @else
+                                    <span class="text-muted-foreground opacity-60">₹ 0.00</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-bold text-foreground">
+                                ₹ {{ number_format($b['net_sales'], 2) }}
+                            </td>
+                            <td class="px-4 py-3 text-center whitespace-nowrap">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
+                                    {{ $b['percentage'] }}%
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap text-muted-foreground text-xs font-mono">
+                                ₹ {{ number_format($b['cogs'], 2) }}
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-bold {{ $bProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                                <div>₹ {{ number_format($bProfit, 2) }}</div>
+                                <div class="text-[10px] font-normal opacity-75">
+                                    {{ number_format($bMargin, 1) }}% margin
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 text-center whitespace-nowrap">
+                                <button
+                                    type="button"
+                                    @click="openBrand = !openBrand"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium border border-border bg-card hover:bg-muted text-foreground transition-colors cursor-pointer"
+                                >
+                                    <span x-text="openBrand ? '{{ __('Hide Items') }}' : '{{ __('View Items') }}'"></span>
+                                    <span class="text-muted-foreground font-semibold">({{ $b['items_count'] }})</span>
+                                </button>
+                            </td>
+                        </tr>
+
+                        <!-- Expandable Sales by Item by Brand Row -->
+                        <tr x-show="openBrand" x-cloak style="display: none;" class="bg-muted/15">
+                            <td colspan="10" class="p-4">
+                                <div class="rounded-lg border border-border bg-card p-3.5 shadow-xs space-y-3">
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-2 text-xs">
+                                        <div class="font-semibold text-foreground flex items-center gap-1.5">
+                                            <x-heroicon-o-cube class="w-4 h-4 text-primary" />
+                                            <span>{{ __('Sales by Item for') }} <span class="font-bold text-primary">{{ $b['name'] }}</span></span>
+                                        </div>
+                                        <div class="text-muted-foreground text-[11px]">
+                                            {{ count($b['items']) }} {{ __('unique item lines sold') }}
+                                        </div>
+                                    </div>
+
+                                    <table class="w-full text-xs">
+                                        <thead class="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                                            <tr>
+                                                <th class="py-2 px-2.5 text-left">{{ __('Product / Item Name') }}</th>
+                                                <th class="py-2 px-2 text-center">{{ __('Code / SKU') }}</th>
+                                                <th class="py-2 px-2 text-center">{{ __('Qty Sold') }}</th>
+                                                <th class="py-2 px-2 text-right">{{ __('Unit MRP') }}</th>
+                                                <th class="py-2 px-2 text-right">{{ __('Discounts') }}</th>
+                                                <th class="py-2 px-2 text-right font-bold text-foreground">{{ __('Net Sales') }}</th>
+                                                <th class="py-2 px-2 text-right text-muted-foreground">{{ __('PO Net Cost') }}</th>
+                                                <th class="py-2 px-2 text-right font-bold">{{ __('Gross Profit') }}</th>
+                                                <th class="py-2 px-2 text-center">{{ __('Margin') }}</th>
+                                                <th class="py-2 px-2.5 text-left">{{ __('Invoices / PO Source') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-border">
+                                            @foreach($b['items'] as $item)
+                                                @php
+                                                    $itemProfit = (float) $item['gross_profit'];
+                                                    $itemMargin = (float) $item['margin'];
+                                                @endphp
+                                                <tr class="hover:bg-muted/30 transition-colors">
+                                                    <td class="py-2 px-2.5 font-medium text-foreground">
+                                                        {{ $item['name'] }}
+                                                    </td>
+                                                    <td class="py-2 px-2 text-center font-mono text-[11px] text-muted-foreground">
+                                                        {{ $item['code'] }}
+                                                    </td>
+                                                    <td class="py-2 px-2 text-center font-bold">
+                                                        {{ number_format($item['quantity']) }}
+                                                    </td>
+                                                    <td class="py-2 px-2 text-right text-muted-foreground">
+                                                        ₹ {{ number_format($item['unit_price'], 2) }}
+                                                    </td>
+                                                    <td class="py-2 px-2 text-right text-amber-600 dark:text-amber-400">
+                                                        @if($item['total_discounts'] > 0)
+                                                            -₹ {{ number_format($item['total_discounts'], 2) }}
+                                                        @else
+                                                            <span class="text-muted-foreground opacity-60">₹ 0.00</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="py-2 px-2 text-right font-bold text-foreground">
+                                                        ₹ {{ number_format($item['net_sales'], 2) }}
+                                                    </td>
+                                                    <td class="py-2 px-2 text-right text-muted-foreground font-mono">
+                                                        ₹ {{ number_format($item['cogs'], 2) }}
+                                                    </td>
+                                                    <td class="py-2 px-2 text-right font-bold {{ $itemProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                                                        ₹ {{ number_format($itemProfit, 2) }}
+                                                    </td>
+                                                    <td class="py-2 px-2 text-center font-semibold text-[11px] {{ $itemProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                                                        {{ number_format($itemMargin, 1) }}%
+                                                    </td>
+                                                    <td class="py-2 px-2.5 text-muted-foreground text-[11px] truncate max-w-xs" title="{{ $item['po_source'] }}">
+                                                        <span class="font-medium text-foreground">{{ $item['invoices_count'] }} {{ \Illuminate\Support\Str::plural('invoice', $item['invoices_count']) }}</span>
+                                                        <span class="text-muted-foreground text-[10px] ml-1">({{ $item['po_source'] }})</span>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                        <tfoot class="bg-muted/40 font-bold border-t border-border text-[11px] text-foreground">
+                                            <tr>
+                                                <td colspan="2" class="py-1.5 px-2.5 uppercase">{{ __('Total for') }} {{ $b['name'] }}</td>
+                                                <td class="py-1.5 px-2 text-center">{{ number_format($b['total_quantity']) }}</td>
+                                                <td class="py-1.5 px-2 text-right">₹ {{ number_format($b['gross_sales'], 2) }}</td>
+                                                <td class="py-1.5 px-2 text-right text-amber-600 dark:text-amber-400">
+                                                    @if($b['total_discounts'] > 0)
+                                                        -₹ {{ number_format($b['total_discounts'], 2) }}
+                                                    @else
+                                                        ₹ 0.00
+                                                    @endif
+                                                </td>
+                                                <td class="py-1.5 px-2 text-right font-bold text-foreground">₹ {{ number_format($b['net_sales'], 2) }}</td>
+                                                <td class="py-1.5 px-2 text-right text-muted-foreground font-mono">₹ {{ number_format($b['cogs'], 2) }}</td>
+                                                <td class="py-1.5 px-2 text-right font-bold {{ $bProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                                                    ₹ {{ number_format($bProfit, 2) }}
+                                                </td>
+                                                <td class="py-1.5 px-2 text-center">{{ number_format($bMargin, 1) }}%</td>
+                                                <td class="py-1.5 px-2.5 text-[10px] text-muted-foreground">{{ $b['items_count'] }} {{ __('items') }}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                @empty
+                    <tbody>
+                        <tr>
+                            <td colspan="10" class="px-4 py-8 text-center text-muted-foreground">
+                                {{ __('No brand sales recorded in this period.') }}
+                            </td>
+                        </tr>
+                    </tbody>
+                @endforelse
+            </table>
+        </div>
+    </div>
+
     <!-- Completed Invoices in Period (Transparent, Reconciled Math: Cash Received - Items Net Cost = Profit) -->
     <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         <div class="p-5 border-b border-border flex items-center justify-between">
@@ -662,9 +897,28 @@
                                                         @endif
                                                     </td>
                                                     <td class="py-1.5 px-2 text-center font-semibold">{{ $itemQty }}</td>
-                                                    <td class="py-1.5 px-2 text-right">₹ {{ number_format((float) $item->unit_price, 2) }}</td>
+                                                    <td class="py-1.5 px-2 text-right">
+                                                        <div>₹ {{ number_format((float) $item->unit_price, 2) }}</div>
+                                                        @if($itemQty > 1)
+                                                            <div class="text-[10px] text-muted-foreground font-mono">
+                                                                Total: ₹ {{ number_format(((float) $item->unit_price) * $itemQty, 2) }}
+                                                            </div>
+                                                        @endif
+                                                    </td>
                                                     <td class="py-1.5 px-2 text-right text-amber-600 dark:text-amber-400">
-                                                        {{ (float) $item->discount > 0 ? '-₹ ' . number_format((float) $item->discount, 2) : '₹ 0.00' }}
+                                                        @php
+                                                            $lineItemDiscount = ((float) $item->discount) * $itemQty;
+                                                        @endphp
+                                                        @if($lineItemDiscount > 0)
+                                                            <div class="font-semibold">-₹ {{ number_format($lineItemDiscount, 2) }}</div>
+                                                            @if($itemQty > 1 && (float) $item->discount > 0)
+                                                                <div class="text-[10px] text-muted-foreground font-normal">
+                                                                    (-₹ {{ number_format((float) $item->discount, 2) }}/u)
+                                                                </div>
+                                                            @endif
+                                                        @else
+                                                            <span class="text-muted-foreground opacity-60">₹ 0.00</span>
+                                                        @endif
                                                     </td>
                                                     <td class="py-1.5 px-2 text-right font-semibold">₹ {{ number_format($lineSubtotal, 2) }}</td>
                                                     <td class="py-1.5 px-2 text-right text-muted-foreground font-mono">

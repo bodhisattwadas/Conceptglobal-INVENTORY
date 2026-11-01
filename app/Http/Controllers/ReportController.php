@@ -49,6 +49,7 @@ class ReportController extends Controller
             'kpis' => $data['kpis'],
             'paymentMethods' => $data['payment_methods'],
             'dailyBreakdown' => $data['daily_breakdown'],
+            'brandBreakdown' => $data['brand_breakdown'],
             'sales' => $data['sales'],
             'startDate' => $startDate,
             'endDate' => $endDate,
