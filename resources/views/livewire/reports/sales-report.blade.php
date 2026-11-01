@@ -3,7 +3,7 @@
     <!-- Filter and Action Bar (Matched to Dashboard Overview Header) -->
     <div class="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm space-y-4">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
+            <div class="shrink-0">
                 <h2 class="text-lg font-semibold text-foreground flex items-center gap-2">
                     <x-heroicon-o-chart-bar class="w-5 h-5 text-primary" />
                     <span>{{ __('Overview') }}</span>
@@ -13,7 +13,7 @@
                 </p>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap items-center justify-start lg:justify-end gap-2">
                 <!-- Inline Fetching Loader Pill -->
                 <div
                     wire:loading.flex
@@ -47,8 +47,8 @@
                     </select>
                 </div>
 
-                <!-- Custom Range Inputs -->
-                <div class="flex items-center gap-2">
+                <!-- Custom Range Inputs (Only shown when Custom Range is selected) -->
+                <div x-show="$wire.dateFilter === 'custom'" x-cloak x-transition class="flex items-center gap-2">
                     <input
                         type="date"
                         wire:model.live="startDate"
@@ -401,12 +401,109 @@
         @endif
     </div>
 
-    <!-- Daily Sales, Profit & Collections Summary Table -->
+    <!-- Reporting Sections with Tabs Navigation -->
     <div
-        wire:loading.class="opacity-60 transition-opacity duration-150"
-        wire:target="dateFilter, startDate, endDate, dailySearch, dailyPerPage, sortByDaily"
-        class="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
+        x-data="{
+            activeTab: (typeof localStorage !== 'undefined' && localStorage.getItem('sales_report_active_tab')) || 'invoices',
+            setTab(tab) {
+                this.activeTab = tab;
+                try {
+                    localStorage.setItem('sales_report_active_tab', tab);
+                } catch(e) {}
+                this.$nextTick(() => {
+                    window.dispatchEvent(new Event('resize'));
+                    setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+                    setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
+                });
+            }
+        }"
+        class="space-y-4 pt-1"
     >
+        <!-- Navigation Tab Bar -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-2">
+            <div class="flex items-center gap-1.5 p-1 bg-muted/70 dark:bg-muted/30 rounded-xl border border-border/80 overflow-x-auto max-w-full">
+                <!-- Tab: Completed Invoices -->
+                <button
+                    type="button"
+                    @click="setTab('invoices')"
+                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer"
+                    :class="activeTab === 'invoices' ? 'bg-card text-foreground shadow-xs border border-border/80 ring-1 ring-border/40 font-bold' : 'text-muted-foreground hover:text-foreground hover:bg-card/40'"
+                >
+                    <x-heroicon-o-receipt-percent class="w-4 h-4 text-primary" />
+                    <span>{{ __('Completed Invoices') }}</span>
+                    <span class="px-1.5 py-0.5 rounded-full text-[11px] font-mono" :class="activeTab === 'invoices' ? 'bg-primary/10 text-primary font-bold' : 'bg-muted text-muted-foreground'">
+                        {{ $sales->total() }}
+                    </span>
+                </button>
+
+                <!-- Tab: Sales by Brand -->
+                <button
+                    type="button"
+                    @click="setTab('brands')"
+                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer"
+                    :class="activeTab === 'brands' ? 'bg-card text-foreground shadow-xs border border-border/80 ring-1 ring-border/40 font-bold' : 'text-muted-foreground hover:text-foreground hover:bg-card/40'"
+                >
+                    <x-heroicon-o-tag class="w-4 h-4 text-primary" />
+                    <span>{{ __('Sales by Brand') }}</span>
+                    <span class="px-1.5 py-0.5 rounded-full text-[11px] font-mono" :class="activeTab === 'brands' ? 'bg-primary/10 text-primary font-bold' : 'bg-muted text-muted-foreground'">
+                        {{ $brandBreakdown->total() }}
+                    </span>
+                </button>
+
+                <!-- Tab: Sales by Item -->
+                <button
+                    type="button"
+                    @click="setTab('items')"
+                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer"
+                    :class="activeTab === 'items' ? 'bg-card text-foreground shadow-xs border border-border/80 ring-1 ring-border/40 font-bold' : 'text-muted-foreground hover:text-foreground hover:bg-card/40'"
+                >
+                    <x-heroicon-o-cube class="w-4 h-4 text-primary" />
+                    <span>{{ __('Sales by Item') }}</span>
+                    <span class="px-1.5 py-0.5 rounded-full text-[11px] font-mono" :class="activeTab === 'items' ? 'bg-primary/10 text-primary font-bold' : 'bg-muted text-muted-foreground'">
+                        {{ $itemBreakdown->total() }}
+                    </span>
+                </button>
+
+                <!-- Tab: Daily Breakdown -->
+                <button
+                    type="button"
+                    @click="setTab('daily')"
+                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer"
+                    :class="activeTab === 'daily' ? 'bg-card text-foreground shadow-xs border border-border/80 ring-1 ring-border/40 font-bold' : 'text-muted-foreground hover:text-foreground hover:bg-card/40'"
+                >
+                    <x-heroicon-o-calendar-days class="w-4 h-4 text-primary" />
+                    <span>{{ __('Daily Summary') }}</span>
+                    <span class="px-1.5 py-0.5 rounded-full text-[11px] font-mono" :class="activeTab === 'daily' ? 'bg-primary/10 text-primary font-bold' : 'bg-muted text-muted-foreground'">
+                        {{ $dailyBreakdown->total() }}
+                    </span>
+                </button>
+
+                <!-- Tab: All Views -->
+                <button
+                    type="button"
+                    @click="setTab('all')"
+                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer"
+                    :class="activeTab === 'all' ? 'bg-card text-foreground shadow-xs border border-border/80 ring-1 ring-border/40 font-bold' : 'text-muted-foreground hover:text-foreground hover:bg-card/40'"
+                >
+                    <x-heroicon-o-squares-2x2 class="w-4 h-4 text-primary" />
+                    <span>{{ __('All Views') }}</span>
+                </button>
+            </div>
+
+            <div class="text-xs text-muted-foreground hidden sm:flex items-center gap-2">
+                <span>{{ __('Active Tab:') }}</span>
+                <span class="font-semibold text-foreground" x-text="activeTab === 'all' ? '{{ __('All Views (Continuous)') }}' : (activeTab === 'brands' ? '{{ __('Sales by Brand') }}' : (activeTab === 'items' ? '{{ __('Sales by Item') }}' : (activeTab === 'daily' ? '{{ __('Daily Sales & Collections') }}' : '{{ __('Completed Invoices') }}')))"></span>
+            </div>
+        </div>
+
+        <!-- Daily Sales, Profit & Collections Summary Table -->
+        <div
+            x-show="activeTab === 'daily' || activeTab === 'all'"
+            x-cloak
+            wire:loading.class="opacity-60 transition-opacity duration-150"
+            wire:target="dateFilter, startDate, endDate, dailySearch, dailyPerPage, sortByDaily"
+            class="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
+        >
         <div class="p-5 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
@@ -696,6 +793,8 @@
 
     <!-- Sales by Brand Container -->
     <div
+        x-show="activeTab === 'brands' || activeTab === 'all'"
+        x-cloak
         wire:loading.class="opacity-60 transition-opacity duration-150"
         wire:target="dateFilter, startDate, endDate, brandSearch, brandPerPage, sortByBrand"
         class="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
@@ -1124,6 +1223,8 @@
 
     <!-- Sales by Item Container -->
     <div
+        x-show="activeTab === 'items' || activeTab === 'all'"
+        x-cloak
         wire:loading.class="opacity-60 transition-opacity duration-150"
         wire:target="dateFilter, startDate, endDate, itemSearch, itemBrandFilter, itemTypeFilter, itemPerPage, sortByItem"
         class="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
@@ -1695,6 +1796,8 @@
 
     <!-- Completed Invoices in Period (Transparent, Reconciled Math: Cash Received - Items Net Cost = Profit) -->
     <div
+        x-show="activeTab === 'invoices' || activeTab === 'all'"
+        x-cloak
         wire:loading.class="opacity-60 transition-opacity duration-150"
         wire:target="dateFilter, startDate, endDate, invoiceSearch, invoicePaymentMethod, invoicePerPage, sortByInvoice"
         class="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
@@ -2279,5 +2382,6 @@
                 </div>
             @endif
         </div>
+    </div>
     </div>
 </div>

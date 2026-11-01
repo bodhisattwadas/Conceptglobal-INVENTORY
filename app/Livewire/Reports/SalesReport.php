@@ -4,6 +4,7 @@ namespace App\Livewire\Reports;
 
 use App\Enums\DatePeriod;
 use App\Enums\PaymentMethod;
+use App\Models\Sale;
 use App\Services\SalesReportService;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -17,7 +18,7 @@ class SalesReport extends Component
 {
     use WithPagination;
 
-    public string $dateFilter = 'this_month';
+    public string $dateFilter = 'all_time';
 
     public ?string $startDate = null;
 
@@ -208,7 +209,10 @@ class SalesReport extends Component
             DatePeriod::THIS_MONTH->value => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
             DatePeriod::LAST_MONTH->value => [$now->copy()->subMonth()->startOfMonth(), $now->copy()->subMonth()->endOfMonth()],
             'this_year' => [$now->copy()->startOfYear(), $now->copy()->endOfYear()],
-            DatePeriod::ALL_TIME->value => [Carbon::parse('2020-01-01'), $now->copy()->endOfDay()],
+            DatePeriod::ALL_TIME->value => [
+                Carbon::parse(Sale::min('sale_date') ?? now()->startOfMonth())->startOfDay(),
+                $now->copy()->endOfDay(),
+            ],
             default => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
         };
 
