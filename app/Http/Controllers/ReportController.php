@@ -19,7 +19,7 @@ class ReportController extends Controller
     }
 
     /**
-     * Generate and download / stream the Sales PDF report.
+     * Generate and download / stream the Sales PDF report (full or section-specific).
      */
     public function salesPdf(Request $request, SalesReportService $service)
     {
@@ -37,10 +37,19 @@ class ReportController extends Controller
             $endDate = $temp->copy()->endOfDay();
         }
 
+        $section = $request->query('section', 'full');
         $data = $service->getReportData($startDate, $endDate);
 
+        $prefix = match ($section) {
+            'invoices' => 'sales-invoices',
+            'brands' => 'sales-brands-and-items',
+            'daily' => 'sales-daily-breakdown',
+            default => 'sales-report',
+        };
+
         $filename = sprintf(
-            'sales-report-%s-to-%s.pdf',
+            '%s-%s-to-%s.pdf',
+            $prefix,
             $startDate->format('Y-m-d'),
             $endDate->format('Y-m-d')
         );
@@ -53,6 +62,7 @@ class ReportController extends Controller
             'sales' => $data['sales'],
             'startDate' => $startDate,
             'endDate' => $endDate,
+            'section' => $section,
         ])->setPaper('a4', 'portrait');
 
         if ($request->query('stream') === '1') {
@@ -60,5 +70,29 @@ class ReportController extends Controller
         }
 
         return $pdf->download($filename);
+    }
+
+    /**
+     * Generate and download the Sales XLS / XLSX workbook (full or section-specific).
+     */
+    public function salesXls(Request $request, SalesReportService $service)
+    {
+        $startDate = $request->query('start_date')
+            ? Carbon::parse($request->query('start_date'))->startOfDay()
+            : Carbon::now()->startOfMonth();
+
+        $endDate = $request->query('end_date')
+            ? Carbon::parse($request->query('end_date'))->endOfDay()
+            : Carbon::now()->endOfDay();
+
+        if ($startDate->greaterThan($endDate)) {
+            $temp = $startDate;
+            $startDate = $endDate->copy()->startOfDay();
+            $endDate = $temp->copy()->endOfDay();
+        }
+
+        $section = $request->query('section', 'full');
+
+        return $service->exportXls($startDate, $endDate, $section);
     }
 }

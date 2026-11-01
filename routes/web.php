@@ -159,6 +159,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('reports')->name('reports.')->middleware('role:admin')->group(function () {
         Route::get('sales', [ReportController::class, 'sales'])->name('sales');
         Route::get('sales/pdf', [ReportController::class, 'salesPdf'])->name('sales.pdf');
+        Route::get('sales/xls', [ReportController::class, 'salesXls'])->name('sales.xls');
     });
 
     // =========================================================================

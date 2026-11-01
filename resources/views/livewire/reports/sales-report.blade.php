@@ -57,6 +57,15 @@
                 </button>
 
                 <a
+                    href="{{ route('reports.sales.xls', ['start_date' => $startDate, 'end_date' => $endDate, 'section' => 'full']) }}"
+                    class="print:hidden inline-flex items-center gap-1.5 rounded-md border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 h-9 px-3 text-sm font-medium shadow-sm transition-colors"
+                    title="{{ __('Download Complete Multi-Sheet Excel Workbook (XLSX)') }}"
+                >
+                    <x-heroicon-o-table-cells class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>{{ __('XLS') }}</span>
+                </a>
+
+                <a
                     href="{{ route('reports.sales.pdf', ['start_date' => $startDate, 'end_date' => $endDate]) }}"
                     class="print:hidden inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-3 text-sm font-medium shadow-sm transition-colors"
                 >
@@ -357,7 +366,7 @@
 
     <!-- Daily Sales, Profit & Collections Summary Table -->
     <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-        <div class="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="p-5 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
                     <x-heroicon-o-table-cells class="w-5 h-5 text-primary" />
@@ -367,8 +376,55 @@
                     {{ __('Day-by-day revenue, profit & margin, invoice counts, and payment mode breakdowns.') }}
                 </p>
             </div>
-            <div class="text-xs text-muted-foreground">
-                {{ $dailyBreakdown->count() }} {{ __('active sales days') }}
+            <!-- Server-Side Controls & Exports -->
+            <div class="flex flex-wrap items-center gap-2.5">
+                <!-- Search -->
+                <div class="relative min-w-[180px] sm:min-w-[210px]">
+                    <x-heroicon-o-magnifying-glass class="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                        type="text"
+                        wire:model.live.debounce.300ms="dailySearch"
+                        placeholder="{{ __('Filter dates...') }}"
+                        class="w-full pl-9 pr-7 py-1.5 text-xs rounded-lg border border-border bg-background focus:ring-1 focus:ring-primary focus:outline-none placeholder:text-muted-foreground"
+                    />
+                    @if($dailySearch)
+                        <button type="button" wire:click="$set('dailySearch', '')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            <x-heroicon-s-x-mark class="w-3.5 h-3.5" />
+                        </button>
+                    @endif
+                </div>
+
+                <!-- Per Page -->
+                <select
+                    wire:model.live="dailyPerPage"
+                    class="text-xs py-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
+                >
+                    <option value="10">10 / page</option>
+                    <option value="25">25 / page</option>
+                    <option value="50">50 / page</option>
+                    <option value="all">{{ __('All') }}</option>
+                </select>
+
+                <!-- Export XLS -->
+                <a
+                    href="{{ route('reports.sales.xls', ['start_date' => $startDate, 'end_date' => $endDate, 'section' => 'daily']) }}"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 transition-colors"
+                    title="{{ __('Download Daily Breakdown Excel Spreadsheet') }}"
+                >
+                    <x-heroicon-o-table-cells class="w-3.5 h-3.5" />
+                    <span>{{ __('XLS') }}</span>
+                </a>
+
+                <!-- Export PDF -->
+                <a
+                    href="{{ route('reports.sales.pdf', ['start_date' => $startDate, 'end_date' => $endDate, 'section' => 'daily']) }}"
+                    target="_blank"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/70 border border-red-200 dark:border-red-800 transition-colors"
+                    title="{{ __('Download Daily Breakdown PDF') }}"
+                >
+                    <x-heroicon-o-document-arrow-down class="w-3.5 h-3.5" />
+                    <span>{{ __('PDF') }}</span>
+                </a>
             </div>
         </div>
 
@@ -376,16 +432,106 @@
             <table class="w-full text-left text-sm text-foreground">
                 <thead class="bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
                     <tr>
-                        <th class="px-4 py-3">{{ __('Date') }}</th>
-                        <th class="px-4 py-3 text-center">{{ __('Orders') }}</th>
-                        <th class="px-4 py-3 text-right">{{ __('Gross Sales') }}</th>
-                        <th class="px-4 py-3 text-right">{{ __('Discounts') }}</th>
-                        <th class="px-4 py-3 text-right font-bold text-foreground">{{ __('Total Sales') }}</th>
-                        <th class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400 font-bold">{{ __('Gross Profit') }}</th>
-                        <th class="px-4 py-3 text-right text-blue-600 dark:text-blue-400">{{ __('UPI') }}</th>
-                        <th class="px-4 py-3 text-right text-purple-600 dark:text-purple-400">{{ __('Card') }}</th>
-                        <th class="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">{{ __('Cash') }}</th>
-                        <th class="px-4 py-3 text-right text-amber-600 dark:text-amber-400">{{ __('Transfer') }}</th>
+                        <th class="px-4 py-3 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByDaily('date')">
+                            <div class="flex items-center gap-1">
+                                <span>{{ __('Date') }}</span>
+                                @if($dailySortField === 'date')
+                                    <span class="text-primary">{{ $dailySortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByDaily('orders_count')">
+                            <div class="flex items-center justify-center gap-1">
+                                <span>{{ __('Orders') }}</span>
+                                @if($dailySortField === 'orders_count')
+                                    <span class="text-primary">{{ $dailySortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByDaily('gross_sales')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Gross Sales') }}</span>
+                                @if($dailySortField === 'gross_sales')
+                                    <span class="text-primary">{{ $dailySortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByDaily('total_discounts')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Discounts') }}</span>
+                                @if($dailySortField === 'total_discounts')
+                                    <span class="text-primary">{{ $dailySortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right font-bold text-foreground cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByDaily('net_sales')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Total Sales') }}</span>
+                                @if($dailySortField === 'net_sales')
+                                    <span class="text-primary">{{ $dailySortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400 font-bold cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByDaily('gross_profit')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Gross Profit') }}</span>
+                                @if($dailySortField === 'gross_profit')
+                                    <span class="text-primary">{{ $dailySortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right text-blue-600 dark:text-blue-400 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByDaily('upi')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('UPI') }}</span>
+                                @if($dailySortField === 'upi')
+                                    <span class="text-primary">{{ $dailySortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right text-purple-600 dark:text-purple-400 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByDaily('card')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Card') }}</span>
+                                @if($dailySortField === 'card')
+                                    <span class="text-primary">{{ $dailySortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByDaily('cash')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Cash') }}</span>
+                                @if($dailySortField === 'cash')
+                                    <span class="text-primary">{{ $dailySortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right text-amber-600 dark:text-amber-400 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByDaily('transfer')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Transfer') }}</span>
+                                @if($dailySortField === 'transfer')
+                                    <span class="text-primary">{{ $dailySortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-border">
@@ -430,16 +576,16 @@
                             <td colspan="10" class="px-4 py-8 text-center text-muted-foreground">
                                 <div class="flex flex-col items-center justify-center gap-2">
                                     <x-heroicon-o-information-circle class="w-8 h-8 text-muted-foreground" />
-                                    <span>{{ __('No completed sales found in this date range.') }}</span>
+                                    <span>{{ __('No completed sales found matching filters.') }}</span>
                                 </div>
                             </td>
                         </tr>
                     @endforelse
                 </tbody>
-                @if($dailyBreakdown->isNotEmpty())
+                @if($allDaily->isNotEmpty())
                     <tfoot class="bg-muted/80 font-bold border-t-2 border-border text-foreground">
                         <tr>
-                            <td class="px-4 py-3 uppercase text-xs">{{ __('Total') }}</td>
+                            <td class="px-4 py-3 uppercase text-xs">{{ __('Period Total') }}</td>
                             <td class="px-4 py-3 text-center">{{ $kpis['total_orders'] }}</td>
                             <td class="px-4 py-3 text-right">₹ {{ number_format($kpis['gross_sales'], 2) }}</td>
                             <td class="px-4 py-3 text-right text-amber-600 dark:text-amber-400">₹ {{ number_format($kpis['total_discounts'], 2) }}</td>
@@ -457,11 +603,47 @@
                 @endif
             </table>
         </div>
+
+        <!-- Daily Pagination Footer -->
+        <div class="px-5 py-3 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-muted/20">
+            <div>
+                {{ __('Showing') }} <span class="font-semibold text-foreground">{{ $dailyBreakdown->firstItem() ?? 0 }}</span>
+                {{ __('to') }} <span class="font-semibold text-foreground">{{ $dailyBreakdown->lastItem() ?? 0 }}</span>
+                {{ __('of') }} <span class="font-semibold text-foreground">{{ $dailyBreakdown->total() }}</span> {{ __('days') }}
+                @if($dailySearch)
+                    <span class="text-primary font-medium">({{ __('filtered from') }} {{ $allDaily->count() }})</span>
+                @endif
+            </div>
+
+            @if($dailyBreakdown->hasPages())
+                <div class="flex items-center gap-1">
+                    <button
+                        type="button"
+                        wire:click="previousPage('dailyPage')"
+                        @disabled($dailyBreakdown->onFirstPage())
+                        class="px-2.5 py-1 rounded border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted text-xs font-medium cursor-pointer"
+                    >
+                        {{ __('Previous') }}
+                    </button>
+                    <span class="px-2 font-mono text-xs">
+                        {{ $dailyBreakdown->currentPage() }} / {{ $dailyBreakdown->lastPage() }}
+                    </span>
+                    <button
+                        type="button"
+                        wire:click="nextPage('dailyPage')"
+                        @disabled(!$dailyBreakdown->hasMorePages())
+                        class="px-2.5 py-1 rounded border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted text-xs font-medium cursor-pointer"
+                    >
+                        {{ __('Next') }}
+                    </button>
+                </div>
+            @endif
+        </div>
     </div>
 
     <!-- Sales by Brand & Sales by Item by Brand Section -->
     <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden" x-data="{ expandAllBrands: false }">
-        <div class="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="p-5 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
                     <x-heroicon-o-tag class="w-5 h-5 text-primary" />
@@ -471,20 +653,66 @@
                     {{ __('Revenue, volume, PO net purchase cost, and gross profit margins grouped by brand and item.') }}
                 </p>
             </div>
-            <div class="flex items-center gap-3">
-                <span class="text-xs text-muted-foreground font-medium">
-                    {{ $brandBreakdown->count() }} {{ __('Brands / Categories') }}
-                </span>
-                @if($brandBreakdown->isNotEmpty())
+            <!-- Server-Side Controls & Exports -->
+            <div class="flex flex-wrap items-center gap-2.5">
+                <!-- Search -->
+                <div class="relative min-w-[180px] sm:min-w-[210px]">
+                    <x-heroicon-o-magnifying-glass class="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                        type="text"
+                        wire:model.live.debounce.300ms="brandSearch"
+                        placeholder="{{ __('Search brand or item...') }}"
+                        class="w-full pl-9 pr-7 py-1.5 text-xs rounded-lg border border-border bg-background focus:ring-1 focus:ring-primary focus:outline-none placeholder:text-muted-foreground"
+                    />
+                    @if($brandSearch)
+                        <button type="button" wire:click="$set('brandSearch', '')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            <x-heroicon-s-x-mark class="w-3.5 h-3.5" />
+                        </button>
+                    @endif
+                </div>
+
+                <!-- Per Page -->
+                <select
+                    wire:model.live="brandPerPage"
+                    class="text-xs py-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
+                >
+                    <option value="10">10 / page</option>
+                    <option value="25">25 / page</option>
+                    <option value="50">50 / page</option>
+                    <option value="all">{{ __('All') }}</option>
+                </select>
+
+                @if($allBrands->isNotEmpty())
                     <button
                         type="button"
                         @click="expandAllBrands = !expandAllBrands; $dispatch('toggle-all-brands', { expanded: expandAllBrands })"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer"
                     >
                         <x-heroicon-o-arrows-up-down class="w-3.5 h-3.5 text-muted-foreground" />
-                        <span x-text="expandAllBrands ? '{{ __('Collapse All Items') }}' : '{{ __('Expand All Items') }}'"></span>
+                        <span x-text="expandAllBrands ? '{{ __('Collapse All') }}' : '{{ __('Expand All') }}'"></span>
                     </button>
                 @endif
+
+                <!-- Export XLS -->
+                <a
+                    href="{{ route('reports.sales.xls', ['start_date' => $startDate, 'end_date' => $endDate, 'section' => 'brands']) }}"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 transition-colors"
+                    title="{{ __('Download Brands & Items Excel Spreadsheet') }}"
+                >
+                    <x-heroicon-o-table-cells class="w-3.5 h-3.5" />
+                    <span>{{ __('XLS') }}</span>
+                </a>
+
+                <!-- Export PDF -->
+                <a
+                    href="{{ route('reports.sales.pdf', ['start_date' => $startDate, 'end_date' => $endDate, 'section' => 'brands']) }}"
+                    target="_blank"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/70 border border-red-200 dark:border-red-800 transition-colors"
+                    title="{{ __('Download Brands & Items PDF') }}"
+                >
+                    <x-heroicon-o-document-arrow-down class="w-3.5 h-3.5" />
+                    <span>{{ __('PDF') }}</span>
+                </a>
             </div>
         </div>
 
@@ -492,15 +720,87 @@
             <table class="w-full text-left text-sm text-foreground">
                 <thead class="bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
                     <tr>
-                        <th class="px-4 py-3">{{ __('Brand / Category') }}</th>
+                        <th class="px-4 py-3 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByBrand('brand_name')">
+                            <div class="flex items-center gap-1">
+                                <span>{{ __('Brand / Category') }}</span>
+                                @if($brandSortField === 'brand_name')
+                                    <span class="text-primary">{{ $brandSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
                         <th class="px-4 py-3 text-center">{{ __('Items') }}</th>
-                        <th class="px-4 py-3 text-center">{{ __('Units Sold') }}</th>
-                        <th class="px-4 py-3 text-right">{{ __('Gross Sales') }}</th>
-                        <th class="px-4 py-3 text-right">{{ __('Discounts') }}</th>
-                        <th class="px-4 py-3 text-right font-bold text-foreground">{{ __('Net Sales') }}</th>
-                        <th class="px-4 py-3 text-center">{{ __('Share') }}</th>
-                        <th class="px-4 py-3 text-right text-muted-foreground">{{ __('PO Net Cost') }}</th>
-                        <th class="px-4 py-3 text-right font-bold">{{ __('Gross Profit') }}</th>
+                        <th class="px-4 py-3 text-center cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByBrand('quantity')">
+                            <div class="flex items-center justify-center gap-1">
+                                <span>{{ __('Units Sold') }}</span>
+                                @if($brandSortField === 'quantity')
+                                    <span class="text-primary">{{ $brandSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByBrand('gross_sales')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Gross Sales') }}</span>
+                                @if($brandSortField === 'gross_sales')
+                                    <span class="text-primary">{{ $brandSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByBrand('total_discounts')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Discounts') }}</span>
+                                @if($brandSortField === 'total_discounts')
+                                    <span class="text-primary">{{ $brandSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right font-bold text-foreground cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByBrand('net_sales')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Net Sales') }}</span>
+                                @if($brandSortField === 'net_sales')
+                                    <span class="text-primary">{{ $brandSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByBrand('percentage')">
+                            <div class="flex items-center justify-center gap-1">
+                                <span>{{ __('Share') }}</span>
+                                @if($brandSortField === 'percentage')
+                                    <span class="text-primary">{{ $brandSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByBrand('cogs')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('PO Net Cost') }}</span>
+                                @if($brandSortField === 'cogs')
+                                    <span class="text-primary">{{ $brandSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right font-bold cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByBrand('gross_profit')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Gross Profit') }}</span>
+                                @if($brandSortField === 'gross_profit')
+                                    <span class="text-primary">{{ $brandSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
                         <th class="px-4 py-3 text-center">{{ __('Items Action') }}</th>
                     </tr>
                 </thead>
@@ -692,11 +992,47 @@
                 @endforelse
             </table>
         </div>
+
+        <!-- Brands Pagination Footer -->
+        <div class="px-5 py-3 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-muted/20">
+            <div>
+                {{ __('Showing') }} <span class="font-semibold text-foreground">{{ $brandBreakdown->firstItem() ?? 0 }}</span>
+                {{ __('to') }} <span class="font-semibold text-foreground">{{ $brandBreakdown->lastItem() ?? 0 }}</span>
+                {{ __('of') }} <span class="font-semibold text-foreground">{{ $brandBreakdown->total() }}</span> {{ __('brands') }}
+                @if($brandSearch)
+                    <span class="text-primary font-medium">({{ __('filtered from') }} {{ $allBrands->count() }})</span>
+                @endif
+            </div>
+
+            @if($brandBreakdown->hasPages())
+                <div class="flex items-center gap-1">
+                    <button
+                        type="button"
+                        wire:click="previousPage('brandsPage')"
+                        @disabled($brandBreakdown->onFirstPage())
+                        class="px-2.5 py-1 rounded border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted text-xs font-medium cursor-pointer"
+                    >
+                        {{ __('Previous') }}
+                    </button>
+                    <span class="px-2 font-mono text-xs">
+                        {{ $brandBreakdown->currentPage() }} / {{ $brandBreakdown->lastPage() }}
+                    </span>
+                    <button
+                        type="button"
+                        wire:click="nextPage('brandsPage')"
+                        @disabled(!$brandBreakdown->hasMorePages())
+                        class="px-2.5 py-1 rounded border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted text-xs font-medium cursor-pointer"
+                    >
+                        {{ __('Next') }}
+                    </button>
+                </div>
+            @endif
+        </div>
     </div>
 
     <!-- Completed Invoices in Period (Transparent, Reconciled Math: Cash Received - Items Net Cost = Profit) -->
     <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-        <div class="p-5 border-b border-border flex items-center justify-between">
+        <div class="p-5 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
                     <x-heroicon-o-receipt-percent class="w-5 h-5 text-primary" />
@@ -706,25 +1042,166 @@
                     {{ __('Itemized transaction audit: Gross, Discount, Cash Received, Items Net Purchase Cost (MRP - vendor discount), and Profit.') }}
                 </p>
             </div>
-            <span class="text-xs font-medium text-muted-foreground">
-                {{ count($sales) }} {{ __('Invoices') }}
-            </span>
+            <!-- Server-Side Controls & Exports -->
+            <div class="flex flex-wrap items-center gap-2.5">
+                <!-- Search -->
+                <div class="relative min-w-[200px] sm:min-w-[240px]">
+                    <x-heroicon-o-magnifying-glass class="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                        type="text"
+                        wire:model.live.debounce.300ms="invoiceSearch"
+                        placeholder="{{ __('Search invoice #, customer, item...') }}"
+                        class="w-full pl-9 pr-7 py-1.5 text-xs rounded-lg border border-border bg-background focus:ring-1 focus:ring-primary focus:outline-none placeholder:text-muted-foreground"
+                    />
+                    @if($invoiceSearch)
+                        <button type="button" wire:click="$set('invoiceSearch', '')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            <x-heroicon-s-x-mark class="w-3.5 h-3.5" />
+                        </button>
+                    @endif
+                </div>
+
+                <!-- Payment Method Filter -->
+                <select
+                    wire:model.live="invoicePaymentMethod"
+                    class="text-xs py-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
+                >
+                    <option value="all">{{ __('All Modes') }}</option>
+                    <option value="cash">{{ __('Cash') }}</option>
+                    <option value="upi">{{ __('UPI') }}</option>
+                    <option value="card">{{ __('Card') }}</option>
+                    <option value="transfer">{{ __('Transfer') }}</option>
+                </select>
+
+                <!-- Per Page -->
+                <select
+                    wire:model.live="invoicePerPage"
+                    class="text-xs py-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
+                >
+                    <option value="10">10 / page</option>
+                    <option value="25">25 / page</option>
+                    <option value="50">50 / page</option>
+                    <option value="100">100 / page</option>
+                    <option value="all">{{ __('All') }}</option>
+                </select>
+
+                <!-- Export XLS -->
+                <a
+                    href="{{ route('reports.sales.xls', ['start_date' => $startDate, 'end_date' => $endDate, 'section' => 'invoices']) }}"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 transition-colors"
+                    title="{{ __('Download Invoices Excel Spreadsheet') }}"
+                >
+                    <x-heroicon-o-table-cells class="w-3.5 h-3.5" />
+                    <span>{{ __('XLS') }}</span>
+                </a>
+
+                <!-- Export PDF -->
+                <a
+                    href="{{ route('reports.sales.pdf', ['start_date' => $startDate, 'end_date' => $endDate, 'section' => 'invoices']) }}"
+                    target="_blank"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/70 border border-red-200 dark:border-red-800 transition-colors"
+                    title="{{ __('Download Invoices PDF') }}"
+                >
+                    <x-heroicon-o-document-arrow-down class="w-3.5 h-3.5" />
+                    <span>{{ __('PDF') }}</span>
+                </a>
+            </div>
         </div>
 
         <div class="overflow-x-auto max-h-[36rem]">
             <table class="w-full text-left text-sm text-foreground">
                 <thead class="bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground sticky top-0 border-b border-border z-10">
                     <tr>
-                        <th class="px-4 py-3">{{ __('Invoice #') }}</th>
-                        <th class="px-4 py-3">{{ __('Date') }}</th>
-                        <th class="px-4 py-3">{{ __('Customer') }}</th>
+                        <th class="px-4 py-3 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByInvoice('invoice_number')">
+                            <div class="flex items-center gap-1">
+                                <span>{{ __('Invoice #') }}</span>
+                                @if($invoiceSortField === 'invoice_number')
+                                    <span class="text-primary">{{ $invoiceSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByInvoice('sale_date')">
+                            <div class="flex items-center gap-1">
+                                <span>{{ __('Date') }}</span>
+                                @if($invoiceSortField === 'sale_date')
+                                    <span class="text-primary">{{ $invoiceSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByInvoice('customer')">
+                            <div class="flex items-center gap-1">
+                                <span>{{ __('Customer') }}</span>
+                                @if($invoiceSortField === 'customer')
+                                    <span class="text-primary">{{ $invoiceSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
                         <th class="px-4 py-3">{{ __('Items Type') }}</th>
-                        <th class="px-4 py-3">{{ __('Payment Mode') }}</th>
-                        <th class="px-4 py-3 text-right">{{ __('Gross') }}</th>
-                        <th class="px-4 py-3 text-right">{{ __('Discount') }}</th>
-                        <th class="px-4 py-3 text-right font-bold text-foreground" title="Total amount collected from customer">{{ __('Cash Received') }}</th>
-                        <th class="px-4 py-3 text-right text-muted-foreground" title="Sum of Net Purchase Prices (MRP - Vendor Discount) of items in invoice">{{ __('Items Net Cost') }}</th>
-                        <th class="px-4 py-3 text-right font-bold" title="Cash Received minus Items Net Cost">{{ __('Gross Profit') }}</th>
+                        <th class="px-4 py-3 cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByInvoice('payment_method')">
+                            <div class="flex items-center gap-1">
+                                <span>{{ __('Payment Mode') }}</span>
+                                @if($invoiceSortField === 'payment_method')
+                                    <span class="text-primary">{{ $invoiceSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByInvoice('subtotal')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Gross') }}</span>
+                                @if($invoiceSortField === 'subtotal')
+                                    <span class="text-primary">{{ $invoiceSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByInvoice('discount')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Discount') }}</span>
+                                @if($invoiceSortField === 'discount')
+                                    <span class="text-primary">{{ $invoiceSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right font-bold text-foreground cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByInvoice('total')" title="Total amount collected from customer">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Cash Received') }}</span>
+                                @if($invoiceSortField === 'total')
+                                    <span class="text-primary">{{ $invoiceSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByInvoice('cogs')" title="Sum of Net Purchase Prices (MRP - Vendor Discount) of items in invoice">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Items Net Cost') }}</span>
+                                @if($invoiceSortField === 'cogs')
+                                    <span class="text-primary">{{ $invoiceSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right font-bold cursor-pointer select-none hover:text-foreground transition-colors" wire:click="sortByInvoice('gross_profit')" title="Cash Received minus Items Net Cost">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Gross Profit') }}</span>
+                                @if($invoiceSortField === 'gross_profit')
+                                    <span class="text-primary">{{ $invoiceSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                                @else
+                                    <span class="opacity-30 text-[10px]">▲▼</span>
+                                @endif
+                            </div>
+                        </th>
                         <th class="px-4 py-3 text-center">{{ __('Audit / Action') }}</th>
                     </tr>
                 </thead>
@@ -1086,6 +1563,42 @@
                     </tbody>
                 @endforelse
             </table>
+        </div>
+
+        <!-- Invoices Pagination Footer -->
+        <div class="px-5 py-3 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-muted/20">
+            <div>
+                {{ __('Showing') }} <span class="font-semibold text-foreground">{{ $sales->firstItem() ?? 0 }}</span>
+                {{ __('to') }} <span class="font-semibold text-foreground">{{ $sales->lastItem() ?? 0 }}</span>
+                {{ __('of') }} <span class="font-semibold text-foreground">{{ $sales->total() }}</span> {{ __('invoices') }}
+                @if($invoiceSearch || $invoicePaymentMethod !== 'all')
+                    <span class="text-primary font-medium">({{ __('filtered from') }} {{ count($allSales) }})</span>
+                @endif
+            </div>
+
+            @if($sales->hasPages())
+                <div class="flex items-center gap-1">
+                    <button
+                        type="button"
+                        wire:click="previousPage('invoicesPage')"
+                        @disabled($sales->onFirstPage())
+                        class="px-2.5 py-1 rounded border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted text-xs font-medium cursor-pointer"
+                    >
+                        {{ __('Previous') }}
+                    </button>
+                    <span class="px-2 font-mono text-xs">
+                        {{ $sales->currentPage() }} / {{ $sales->lastPage() }}
+                    </span>
+                    <button
+                        type="button"
+                        wire:click="nextPage('invoicesPage')"
+                        @disabled(!$sales->hasMorePages())
+                        class="px-2.5 py-1 rounded border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted text-xs font-medium cursor-pointer"
+                    >
+                        {{ __('Next') }}
+                    </button>
+                </div>
+            @endif
         </div>
     </div>
 </div>

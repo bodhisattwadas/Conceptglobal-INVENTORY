@@ -489,4 +489,119 @@ class AdminSalesReportTest extends TestCase
         $streamResponse->assertOk();
         $this->assertStringContainsString('application/pdf', $streamResponse->headers->get('Content-Type'));
     }
+
+    public function test_admin_can_download_sales_xls_report_for_all_sections(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->createSale([
+            'invoice_number' => 'INV-XLS-001',
+            'created_by' => $admin->id,
+            'sale_date' => Carbon::now(),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 1800.00,
+            'total' => 1800.00,
+            'payment_method' => PaymentMethod::CASH,
+        ]);
+
+        // Full XLSX Workbook
+        $fullXls = $this->actingAs($admin)->get(route('reports.sales.xls', ['section' => 'full']));
+        $fullXls->assertOk();
+        $this->assertStringContainsString('spreadsheetml.sheet', $fullXls->headers->get('Content-Type'));
+
+        // Invoices XLSX
+        $invXls = $this->actingAs($admin)->get(route('reports.sales.xls', ['section' => 'invoices']));
+        $invXls->assertOk();
+        $this->assertStringContainsString('spreadsheetml.sheet', $invXls->headers->get('Content-Type'));
+
+        // Brands XLSX
+        $brandXls = $this->actingAs($admin)->get(route('reports.sales.xls', ['section' => 'brands']));
+        $brandXls->assertOk();
+        $this->assertStringContainsString('spreadsheetml.sheet', $brandXls->headers->get('Content-Type'));
+
+        // Daily XLSX
+        $dailyXls = $this->actingAs($admin)->get(route('reports.sales.xls', ['section' => 'daily']));
+        $dailyXls->assertOk();
+        $this->assertStringContainsString('spreadsheetml.sheet', $dailyXls->headers->get('Content-Type'));
+    }
+
+    public function test_admin_can_download_section_specific_pdf_reports(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->createSale([
+            'invoice_number' => 'INV-SECT-PDF-001',
+            'created_by' => $admin->id,
+            'sale_date' => Carbon::now(),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 950.00,
+            'total' => 950.00,
+            'payment_method' => PaymentMethod::UPI,
+        ]);
+
+        foreach (['invoices', 'brands', 'daily'] as $section) {
+            $resp = $this->actingAs($admin)->get(route('reports.sales.pdf', ['section' => $section]));
+            $resp->assertOk();
+            $this->assertStringContainsString('application/pdf', $resp->headers->get('Content-Type'));
+        }
+    }
+
+    public function test_invoices_datatable_server_side_search_sort_and_pagination(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        // Create 3 sales
+        $s1 = $this->createSale([
+            'invoice_number' => 'INV-AAA-100',
+            'created_by' => $admin->id,
+            'sale_date' => Carbon::now()->subMinutes(30),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 500.00,
+            'total' => 500.00,
+            'payment_method' => PaymentMethod::CASH,
+        ]);
+
+        $s2 = $this->createSale([
+            'invoice_number' => 'INV-BBB-200',
+            'created_by' => $admin->id,
+            'sale_date' => Carbon::now()->subMinutes(15),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 1200.00,
+            'total' => 1200.00,
+            'payment_method' => PaymentMethod::UPI,
+        ]);
+
+        $s3 = $this->createSale([
+            'invoice_number' => 'INV-CCC-300',
+            'created_by' => $admin->id,
+            'sale_date' => Carbon::now(),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 300.00,
+            'total' => 300.00,
+            'payment_method' => PaymentMethod::CARD,
+        ]);
+
+        // Search by Invoice #
+        Livewire::actingAs($admin)
+            ->test(SalesReport::class)
+            ->set('invoiceSearch', 'BBB')
+            ->assertSee('INV-BBB-200')
+            ->assertDontSee('INV-AAA-100')
+            ->assertDontSee('INV-CCC-300');
+
+        // Filter by Payment Method
+        Livewire::actingAs($admin)
+            ->test(SalesReport::class)
+            ->set('invoicePaymentMethod', 'cash')
+            ->assertSee('INV-AAA-100')
+            ->assertDontSee('INV-BBB-200')
+            ->assertDontSee('INV-CCC-300');
+
+        // Sorting by gross / subtotal ascending: 300 (CCC), 500 (AAA), 1200 (BBB)
+        $component = Livewire::actingAs($admin)
+            ->test(SalesReport::class)
+            ->call('sortByInvoice', 'subtotal');
+
+        $this->assertEquals('subtotal', $component->get('invoiceSortField'));
+    }
 }

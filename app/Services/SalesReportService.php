@@ -9,6 +9,9 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SalesReportService
@@ -609,5 +612,474 @@ class SalesReportService
 
             fclose($handle);
         }, 200, $headers);
+    }
+
+    /**
+     * Export full or section-specific report data to real Excel XLSX workbook.
+     */
+    public function exportXls(Carbon $startDate, Carbon $endDate, string $section = 'full'): BinaryFileResponse
+    {
+        $data = $this->getReportData($startDate, $endDate);
+
+        $writer = new Writer;
+        $tempPath = tempnam(sys_get_temp_dir(), 'sales_xls_').'.xlsx';
+        $writer->openToFile($tempPath);
+
+        switch ($section) {
+            case 'invoices':
+                $filename = sprintf('sales-invoices-%s-to-%s.xlsx', $startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
+                $this->writeInvoicesSheet($writer, $data['sales'], false);
+                $this->writeInvoiceItemsSheet($writer, $data['sales'], true);
+                break;
+
+            case 'brands':
+                $filename = sprintf('sales-brands-and-items-%s-to-%s.xlsx', $startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
+                $this->writeBrandsSheet($writer, $data['brand_breakdown'], false);
+                $this->writeBrandItemsSheet($writer, $data['brand_breakdown'], true);
+                break;
+
+            case 'daily':
+                $filename = sprintf('sales-daily-breakdown-%s-to-%s.xlsx', $startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
+                $this->writeDailySheet($writer, $data['daily_breakdown'], false);
+                break;
+
+            case 'full':
+            default:
+                $filename = sprintf('sales-report-%s-to-%s.xlsx', $startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
+                $this->writeKpisSheet($writer, $data['kpis'], $data['payment_methods'], $startDate, $endDate);
+                $this->writeDailySheet($writer, $data['daily_breakdown'], true);
+                $this->writeBrandsSheet($writer, $data['brand_breakdown'], true);
+                $this->writeBrandItemsSheet($writer, $data['brand_breakdown'], true);
+                $this->writeInvoicesSheet($writer, $data['sales'], true);
+                $this->writeInvoiceItemsSheet($writer, $data['sales'], true);
+                break;
+        }
+
+        $writer->close();
+
+        return response()->download($tempPath, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    protected function writeKpisSheet(Writer $writer, array $kpis, array|Collection $paymentMethods, Carbon $startDate, Carbon $endDate): void
+    {
+        $writer->getCurrentSheet()->setName('Summary & KPIs');
+
+        $writer->addRow(Row::fromValues(['SALES REPORT SUMMARY & KPIS']));
+        $writer->addRow(Row::fromValues([
+            'Period:',
+            $startDate->format('d M Y').' to '.$endDate->format('d M Y'),
+        ]));
+        $writer->addRow(Row::fromValues(['Generated At:', now()->format('d M Y, h:i A')]));
+        $writer->addRow(Row::fromValues([]));
+
+        $writer->addRow(Row::fromValues(['METRIC', 'VALUE (INR / COUNT)']));
+        $writer->addRow(Row::fromValues(['Total Completed Orders', $kpis['total_orders']]));
+        $writer->addRow(Row::fromValues(['Gross Retail Sales (MRP)', (float) $kpis['gross_sales']]));
+        $writer->addRow(Row::fromValues(['Total Discounts Given', (float) ($kpis['total_discounts'] ?? 0.0)]));
+        $writer->addRow(Row::fromValues(['Net Sales / Cash Received', (float) ($kpis['net_sales'] ?? 0.0)]));
+        $writer->addRow(Row::fromValues(['Merchandise PO Net Cost (COGS)', (float) ($kpis['cogs'] ?? $kpis['total_cogs'] ?? 0.0)]));
+        $writer->addRow(Row::fromValues(['Gross Profit', (float) ($kpis['gross_profit'] ?? 0.0)]));
+        $writer->addRow(Row::fromValues(['Gross Margin (%)', ($kpis['margin'] ?? 0.0).'%']));
+        $writer->addRow(Row::fromValues([]));
+
+        $writer->addRow(Row::fromValues(['PAYMENT METHOD', 'ORDERS COUNT', 'COLLECTED AMOUNT (INR)', 'SHARE (%)']));
+        foreach ($paymentMethods as $pm) {
+            $writer->addRow(Row::fromValues([
+                $pm['label'] ?? $pm['name'] ?? 'Payment',
+                $pm['count'] ?? 0,
+                (float) ($pm['amount'] ?? 0.0),
+                ($pm['percentage'] ?? 0.0).'%',
+            ]));
+        }
+    }
+
+    protected function writeDailySheet(Writer $writer, Collection $dailyBreakdown, bool $isAdditionalSheet = false): void
+    {
+        if ($isAdditionalSheet) {
+            $sheet = $writer->addNewSheetAndMakeItCurrent();
+            $sheet->setName('Daily Breakdown');
+        } else {
+            $writer->getCurrentSheet()->setName('Daily Breakdown');
+        }
+
+        $writer->addRow(Row::fromValues([
+            'Date',
+            'Orders Count',
+            'Gross Sales (INR)',
+            'Discounts (INR)',
+            'Total Sales (INR)',
+            'Gross Profit (INR)',
+            'Margin (%)',
+            'UPI (INR)',
+            'Card (INR)',
+            'Cash (INR)',
+            'Bank Transfer (INR)',
+        ]));
+
+        $totalOrders = 0;
+        $totalGross = 0.0;
+        $totalDisc = 0.0;
+        $totalNet = 0.0;
+        $totalProfit = 0.0;
+        $totalUpi = 0.0;
+        $totalCard = 0.0;
+        $totalCash = 0.0;
+        $totalTransfer = 0.0;
+
+        foreach ($dailyBreakdown as $row) {
+            $totalOrders += (int) $row['orders_count'];
+            $totalGross += (float) $row['gross_sales'];
+            $totalDisc += (float) $row['total_discounts'];
+            $totalNet += (float) $row['net_sales'];
+            $totalProfit += (float) $row['gross_profit'];
+            $totalUpi += (float) $row['upi'];
+            $totalCard += (float) $row['card'];
+            $totalCash += (float) $row['cash'];
+            $totalTransfer += (float) $row['transfer'];
+
+            $writer->addRow(Row::fromValues([
+                $row['formatted_date'],
+                (int) $row['orders_count'],
+                (float) $row['gross_sales'],
+                (float) $row['total_discounts'],
+                (float) $row['net_sales'],
+                (float) $row['gross_profit'],
+                $row['margin'].'%',
+                (float) $row['upi'],
+                (float) $row['card'],
+                (float) $row['cash'],
+                (float) $row['transfer'],
+            ]));
+        }
+
+        $overallMargin = $totalNet > 0 ? round(($totalProfit / $totalNet) * 100, 1) : 0.0;
+        $writer->addRow(Row::fromValues([
+            'TOTAL',
+            $totalOrders,
+            round($totalGross, 2),
+            round($totalDisc, 2),
+            round($totalNet, 2),
+            round($totalProfit, 2),
+            $overallMargin.'%',
+            round($totalUpi, 2),
+            round($totalCard, 2),
+            round($totalCash, 2),
+            round($totalTransfer, 2),
+        ]));
+    }
+
+    protected function writeBrandsSheet(Writer $writer, Collection $brandBreakdown, bool $isAdditionalSheet = false): void
+    {
+        if ($isAdditionalSheet) {
+            $sheet = $writer->addNewSheetAndMakeItCurrent();
+            $sheet->setName('Brand Summary');
+        } else {
+            $writer->getCurrentSheet()->setName('Brand Summary');
+        }
+
+        $writer->addRow(Row::fromValues([
+            'Brand / Category',
+            'Unique Items',
+            'Units Sold',
+            'Gross Retail Sales (INR)',
+            'Discounts (INR)',
+            'Net Sales (INR)',
+            'PO Net Cost (INR)',
+            'Gross Profit (INR)',
+            'Margin (%)',
+            'Revenue Share (%)',
+        ]));
+
+        $totQty = 0;
+        $totGross = 0.0;
+        $totDisc = 0.0;
+        $totNet = 0.0;
+        $totCost = 0.0;
+        $totProfit = 0.0;
+
+        foreach ($brandBreakdown as $b) {
+            $bName = $b['name'] ?? $b['brand_name'] ?? 'Unknown';
+            $bItemCount = (int) ($b['items_count'] ?? $b['item_count'] ?? count($b['items'] ?? []));
+            $bQty = (int) ($b['total_quantity'] ?? 0);
+            $bGross = (float) ($b['gross_sales'] ?? $b['total_gross'] ?? 0.0);
+            $bDisc = (float) ($b['total_discounts'] ?? 0.0);
+            $bNet = (float) ($b['net_sales'] ?? $b['total_net_sales'] ?? 0.0);
+            $bCost = (float) ($b['cogs'] ?? $b['total_cogs'] ?? 0.0);
+            $bProfit = (float) ($b['gross_profit'] ?? $b['total_gross_profit'] ?? 0.0);
+            $bMargin = $b['margin'] ?? 0.0;
+            $bShare = $b['percentage'] ?? $b['share_percentage'] ?? 0.0;
+
+            $totQty += $bQty;
+            $totGross += $bGross;
+            $totDisc += $bDisc;
+            $totNet += $bNet;
+            $totCost += $bCost;
+            $totProfit += $bProfit;
+
+            $writer->addRow(Row::fromValues([
+                $bName,
+                $bItemCount,
+                $bQty,
+                $bGross,
+                $bDisc,
+                $bNet,
+                $bCost,
+                $bProfit,
+                $bMargin.'%',
+                $bShare.'%',
+            ]));
+        }
+
+        $totMargin = $totNet > 0 ? round(($totProfit / $totNet) * 100, 1) : 0.0;
+        $writer->addRow(Row::fromValues([
+            'TOTAL',
+            '-',
+            $totQty,
+            round($totGross, 2),
+            round($totDisc, 2),
+            round($totNet, 2),
+            round($totCost, 2),
+            round($totProfit, 2),
+            $totMargin.'%',
+            '100.0%',
+        ]));
+    }
+
+    protected function writeBrandItemsSheet(Writer $writer, Collection $brandBreakdown, bool $isAdditionalSheet = false): void
+    {
+        if ($isAdditionalSheet) {
+            $sheet = $writer->addNewSheetAndMakeItCurrent();
+            $sheet->setName('Sales by Item by Brand');
+        } else {
+            $writer->getCurrentSheet()->setName('Sales by Item by Brand');
+        }
+
+        $writer->addRow(Row::fromValues([
+            'Brand / Category',
+            'Item Name',
+            'Type',
+            'Units Sold',
+            'Unit MRP (INR)',
+            'Discounts (INR)',
+            'Net Sales (INR)',
+            'PO Net Unit Price (INR)',
+            'Total PO Cost (INR)',
+            'Gross Profit (INR)',
+            'Margin (%)',
+            'Invoices Count',
+        ]));
+
+        foreach ($brandBreakdown as $b) {
+            $bName = $b['name'] ?? $b['brand_name'] ?? 'Unknown';
+            foreach ($b['items'] as $item) {
+                $iName = $item['name'] ?? 'Unknown';
+                $isServ = ! empty($item['is_service']);
+                $iQty = (int) ($item['quantity'] ?? 0);
+                $iPrice = (float) ($item['unit_price'] ?? $item['mrp'] ?? 0.0);
+                $iDisc = (float) ($item['total_discounts'] ?? 0.0);
+                $iNet = (float) ($item['net_sales'] ?? $item['total_net_sales'] ?? 0.0);
+                $iPoUnit = (float) ($item['po_unit_price'] ?? 0.0);
+                $iCost = (float) ($item['cogs'] ?? $item['total_cogs'] ?? 0.0);
+                $iProfit = (float) ($item['gross_profit'] ?? 0.0);
+                $iMargin = $item['margin'] ?? 0.0;
+                $iInvCount = (int) ($item['invoices_count'] ?? $item['invoice_count'] ?? 0);
+
+                $writer->addRow(Row::fromValues([
+                    $bName,
+                    $iName,
+                    $isServ ? 'Service' : 'Product',
+                    $iQty,
+                    $iPrice,
+                    $iDisc,
+                    $iNet,
+                    $iPoUnit,
+                    $iCost,
+                    $iProfit,
+                    $iMargin.'%',
+                    $iInvCount,
+                ]));
+            }
+        }
+    }
+
+    protected function writeInvoicesSheet(Writer $writer, Collection $sales, bool $isAdditionalSheet = false): void
+    {
+        if ($isAdditionalSheet) {
+            $sheet = $writer->addNewSheetAndMakeItCurrent();
+            $sheet->setName('Completed Invoices');
+        } else {
+            $writer->getCurrentSheet()->setName('Completed Invoices');
+        }
+
+        $writer->addRow(Row::fromValues([
+            'Invoice #',
+            'Sale Date & Time',
+            'Customer Name',
+            'Customer Phone',
+            'Payment Method',
+            'Products Count',
+            'Services Count',
+            'Gross MRP (INR)',
+            'Discounts (INR)',
+            'Coupon Code',
+            'Coupon Disc (INR)',
+            'Bill Disc (INR)',
+            'Round Off (INR)',
+            'Cash Received / Total (INR)',
+            'Items Net Cost (INR)',
+            'Gross Profit (INR)',
+            'Margin (%)',
+            'Cashier',
+            'Status',
+        ]));
+
+        $totGross = 0.0;
+        $totDisc = 0.0;
+        $totNet = 0.0;
+        $totCost = 0.0;
+        $totProfit = 0.0;
+
+        foreach ($sales as $sale) {
+            $method = $sale->payment_method instanceof PaymentMethod
+                ? $sale->payment_method->label()
+                : ucfirst((string) $sale->payment_method);
+
+            $pCount = $sale->items->filter(fn ($i) => ! empty($i->product_id))->count();
+            $sCount = $sale->items->filter(fn ($i) => ! empty($i->service_id))->count();
+
+            $gross = (float) $sale->subtotal;
+            $disc = (float) ($sale->total_discount ?? 0);
+            $net = (float) $sale->total;
+            $cost = (float) ($sale->cogs ?? 0);
+            $profit = (float) ($sale->gross_profit ?? 0);
+            $margin = (float) ($sale->margin ?? 0);
+
+            $saleCouponDiscount = (float) ($sale->coupon_discount ?? 0);
+            if ($saleCouponDiscount == 0 && ! empty($sale->coupon_code) && (float) ($sale->global_discount ?? 0) > 0 && (float) ($sale->round_off ?? 0) == 0) {
+                $saleCouponDiscount = (float) $sale->global_discount;
+            }
+            $saleBillDiscount = max(0.0, round(((float) ($sale->global_discount ?? 0)) - $saleCouponDiscount, 2));
+            $saleRoundOff = (float) ($sale->round_off ?? 0);
+            if ($saleRoundOff == 0 && empty($sale->coupon_code) && (float) ($sale->global_discount ?? 0) != 0) {
+                $saleRoundOff = -((float) $sale->global_discount);
+            }
+
+            $totGross += $gross;
+            $totDisc += $disc;
+            $totNet += $net;
+            $totCost += $cost;
+            $totProfit += $profit;
+
+            $writer->addRow(Row::fromValues([
+                $sale->invoice_number,
+                $sale->sale_date ? $sale->sale_date->format('Y-m-d H:i') : '',
+                $sale->customer?->name ?? 'Walk-in Customer',
+                $sale->customer?->phone ?? '',
+                $method,
+                $pCount,
+                $sCount,
+                $gross,
+                $disc,
+                $sale->coupon_code ?: '-',
+                $saleCouponDiscount,
+                $saleBillDiscount,
+                $saleRoundOff,
+                $net,
+                $cost,
+                $profit,
+                $margin.'%',
+                $sale->creator?->name ?? 'N/A',
+                $sale->status instanceof SaleStatus ? $sale->status->label() : ucfirst((string) $sale->status),
+            ]));
+        }
+
+        $overallMargin = $totNet > 0 ? round(($totProfit / $totNet) * 100, 1) : 0.0;
+        $writer->addRow(Row::fromValues([
+            'TOTAL',
+            '-',
+            '-',
+            '-',
+            '-',
+            '-',
+            '-',
+            round($totGross, 2),
+            round($totDisc, 2),
+            '-',
+            '-',
+            '-',
+            '-',
+            round($totNet, 2),
+            round($totCost, 2),
+            round($totProfit, 2),
+            $overallMargin.'%',
+            '-',
+            '-',
+        ]));
+    }
+
+    protected function writeInvoiceItemsSheet(Writer $writer, Collection $sales, bool $isAdditionalSheet = false): void
+    {
+        if ($isAdditionalSheet) {
+            $sheet = $writer->addNewSheetAndMakeItCurrent();
+            $sheet->setName('Invoice Line Items');
+        } else {
+            $writer->getCurrentSheet()->setName('Invoice Line Items');
+        }
+
+        $writer->addRow(Row::fromValues([
+            'Invoice #',
+            'Sale Date',
+            'Item Name',
+            'Type',
+            'Qty',
+            'Unit MRP (INR)',
+            'Total MRP (INR)',
+            'Unit Discount (INR)',
+            'Total Discount (INR)',
+            'Net Received (INR)',
+            'PO Net Unit Price (INR)',
+            'Total PO Cost (INR)',
+            'Line Profit (INR)',
+            'Margin (%)',
+            'PO / Cost Source',
+        ]));
+
+        foreach ($sales as $sale) {
+            $dateStr = $sale->sale_date ? $sale->sale_date->format('Y-m-d') : '';
+            foreach ($sale->items as $item) {
+                $isServ = ! empty($item->service_id);
+                $qty = (int) $item->quantity;
+                $unitMrp = (float) $item->unit_price;
+                $totMrp = $unitMrp * $qty;
+                $unitDisc = (float) $item->discount;
+                $totDisc = $unitDisc * $qty;
+                $netRec = (float) $item->subtotal;
+                $poUnit = (float) ($item->po_unit_price ?? 0);
+                $poCost = (float) ($item->po_cost_total ?? 0);
+                $lineProfit = round($netRec - $poCost, 2);
+                $margin = $netRec > 0 ? round(($lineProfit / $netRec) * 100, 1) : 0.0;
+                $source = $item->po_source ?? ($isServ ? 'Service (0 COGS)' : 'Catalog price');
+
+                $writer->addRow(Row::fromValues([
+                    $sale->invoice_number,
+                    $dateStr,
+                    $item->item_name,
+                    $isServ ? 'Service' : 'Product',
+                    $qty,
+                    $unitMrp,
+                    $totMrp,
+                    $unitDisc,
+                    $totDisc,
+                    $netRec,
+                    $poUnit,
+                    $poCost,
+                    $lineProfit,
+                    $margin.'%',
+                    $source,
+                ]));
+            }
+        }
     }
 }

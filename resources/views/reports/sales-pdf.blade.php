@@ -3,12 +3,20 @@
     $storeAddress = \App\Models\Setting::get('store_address', '');
     $storePhone = \App\Models\Setting::get('store_phone', '');
     $storeEmail = \App\Models\Setting::get('store_email', '');
+    $section = $section ?? 'full';
+
+    $reportTitle = match($section) {
+        'invoices' => 'Completed Invoices Audit Report',
+        'brands' => 'Sales by Brand & Items Breakdown Report',
+        'daily' => 'Daily Sales Breakdown Report',
+        default => 'Sales & Profit Report',
+    };
 @endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Sales Report ({{ $startDate->format('d M Y') }} - {{ $endDate->format('d M Y') }})</title>
+    <title>{{ $reportTitle }} ({{ $startDate->format('d M Y') }} - {{ $endDate->format('d M Y') }})</title>
     <style>
         @page {
             margin: 20px 24px 40px;
@@ -149,8 +157,8 @@
             <div>{{ $startDate->format('d M Y') }} to {{ $endDate->format('d M Y') }}</div>
             <div><strong>Generated:</strong> {{ now()->format('d M Y, H:i') }}</div>
         </div>
-        <h1>{{ $storeName }} - Sales & Profit Report</h1>
-        <p>Executive Sales Performance, Profit Margins & Payment Mode Distribution (UPI, Card, Cash, Transfer)</p>
+        <h1>{{ $storeName }} - {{ $reportTitle }}</h1>
+        <p>{{ $section === 'invoices' ? 'Completed Invoices, PO Net Purchase Costs & Gross Profit Audit' : ($section === 'brands' ? 'Brand-level Volume, Net Revenue, COGS & Margins' : ($section === 'daily' ? 'Daily Sales, Margin & Payment Mode Distribution' : 'Executive Sales Performance, Profit Margins & Payment Mode Distribution')) }}</p>
         <div class="clear"></div>
     </div>
 
@@ -191,167 +199,247 @@
         </tr>
     </table>
 
-    <!-- Payment Methods Breakdown -->
-    <div class="section-title">Sales by Payment Method</div>
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Payment Mode</th>
-                <th class="text-center">Transaction Count</th>
-                <th class="text-right">Total Amount (Rs.)</th>
-                <th class="text-right">% Share of Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($paymentMethods as $mode)
-                <tr>
-                    <td class="font-bold">{{ $mode['label'] }}</td>
-                    <td class="text-center">{{ $mode['count'] }}</td>
-                    <td class="text-right">Rs. {{ number_format($mode['amount'], 2) }}</td>
-                    <td class="text-right font-bold">{{ $mode['percentage'] }} %</td>
-                </tr>
-            @endforeach
-        </tbody>
-        <tfoot>
-            <tr class="bg-total">
-                <td>Total Net Revenue</td>
-                <td class="text-center">{{ $kpis['total_orders'] }}</td>
-                <td class="text-right">Rs. {{ number_format($kpis['net_sales'], 2) }}</td>
-                <td class="text-right">100.0 %</td>
-            </tr>
-        </tfoot>
-    </table>
-
-    <!-- Daily Summary Table -->
-    <div class="section-title">Daily Sales, Profit & Collections Summary</div>
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th class="text-center">Orders</th>
-                <th class="text-right">Gross Sales</th>
-                <th class="text-right">Discounts</th>
-                <th class="text-right font-bold">Net Total</th>
-                <th class="text-right font-bold" style="color: #047857;">Gross Profit</th>
-                <th class="text-right">UPI</th>
-                <th class="text-right">Card</th>
-                <th class="text-right">Cash</th>
-                <th class="text-right">Transfer</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($dailyBreakdown as $row)
-                <tr>
-                    <td>{{ $row['formatted_date'] }}</td>
-                    <td class="text-center">{{ $row['orders_count'] }}</td>
-                    <td class="text-right">Rs. {{ number_format($row['gross_sales'], 2) }}</td>
-                    <td class="text-right" style="color: #b45309;">Rs. {{ number_format($row['total_discounts'], 2) }}</td>
-                    <td class="text-right font-bold">Rs. {{ number_format($row['net_sales'], 2) }}</td>
-                    <td class="text-right font-bold" style="color: #047857;">
-                        Rs. {{ number_format($row['gross_profit'], 2) }} ({{ $row['margin'] }}%)
-                    </td>
-                    <td class="text-right">Rs. {{ number_format($row['upi'], 2) }}</td>
-                    <td class="text-right">Rs. {{ number_format($row['card'], 2) }}</td>
-                    <td class="text-right">Rs. {{ number_format($row['cash'], 2) }}</td>
-                    <td class="text-right">Rs. {{ number_format($row['transfer'], 2) }}</td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="10" class="text-center">No completed sales recorded in this period.</td>
-                </tr>
-            @endforelse
-        </tbody>
-        @if($dailyBreakdown->isNotEmpty())
-            <tfoot>
-                <tr class="bg-total">
-                    <td>TOTAL</td>
-                    <td class="text-center">{{ $kpis['total_orders'] }}</td>
-                    <td class="text-right">Rs. {{ number_format($kpis['gross_sales'], 2) }}</td>
-                    <td class="text-right">Rs. {{ number_format($kpis['total_discounts'], 2) }}</td>
-                    <td class="text-right">Rs. {{ number_format($kpis['net_sales'], 2) }}</td>
-                    <td class="text-right" style="color: #047857;">
-                        Rs. {{ number_format($kpis['gross_profit'], 2) }} ({{ $kpis['margin'] }}%)
-                    </td>
-                    <td class="text-right">Rs. {{ number_format($paymentMethods['upi']['amount'] ?? 0, 2) }}</td>
-                    <td class="text-right">Rs. {{ number_format($paymentMethods['card']['amount'] ?? 0, 2) }}</td>
-                    <td class="text-right">Rs. {{ number_format($paymentMethods['cash']['amount'] ?? 0, 2) }}</td>
-                    <td class="text-right">Rs. {{ number_format($paymentMethods['transfer']['amount'] ?? 0, 2) }}</td>
-                </tr>
-            </tfoot>
-        @endif
-    </table>
-
-    <!-- Sales by Brand Summary Table -->
-    @if(isset($brandBreakdown) && $brandBreakdown->isNotEmpty())
-        <div class="section-title">Sales & Profit by Brand Summary</div>
+    @if($section === 'full' || $section === 'daily')
+        <!-- Payment Methods Breakdown -->
+        <div class="section-title">Sales by Payment Method</div>
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Brand / Category</th>
-                    <th class="text-center">Items</th>
-                    <th class="text-center">Units Sold</th>
-                    <th class="text-right">Gross Sales</th>
-                    <th class="text-right">Discounts</th>
-                    <th class="text-right font-bold">Net Sales</th>
-                    <th class="text-center">Share</th>
-                    <th class="text-right">PO Net Cost</th>
-                    <th class="text-right font-bold" style="color: #047857;">Gross Profit</th>
-                    <th class="text-center">Margin</th>
+                    <th>Payment Mode</th>
+                    <th class="text-center">Transaction Count</th>
+                    <th class="text-right">Total Amount (Rs.)</th>
+                    <th class="text-right">% Share of Total</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach($brandBreakdown as $b)
+                @foreach($paymentMethods as $mode)
                     <tr>
-                        <td class="font-bold">{{ $b['name'] }}</td>
-                        <td class="text-center">{{ $b['items_count'] }}</td>
-                        <td class="text-center font-bold">{{ number_format($b['total_quantity']) }}</td>
-                        <td class="text-right">Rs. {{ number_format($b['gross_sales'], 2) }}</td>
-                        <td class="text-right" style="color: #b45309;">Rs. {{ number_format($b['total_discounts'], 2) }}</td>
-                        <td class="text-right font-bold">Rs. {{ number_format($b['net_sales'], 2) }}</td>
-                        <td class="text-center">{{ $b['percentage'] }}%</td>
-                        <td class="text-right">Rs. {{ number_format($b['cogs'], 2) }}</td>
-                        <td class="text-right font-bold" style="color: #047857;">Rs. {{ number_format($b['gross_profit'], 2) }}</td>
-                        <td class="text-center font-bold">{{ $b['margin'] }}%</td>
+                        <td class="font-bold">{{ $mode['label'] }}</td>
+                        <td class="text-center">{{ $mode['count'] }}</td>
+                        <td class="text-right">Rs. {{ number_format($mode['amount'], 2) }}</td>
+                        <td class="text-right font-bold">{{ $mode['percentage'] }} %</td>
                     </tr>
                 @endforeach
             </tbody>
+            <tfoot>
+                <tr class="bg-total">
+                    <td>Total Net Revenue</td>
+                    <td class="text-center">{{ $kpis['total_orders'] }}</td>
+                    <td class="text-right">Rs. {{ number_format($kpis['net_sales'], 2) }}</td>
+                    <td class="text-right">100.0 %</td>
+                </tr>
+            </tfoot>
         </table>
 
-        <!-- Sales by Item by Brand Breakdown Table -->
-        <div class="section-title">Sales by Item by Brand Breakdown</div>
+        <!-- Daily Summary Table -->
+        <div class="section-title">Daily Sales, Profit & Collections Summary</div>
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Brand</th>
-                    <th>Product / Service Name</th>
-                    <th>Code / SKU</th>
-                    <th class="text-center">Qty Sold</th>
-                    <th class="text-right">Unit MRP</th>
+                    <th>Date</th>
+                    <th class="text-center">Orders</th>
+                    <th class="text-right">Gross Sales</th>
                     <th class="text-right">Discounts</th>
-                    <th class="text-right font-bold">Net Sales</th>
-                    <th class="text-right">PO Net Cost</th>
+                    <th class="text-right font-bold">Net Total</th>
+                    <th class="text-right font-bold" style="color: #047857;">Gross Profit</th>
+                    <th class="text-right">UPI</th>
+                    <th class="text-right">Card</th>
+                    <th class="text-right">Cash</th>
+                    <th class="text-right">Transfer</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($dailyBreakdown as $row)
+                    <tr>
+                        <td>{{ $row['formatted_date'] }}</td>
+                        <td class="text-center">{{ $row['orders_count'] }}</td>
+                        <td class="text-right">Rs. {{ number_format($row['gross_sales'], 2) }}</td>
+                        <td class="text-right" style="color: #b45309;">Rs. {{ number_format($row['total_discounts'], 2) }}</td>
+                        <td class="text-right font-bold">Rs. {{ number_format($row['net_sales'], 2) }}</td>
+                        <td class="text-right font-bold" style="color: #047857;">
+                            Rs. {{ number_format($row['gross_profit'], 2) }} ({{ $row['margin'] }}%)
+                        </td>
+                        <td class="text-right">Rs. {{ number_format($row['upi'], 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($row['card'], 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($row['cash'], 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($row['transfer'], 2) }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="10" class="text-center">No completed sales recorded in this period.</td>
+                    </tr>
+                @endforelse
+            </tbody>
+            @if($dailyBreakdown->isNotEmpty())
+                <tfoot>
+                    <tr class="bg-total">
+                        <td>TOTAL</td>
+                        <td class="text-center">{{ $kpis['total_orders'] }}</td>
+                        <td class="text-right">Rs. {{ number_format($kpis['gross_sales'], 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($kpis['total_discounts'], 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($kpis['net_sales'], 2) }}</td>
+                        <td class="text-right" style="color: #047857;">
+                            Rs. {{ number_format($kpis['gross_profit'], 2) }} ({{ $kpis['margin'] }}%)
+                        </td>
+                        <td class="text-right">Rs. {{ number_format($paymentMethods['upi']['amount'] ?? 0, 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($paymentMethods['card']['amount'] ?? 0, 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($paymentMethods['cash']['amount'] ?? 0, 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($paymentMethods['transfer']['amount'] ?? 0, 2) }}</td>
+                    </tr>
+                </tfoot>
+            @endif
+        </table>
+    @endif
+
+    @if($section === 'full' || $section === 'brands')
+        <!-- Sales by Brand Summary Table -->
+        @if(isset($brandBreakdown) && $brandBreakdown->isNotEmpty())
+            <div class="section-title">Sales & Profit by Brand Summary</div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Brand / Category</th>
+                        <th class="text-center">Items</th>
+                        <th class="text-center">Units Sold</th>
+                        <th class="text-right">Gross Sales</th>
+                        <th class="text-right">Discounts</th>
+                        <th class="text-right font-bold">Net Sales</th>
+                        <th class="text-center">Share</th>
+                        <th class="text-right">PO Net Cost</th>
+                        <th class="text-right font-bold" style="color: #047857;">Gross Profit</th>
+                        <th class="text-center">Margin</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($brandBreakdown as $b)
+                        <tr>
+                            <td class="font-bold">{{ $b['name'] }}</td>
+                            <td class="text-center">{{ $b['items_count'] }}</td>
+                            <td class="text-center font-bold">{{ number_format($b['total_quantity']) }}</td>
+                            <td class="text-right">Rs. {{ number_format($b['gross_sales'], 2) }}</td>
+                            <td class="text-right" style="color: #b45309;">Rs. {{ number_format($b['total_discounts'], 2) }}</td>
+                            <td class="text-right font-bold">Rs. {{ number_format($b['net_sales'], 2) }}</td>
+                            <td class="text-center">{{ $b['percentage'] }}%</td>
+                            <td class="text-right">Rs. {{ number_format($b['cogs'], 2) }}</td>
+                            <td class="text-right font-bold" style="color: #047857;">Rs. {{ number_format($b['gross_profit'], 2) }}</td>
+                            <td class="text-center font-bold">{{ $b['margin'] }}%</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+
+            <!-- Sales by Item by Brand Breakdown Table -->
+            <div class="section-title">Sales by Item by Brand Breakdown</div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Brand</th>
+                        <th>Product / Service Name</th>
+                        <th>Code / SKU</th>
+                        <th class="text-center">Qty Sold</th>
+                        <th class="text-right">Unit MRP</th>
+                        <th class="text-right">Discounts</th>
+                        <th class="text-right font-bold">Net Sales</th>
+                        <th class="text-right">PO Net Cost</th>
+                        <th class="text-right font-bold" style="color: #047857;">Gross Profit</th>
+                        <th class="text-center">Margin</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($brandBreakdown as $b)
+                        @foreach($b['items'] as $item)
+                            <tr>
+                                <td class="font-bold">{{ $b['name'] }}</td>
+                                <td>{{ $item['name'] }}</td>
+                                <td class="font-mono text-center">{{ $item['code'] }}</td>
+                                <td class="text-center font-bold">{{ number_format($item['quantity']) }}</td>
+                                <td class="text-right">Rs. {{ number_format($item['unit_price'], 2) }}</td>
+                                <td class="text-right" style="color: #b45309;">Rs. {{ number_format($item['total_discounts'], 2) }}</td>
+                                <td class="text-right font-bold">Rs. {{ number_format($item['net_sales'], 2) }}</td>
+                                <td class="text-right">Rs. {{ number_format($item['cogs'], 2) }}</td>
+                                <td class="text-right font-bold" style="color: #047857;">Rs. {{ number_format($item['gross_profit'], 2) }}</td>
+                                <td class="text-center">{{ $item['margin'] }}%</td>
+                            </tr>
+                        @endforeach
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    @endif
+
+    @if($section === 'full' || $section === 'invoices')
+        <!-- Completed Invoices Audit Table -->
+        <div class="section-title">Completed Invoices & Items Cost Audit</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Invoice #</th>
+                    <th>Date</th>
+                    <th>Customer</th>
+                    <th class="text-center">Mode</th>
+                    <th class="text-right">Gross</th>
+                    <th class="text-right">Discount</th>
+                    <th class="text-right font-bold">Cash Recv.</th>
+                    <th class="text-right">Items Net Cost</th>
                     <th class="text-right font-bold" style="color: #047857;">Gross Profit</th>
                     <th class="text-center">Margin</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach($brandBreakdown as $b)
-                    @foreach($b['items'] as $item)
-                        <tr>
-                            <td class="font-bold">{{ $b['name'] }}</td>
-                            <td>{{ $item['name'] }}</td>
-                            <td class="font-mono text-center">{{ $item['code'] }}</td>
-                            <td class="text-center font-bold">{{ number_format($item['quantity']) }}</td>
-                            <td class="text-right">Rs. {{ number_format($item['unit_price'], 2) }}</td>
-                            <td class="text-right" style="color: #b45309;">Rs. {{ number_format($item['total_discounts'], 2) }}</td>
-                            <td class="text-right font-bold">Rs. {{ number_format($item['net_sales'], 2) }}</td>
-                            <td class="text-right">Rs. {{ number_format($item['cogs'], 2) }}</td>
-                            <td class="text-right font-bold" style="color: #047857;">Rs. {{ number_format($item['gross_profit'], 2) }}</td>
-                            <td class="text-center">{{ $item['margin'] }}%</td>
-                        </tr>
-                    @endforeach
-                @endforeach
+                @forelse($sales as $sale)
+                    @php
+                        $methodLabel = $sale->payment_method instanceof \App\Enums\PaymentMethod
+                            ? $sale->payment_method->label()
+                            : ucfirst((string) $sale->payment_method);
+                        $profit = (float) ($sale->gross_profit ?? 0);
+                        $margin = (float) ($sale->margin ?? 0);
+                        $cogs = (float) ($sale->cogs ?? 0);
+                        $discount = (float) ($sale->total_discount ?? 0);
+                    @endphp
+                    <tr>
+                        <td class="font-bold font-mono">{{ $sale->invoice_number }}</td>
+                        <td>{{ $sale->sale_date ? $sale->sale_date->format('d M Y, H:i') : '-' }}</td>
+                        <td>{{ $sale->customer?->name ?? 'Walk-in Customer' }}</td>
+                        <td class="text-center">{{ $methodLabel }}</td>
+                        <td class="text-right">Rs. {{ number_format((float) $sale->subtotal, 2) }}</td>
+                        <td class="text-right" style="color: #b45309;">
+                            {{ $discount > 0 ? '-Rs. ' . number_format($discount, 2) : 'Rs. 0.00' }}
+                        </td>
+                        <td class="text-right font-bold">Rs. {{ number_format((float) $sale->total, 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($cogs, 2) }}</td>
+                        <td class="text-right font-bold" style="color: {{ $profit >= 0 ? '#047857' : '#dc2626' }};">
+                            Rs. {{ number_format($profit, 2) }}
+                        </td>
+                        <td class="text-center font-bold">{{ number_format($margin, 1) }}%</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="10" class="text-center">No invoices found in this period.</td>
+                    </tr>
+                @endforelse
             </tbody>
+            @if($sales->isNotEmpty())
+                <tfoot>
+                    @php
+                        $totGross = (float) $sales->sum(fn($s) => (float)$s->subtotal);
+                        $totDisc = (float) $sales->sum(fn($s) => (float)($s->total_discount ?? 0));
+                        $totNet = (float) $sales->sum(fn($s) => (float)$s->total);
+                        $totCost = (float) $sales->sum(fn($s) => (float)($s->cogs ?? 0));
+                        $totProfit = (float) $sales->sum(fn($s) => (float)($s->gross_profit ?? 0));
+                        $totMargin = $totNet > 0 ? round(($totProfit / $totNet) * 100, 1) : 0.0;
+                    @endphp
+                    <tr class="bg-total">
+                        <td>TOTAL</td>
+                        <td colspan="3" class="text-center">{{ count($sales) }} Invoices</td>
+                        <td class="text-right">Rs. {{ number_format($totGross, 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($totDisc, 2) }}</td>
+                        <td class="text-right font-bold">Rs. {{ number_format($totNet, 2) }}</td>
+                        <td class="text-right">Rs. {{ number_format($totCost, 2) }}</td>
+                        <td class="text-right font-bold" style="color: #047857;">Rs. {{ number_format($totProfit, 2) }}</td>
+                        <td class="text-center font-bold">{{ $totMargin }}%</td>
+                    </tr>
+                </tfoot>
+            @endif
         </table>
     @endif
 </body>
