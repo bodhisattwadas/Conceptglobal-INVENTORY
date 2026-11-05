@@ -14,6 +14,7 @@ use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\VendorInvoice;
+use App\Services\InventoryService;
 use App\Services\PurchaseService;
 use App\Services\VendorInvoiceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -531,5 +532,137 @@ class PurchaseReceivedEditTest extends TestCase
         $item = $purchase->fresh()->items->first();
         $this->assertEquals(350.0, (float) $item->unit_price);
         $this->assertEquals(3500.0, (float) $item->subtotal);
+    }
+
+    public function test_received_purchase_allows_deleting_unsold_item_and_reverses_stock_and_vendor_invoice(): void
+    {
+        $purchase = $this->createReceivedPurchase(10, 300, 500);
+
+        // Add second product to this received purchase
+        $product2 = Product::factory()->create([
+            'company_id' => $this->company->id,
+            'category_id' => $this->category->id,
+            'unit_id' => $this->unit->id,
+            'name' => 'Aloevera Multipurpose Gel',
+            'product_code' => 'AMG-001',
+            'mrp' => 345,
+            'purchase_price' => 241.50,
+            'selling_price' => 345,
+            'quantity' => 0,
+        ]);
+
+        $item2 = PurchaseItem::create([
+            'purchase_id' => $purchase->id,
+            'product_id' => $product2->id,
+            'quantity' => 4,
+            'received_quantity' => 4,
+            'unit_price' => 241.50,
+            'selling_price' => 345,
+            'subtotal' => 4 * 241.50,
+            'location' => 'shop',
+            'batch_number' => 'BN-TEST-002',
+        ]);
+
+        $product2->increment('quantity', 4);
+        app(InventoryService::class)->receivePurchaseItem($purchase, $item2, 4);
+
+        $initialTotal = (10 * 300) + (4 * 241.50);
+        $purchase->update(['total' => $initialTotal]);
+        $purchase->vendorInvoice->update(['amount' => $initialTotal]);
+
+        $this->assertEquals(4, $product2->fresh()->quantity);
+        $this->assertEquals(2, $purchase->fresh()->items()->count());
+
+        // Update PO keeping only product 1 (deleting product 2)
+        $response = $this->actingAs($this->user)->put(route('purchases.update', $purchase), [
+            'supplier_id' => $this->supplier->id,
+            'company_id' => $this->company->id,
+            'purchase_date' => now()->toDateString(),
+            'location' => 'shop',
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 10,
+                    'discount_percent' => 40,
+                    'unit_price' => 300,
+                    'selling_price' => 500,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('purchases.show', $purchase));
+        $response->assertSessionHas('success');
+
+        // Product 2 should be deleted from purchase items
+        $this->assertEquals(1, $purchase->fresh()->items()->count());
+        $this->assertDatabaseMissing('purchase_items', ['id' => $item2->id]);
+
+        // Product 2 stock reversed back to 0
+        $this->assertEquals(0, $product2->fresh()->quantity);
+        $this->assertEquals(0, InventoryStock::where('product_id', $product2->id)->value('quantity'));
+
+        // Inventory adjustment reversal logged
+        $this->assertDatabaseHas('inventory_movements', [
+            'product_id' => $product2->id,
+            'purchase_id' => $purchase->id,
+            'type' => 'purchase_adjustment',
+            'quantity' => -4,
+            'balance_after' => 0,
+        ]);
+
+        // PO total and vendor invoice updated to only product 1
+        $this->assertEquals(3000.0, (float) $purchase->fresh()->total);
+        $this->assertEquals(3000.0, (float) $purchase->fresh()->vendorInvoice->amount);
+    }
+
+    public function test_received_purchase_rejects_deleting_item_with_already_sold_units(): void
+    {
+        $purchase = $this->createReceivedPurchase(10, 300, 500);
+
+        // Add second product
+        $product2 = Product::factory()->create([
+            'company_id' => $this->company->id,
+            'category_id' => $this->category->id,
+            'unit_id' => $this->unit->id,
+            'name' => 'Rose Water Mist',
+            'product_code' => 'RWM-001',
+            'mrp' => 200,
+            'purchase_price' => 120,
+            'selling_price' => 200,
+            'quantity' => 5,
+        ]);
+
+        $item2 = PurchaseItem::create([
+            'purchase_id' => $purchase->id,
+            'product_id' => $product2->id,
+            'quantity' => 5,
+            'received_quantity' => 3, // 2 units already sold!
+            'unit_price' => 120,
+            'selling_price' => 200,
+            'subtotal' => 5 * 120,
+            'location' => 'shop',
+            'batch_number' => 'BN-TEST-003',
+        ]);
+
+        // Attempting to delete product 2 (which has 2 sold units)
+        $response = $this->actingAs($this->user)->put(route('purchases.update', $purchase), [
+            'supplier_id' => $this->supplier->id,
+            'company_id' => $this->company->id,
+            'purchase_date' => now()->toDateString(),
+            'location' => 'shop',
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 10,
+                    'discount_percent' => 40,
+                    'unit_price' => 300,
+                    'selling_price' => 500,
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors(['items']);
+        // Item 2 should still exist on the purchase
+        $this->assertDatabaseHas('purchase_items', ['id' => $item2->id]);
     }
 }

@@ -59,6 +59,8 @@
                             }
                             $qty = (int) $item->quantity;
                             $calculatedSubtotal = round($qty * $calculatedUnitPrice, 2);
+                            $currentBatchStock = (int) ($item->received_quantity ?? $qty);
+                            $unitsSold = max(0, $qty - $currentBatchStock);
 
                             return [
                                 'product_id' => $item->product_id,
@@ -74,8 +76,10 @@
                                 'brand' => $item->product->company ? ($item->product->company->short_name ?: $item->product->company->company_name) : '',
                                 'mrp' => $mrp,
                                 'batch_number' => $item->batch_number ?? '',
-                                'received_quantity' => (int) ($item->received_quantity ?? $item->quantity),
-                                'min_quantity' => max(1, (int) $item->quantity - (int) ($item->received_quantity ?? $item->quantity)),
+                                'received_quantity' => $currentBatchStock,
+                                'min_quantity' => max(1, $unitsSold),
+                                'units_sold' => $unitsSold,
+                                'can_delete' => $unitsSold <= 0,
                             ];
                         }))) }},
                         supplier_id: {{ Js::from(old('supplier_id', $purchase->supplier_id)) }},

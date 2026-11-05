@@ -6,6 +6,8 @@ use App\DTOs\PurchaseData;
 use App\Enums\PurchaseStatus;
 use App\Enums\VendorInvoiceStatus;
 use App\Exceptions\PurchaseException;
+use App\Models\InventoryMovement;
+use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
@@ -138,6 +140,77 @@ class PurchaseService
         foreach ($purchase->items as $item) {
             $submitted = $submittedItemsByProductId->get($item->product_id);
             if (! $submitted) {
+                // The item was removed by the user on this received PO
+                $oldQuantity = (int) $item->quantity;
+                $currentBatchStock = (int) ($item->received_quantity ?? $oldQuantity);
+                $unitsSold = max(0, $oldQuantity - $currentBatchStock);
+
+                if ($unitsSold > 0) {
+                    $productName = $item->product?->name ?? "Product #{$item->product_id}";
+                    Log::warning("[PurchaseService] Item deletion rejected for PO #{$purchase->id}: units already sold", [
+                        'product_id' => $item->product_id,
+                        'units_sold' => $unitsSold,
+                    ]);
+                    throw PurchaseException::updateFailed(
+                        "Cannot delete {$productName} from received PO #{$purchase->id}. {$unitsSold} unit(s) have already been sold from this batch.",
+                        ['product_id' => $item->product_id, 'units_sold' => $unitsSold]
+                    );
+                }
+
+                $qtyToRemove = $currentBatchStock;
+                $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
+                if ($product) {
+                    if ($product->quantity < $qtyToRemove) {
+                        Log::warning("[PurchaseService] Item deletion rejected for PO #{$purchase->id}: insufficient inventory stock", [
+                            'product_id' => $item->product_id,
+                            'current_stock' => $product->quantity,
+                            'qty_to_remove' => $qtyToRemove,
+                        ]);
+                        throw PurchaseException::updateFailed(
+                            "Cannot delete {$product->name}. Current inventory stock ({$product->quantity}) cannot become negative.",
+                            ['product_id' => $item->product_id, 'current_stock' => $product->quantity]
+                        );
+                    }
+                    $product->decrement('quantity', $qtyToRemove);
+
+                    $latestPreviousPoPrice = PurchaseItem::where('product_id', $item->product_id)
+                        ->where('id', '!=', $item->id)
+                        ->whereHas('purchase', fn ($q) => $q->where('status', PurchaseStatus::RECEIVED))
+                        ->where('unit_price', '>', 0)
+                        ->orderByDesc('id')
+                        ->value('unit_price');
+
+                    if ($latestPreviousPoPrice) {
+                        $product->update(['purchase_price' => $latestPreviousPoPrice]);
+                    }
+                }
+
+                $stock = InventoryStock::query()
+                    ->where('product_id', $item->product_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($stock) {
+                    $stock->decrement('quantity', min($stock->quantity, $qtyToRemove));
+                    $stock->refresh();
+                }
+
+                InventoryMovement::create([
+                    'product_id' => $item->product_id,
+                    'purchase_id' => $purchase->id,
+                    'purchase_item_id' => $item->id,
+                    'type' => 'purchase_adjustment',
+                    'location' => $item->location?->value ?? $purchase->location?->value ?? 'shop',
+                    'quantity' => -$qtyToRemove,
+                    'balance_after' => $stock ? $stock->quantity : ($product ? $product->quantity : 0),
+                    'reference' => $purchase->invoice_number,
+                    'notes' => "Product removed from received PO #{$purchase->id} (entry error). Stock reversed by {$qtyToRemove}.",
+                ]);
+
+                Log::info("[PurchaseService] Removed unsold item #{$item->id} (product #{$item->product_id}) from received PO #{$purchase->id}. Reversed {$qtyToRemove} units from inventory.");
+
+                $item->delete();
+
                 continue;
             }
 

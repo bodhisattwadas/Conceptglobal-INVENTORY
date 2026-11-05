@@ -166,51 +166,82 @@ class UpdatePurchaseRequest extends FormRequest
                 $incomingProductIds = $incomingItems->pluck('product_id')->filter()->map(fn ($id) => (int) $id)->sort()->values();
                 $existingProductIds = $existingItems->keys()->map(fn ($id) => (int) $id)->sort()->values();
 
-                if ($incomingProductIds->count() !== $existingProductIds->count() || $incomingProductIds->all() !== $existingProductIds->all()) {
-                    Log::warning("[PO Update] Cannot add/remove products on received PO #{$purchase->id}", [
-                        'existing_product_ids' => $existingProductIds->all(),
-                        'incoming_product_ids' => $incomingProductIds->all(),
+                // 1. Reject adding new products to an already received PO
+                $addedProductIds = $incomingProductIds->diff($existingProductIds);
+                if ($addedProductIds->isNotEmpty()) {
+                    Log::warning("[PO Update] Cannot add new products to received PO #{$purchase->id}", [
+                        'added_product_ids' => $addedProductIds->all(),
                     ]);
-                    $validator->errors()->add('items', 'Products cannot be added or removed from an already received purchase order.');
-                } else {
-                    foreach ($incomingItems as $index => $item) {
-                        $productId = (int) ($item['product_id'] ?? 0);
-                        if (! $productId || ! $existingItems->has($productId)) {
-                            continue;
-                        }
+                    $validator->errors()->add('items', 'New products cannot be added to an already received purchase order.');
+                }
 
-                        $existingItem = $existingItems->get($productId);
-                        $oldQty = (int) $existingItem->quantity;
-                        $currentBatchStock = (int) ($existingItem->received_quantity ?? $oldQty);
-                        $unitsSold = max(0, $oldQty - $currentBatchStock);
-                        $newQty = (int) ($item['quantity'] ?? 0);
+                // 2. Validate removed products (allow only if 0 units have been sold and inventory stock is sufficient)
+                $removedProductIds = $existingProductIds->diff($incomingProductIds);
+                foreach ($removedProductIds as $removedId) {
+                    $existingItem = $existingItems->get($removedId);
+                    $oldQty = (int) $existingItem->quantity;
+                    $currentBatchStock = (int) ($existingItem->received_quantity ?? $oldQty);
+                    $unitsSold = max(0, $oldQty - $currentBatchStock);
 
-                        if ($newQty < $unitsSold) {
-                            Log::warning("[PO Update] Cannot reduce quantity below sold units for PO #{$purchase->id}", [
+                    if ($unitsSold > 0) {
+                        $productName = $existingItem->product?->name ?? "Product #{$removedId}";
+                        Log::warning("[PO Update] Cannot remove product with sold units from received PO #{$purchase->id}", [
+                            'product_id' => $removedId,
+                            'units_sold' => $unitsSold,
+                        ]);
+                        $validator->errors()->add('items', "Cannot remove {$productName} from received PO because {$unitsSold} unit(s) have already been sold from this batch.");
+                    }
+
+                    $product = Product::find($removedId);
+                    if ($product && $product->quantity < $currentBatchStock) {
+                        $productName = $product->name;
+                        Log::warning("[PO Update] Removing product would cause negative inventory stock for PO #{$purchase->id}", [
+                            'product_id' => $removedId,
+                            'current_stock' => $product->quantity,
+                            'batch_stock' => $currentBatchStock,
+                        ]);
+                        $validator->errors()->add('items', "Cannot remove {$productName} because only {$product->quantity} unit(s) remain in inventory.");
+                    }
+                }
+
+                // 3. For remaining items, validate quantity changes
+                foreach ($incomingItems as $index => $item) {
+                    $productId = (int) ($item['product_id'] ?? 0);
+                    if (! $productId || ! $existingItems->has($productId)) {
+                        continue;
+                    }
+
+                    $existingItem = $existingItems->get($productId);
+                    $oldQty = (int) $existingItem->quantity;
+                    $currentBatchStock = (int) ($existingItem->received_quantity ?? $oldQty);
+                    $unitsSold = max(0, $oldQty - $currentBatchStock);
+                    $newQty = (int) ($item['quantity'] ?? 0);
+
+                    if ($newQty < $unitsSold) {
+                        Log::warning("[PO Update] Cannot reduce quantity below sold units for PO #{$purchase->id}", [
+                            'product_id' => $productId,
+                            'new_qty' => $newQty,
+                            'units_sold' => $unitsSold,
+                        ]);
+                        $validator->errors()->add(
+                            "items.{$index}.quantity",
+                            "Cannot reduce quantity below {$unitsSold} because {$unitsSold} unit(s) have already been sold from this batch."
+                        );
+                    }
+
+                    $quantityDelta = $newQty - $oldQty;
+                    if ($quantityDelta < 0) {
+                        $product = Product::find($productId);
+                        if ($product && ($product->quantity + $quantityDelta) < 0) {
+                            Log::warning("[PO Update] Quantity reduction would result in negative stock for PO #{$purchase->id}", [
                                 'product_id' => $productId,
-                                'new_qty' => $newQty,
-                                'units_sold' => $unitsSold,
+                                'current_stock' => $product->quantity,
+                                'delta' => $quantityDelta,
                             ]);
                             $validator->errors()->add(
                                 "items.{$index}.quantity",
-                                "Cannot reduce quantity below {$unitsSold} because {$unitsSold} unit(s) have already been sold from this batch."
+                                'Cannot reduce quantity by '.abs($quantityDelta)." because only {$product->quantity} unit(s) remain in inventory."
                             );
-                        }
-
-                        $quantityDelta = $newQty - $oldQty;
-                        if ($quantityDelta < 0) {
-                            $product = Product::find($productId);
-                            if ($product && ($product->quantity + $quantityDelta) < 0) {
-                                Log::warning("[PO Update] Quantity reduction would result in negative stock for PO #{$purchase->id}", [
-                                    'product_id' => $productId,
-                                    'current_stock' => $product->quantity,
-                                    'delta' => $quantityDelta,
-                                ]);
-                                $validator->errors()->add(
-                                    "items.{$index}.quantity",
-                                    'Cannot reduce quantity by '.abs($quantityDelta)." because only {$product->quantity} unit(s) remain in inventory."
-                                );
-                            }
                         }
                     }
                 }

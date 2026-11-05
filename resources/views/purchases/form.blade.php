@@ -7,7 +7,7 @@
         <div>
             <h4 class="font-bold text-amber-900">{{ __('Purchase Order Already Received') }}</h4>
             <p class="mt-0.5 text-amber-700">
-                {{ __('Products cannot be added or deleted on a received purchase order. Adjusting numbers (quantity) will immediately update current inventory stock levels and inventory movements. Price or discount adjustments will update the order total and vendor invoice.') }}
+                {{ __('Products with sold units cannot be deleted on a received purchase order. Rows with 0 units sold can be removed to correct entry errors, which will automatically reverse warehouse stock, batches, and vendor invoice balances. Adjusting numbers (quantity) will update current stock levels and inventory movements.') }}
             </p>
         </div>
     </div>
@@ -186,12 +186,22 @@
                                 </td>
                                 <td class="w-28 px-4 py-3 text-right text-sm font-semibold align-top whitespace-nowrap" x-text="window.formatMoney(item.subtotal)"></td>
                                 <td class="w-14 px-2 py-3 text-center align-top whitespace-nowrap">
-                                    <button x-show="!is_received" type="button" @click="removeItem(index)" class="inline-flex items-center justify-center rounded-md p-1.5 text-red-600 hover:bg-red-100 hover:text-red-700 focus:outline-none transition-colors" title="{{ __('Remove product') }}">
+                                    <button
+                                        x-show="!is_received || item.can_delete"
+                                        type="button"
+                                        @click="removeItem(index)"
+                                        class="inline-flex items-center justify-center rounded-md p-1.5 text-red-600 hover:bg-red-100 hover:text-red-700 focus:outline-none transition-colors"
+                                        :title="is_received ? '{{ __('Remove product (0 units sold)') }}' : '{{ __('Remove product') }}'"
+                                    >
                                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
                                     </button>
-                                    <span x-show="is_received" class="text-xs text-gray-400 font-mono" title="{{ __('Product locked on received order') }}">
+                                    <span
+                                        x-show="is_received && !item.can_delete"
+                                        class="text-xs text-gray-400 font-mono"
+                                        :title="'{{ __('Cannot delete: ') }}' + (item.units_sold || 0) + ' {{ __('unit(s) already sold from this batch') }}'"
+                                    >
                                         <svg class="h-4 w-4 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                         </svg>
@@ -273,7 +283,7 @@
                 if (this.loading) return;
 
                 if (this.is_received) {
-                    const confirmMsg = "Are you sure you want to update this received purchase order?\n\nAdjusting quantities will immediately update inventory stock levels and movements. Adjusting prices or discounts will update product purchase/selling prices and the vendor invoice.";
+                    const confirmMsg = "Are you sure you want to update this received purchase order?\n\nAdjusting quantities or deleting unsold products will immediately update inventory stock levels and movements. Adjusting prices or discounts will update product purchase/selling prices and the vendor invoice.";
                     if (!confirm(confirmMsg)) {
                         return;
                     }
@@ -554,8 +564,20 @@
             },
 
             removeItem(index) {
-                if (this.is_received) return;
                 const item = this.items[index];
+                if (this.is_received) {
+                    if (this.items.length <= 1) {
+                        this.$dispatch('toast', { message: 'A purchase order must contain at least one product.', type: 'warning' });
+                        return;
+                    }
+                    if (item && item.can_delete === false) {
+                        this.$dispatch('toast', {
+                            message: `Cannot delete ${item.product_name || 'item'}: ${item.units_sold || 0} unit(s) have already been sold from this batch.`,
+                            type: 'warning'
+                        });
+                        return;
+                    }
+                }
                 this.destroyRowSelects(item);
                 this.items.splice(index, 1);
                 if (this.items.length === 0) {
