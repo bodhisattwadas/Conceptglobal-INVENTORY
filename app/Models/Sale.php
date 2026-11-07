@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
+use App\Services\SaleService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -67,5 +68,12 @@ class Sale extends Model
     public function coupon(): BelongsTo
     {
         return $this->belongsTo(DiscountCoupon::class, 'discount_coupon_id');
+    }
+
+    protected static function booted(): void
+    {
+        static::deleting(function (Sale $sale) {
+            app(SaleService::class)->revertInventoryAndCleanupSale($sale);
+        });
     }
 }

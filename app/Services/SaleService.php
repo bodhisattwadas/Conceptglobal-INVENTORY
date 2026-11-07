@@ -13,14 +13,16 @@ use App\Models\AuditLog;
 use App\Models\DiscountCoupon;
 use App\Models\FinanceTransaction;
 use App\Models\InventoryMovement;
+use App\Models\InventoryStock;
 use App\Models\Product;
+use App\Models\PurchaseItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Service;
 use Carbon\Carbon;
-use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class SaleService
 {
@@ -260,7 +262,7 @@ class SaleService
 
                 return $sale;
 
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 if ($e instanceof SaleException) {
                     throw $e;
                 }
@@ -614,7 +616,7 @@ class SaleService
 
                 return $sale->refresh();
 
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 if ($e instanceof SaleException) {
                     throw $e;
                 }
@@ -641,7 +643,6 @@ class SaleService
                     foreach ($sale->items as $item) {
                         if ($item->product) {
                             $item->product->increment('quantity', $item->quantity);
-                            $this->inventoryService->adjustForSale($item->product_id, $item->quantity, 'sale_cancel', $sale->invoice_number, 'Restored due to sale cancellation.', $sale, $item);
                             $originalType = InventoryMovement::query()
                                 ->where('sale_item_id', $item->id)
                                 ->where('type', 'sale_restore')
@@ -649,8 +650,10 @@ class SaleService
                             $lastCancellationAt = InventoryMovement::query()
                                 ->where('sale_item_id', $item->id)
                                 ->where('type', 'sale_cancel')
+                                ->whereNotNull('purchase_item_id')
                                 ->max('created_at');
 
+                            $this->inventoryService->adjustForSale($item->product_id, $item->quantity, 'sale_cancel', $sale->invoice_number, 'Restored due to sale cancellation.', $sale, $item);
                             $this->inventoryService->restoreBatchesForReference($item->product_id, $sale->invoice_number, $originalType, 'sale_cancel', 'Restored due to sale cancellation.', $sale, $item, $lastCancellationAt);
                         }
                     }
@@ -678,7 +681,7 @@ class SaleService
 
                 return $sale;
 
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 if ($e instanceof SaleException) {
                     throw $e;
                 }
@@ -776,23 +779,139 @@ class SaleService
     }
 
     /**
-     * Permanently delete a cancelled sale.
-     *
-     * @throws Exception
+     * Permanently delete a sale, reverting product stock to inventory and FIFO batches,
+     * decrementing coupon usage, voiding finance transactions, and deleting all linked traces.
      */
     public function deleteSale(Sale $sale): void
     {
         DB::transaction(function () use ($sale) {
+            $this->revertInventoryAndCleanupSale($sale);
+            $sale->delete();
+            $this->clearDashboardStats();
+        });
+    }
+
+    /**
+     * Revert inventory stock, FIFO batches, finance transactions, and traces for a sale being deleted.
+     */
+    public function revertInventoryAndCleanupSale(Sale $sale): void
+    {
+        if (! empty($sale->_cleaned_up_for_delete)) {
+            return;
+        }
+        $sale->_cleaned_up_for_delete = true;
+
+        DB::transaction(function () use ($sale) {
+            $sale->loadMissing(['items.product', 'items.inventoryMovements']);
+
+            // 1. If sale was NOT already cancelled, restore stock to products, inventory stock, and FIFO batches
             if ($sale->status !== SaleStatus::CANCELLED) {
-                throw SaleException::invalidStatus('delete', $sale->status->label(), ['id' => $sale->id]);
+                foreach ($sale->items as $item) {
+                    if ($item->product_id) {
+                        $product = Product::query()->lockForUpdate()->find($item->product_id);
+                        if ($product) {
+                            $product->increment('quantity', $item->quantity);
+                        }
+
+                        $stock = InventoryStock::query()
+                            ->where('product_id', $item->product_id)
+                            ->lockForUpdate()
+                            ->first();
+                        if ($stock) {
+                            $stock->increment('quantity', $item->quantity);
+                        }
+                    }
+                }
+
+                // Restore FIFO batches from deduction movements
+                $saleItemIds = $sale->items->pluck('id')->filter()->all();
+
+                $movements = InventoryMovement::query()
+                    ->where(function ($query) use ($sale, $saleItemIds) {
+                        $query->where('sale_id', $sale->id);
+                        if (! empty($saleItemIds)) {
+                            $query->orWhereIn('sale_item_id', $saleItemIds);
+                        }
+                        $query->orWhere(function ($q) use ($sale) {
+                            $q->where('reference', $sale->invoice_number)
+                                ->whereIn('type', ['sale', 'sale_restore', 'sale_edit_deduct']);
+                        });
+                    })
+                    ->whereNotNull('purchase_item_id')
+                    ->where('quantity', '<', 0)
+                    ->get();
+
+                foreach ($movements as $movement) {
+                    $batch = PurchaseItem::query()->where('id', $movement->purchase_item_id)->lockForUpdate()->first();
+                    if ($batch) {
+                        $batch->increment('received_quantity', abs($movement->quantity));
+                    }
+                }
+
+                // Revert any customer returns that were credited into this sale
+                $returnMovements = InventoryMovement::query()
+                    ->where('sale_id', $sale->id)
+                    ->where('type', 'sale_return')
+                    ->get();
+
+                foreach ($returnMovements as $returnMovement) {
+                    if ($returnMovement->product_id) {
+                        $prod = Product::query()->lockForUpdate()->find($returnMovement->product_id);
+                        if ($prod) {
+                            $prod->decrement('quantity', abs($returnMovement->quantity));
+                        }
+                        $invStock = InventoryStock::query()
+                            ->where('product_id', $returnMovement->product_id)
+                            ->lockForUpdate()
+                            ->first();
+                        if ($invStock) {
+                            $invStock->decrement('quantity', abs($returnMovement->quantity));
+                        }
+                    }
+                    if ($returnMovement->purchase_item_id) {
+                        $batch = PurchaseItem::query()->where('id', $returnMovement->purchase_item_id)->lockForUpdate()->first();
+                        if ($batch) {
+                            $batch->decrement('received_quantity', abs($returnMovement->quantity));
+                        }
+                    }
+                }
+
+                // Decrement coupon usage if applied
+                if ($sale->discount_coupon_id) {
+                    $coupon = DiscountCoupon::find($sale->discount_coupon_id);
+                    if ($coupon) {
+                        $this->couponService->decrementUsage($coupon);
+                    }
+                }
             }
 
-            // Void Finance (Just in case)
+            // 2. Void and permanently delete Finance Transactions
             $this->financeService->voidTransaction($sale);
+            FinanceTransaction::query()
+                ->where('reference_type', Sale::class)
+                ->where('reference_id', $sale->id)
+                ->delete();
 
-            // Manually delete items first due to restrictOnDelete constraint
+            // 3. Delete all Inventory Movements linked to this sale, its items, or its invoice
+            $saleItemIds = $sale->items->pluck('id')->filter()->all();
+            InventoryMovement::query()
+                ->where(function ($query) use ($sale, $saleItemIds) {
+                    $query->where('sale_id', $sale->id);
+                    if (! empty($saleItemIds)) {
+                        $query->orWhereIn('sale_item_id', $saleItemIds);
+                    }
+                    $query->orWhere('reference', $sale->invoice_number);
+                })
+                ->delete();
+
+            // 4. Delete Audit Logs for this sale
+            AuditLog::query()
+                ->where('entity_type', Sale::class)
+                ->where('entity_id', $sale->id)
+                ->delete();
+
+            // 5. Delete Sale Items before deleting Sale (avoids restrictOnDelete foreign key constraint)
             $sale->items()->delete();
-            $sale->delete();
 
             $this->clearDashboardStats();
         });
@@ -1027,7 +1146,7 @@ class SaleService
     {
         try {
             app(DashboardStatsService::class)->clearDashboardCache();
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Ignore if service is not resolvable
         }
     }

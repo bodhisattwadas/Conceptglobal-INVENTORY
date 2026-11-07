@@ -36,6 +36,7 @@ class SalesController extends Controller
 
     public function store(StoreSaleRequest $request, SaleService $saleService)
     {
+        $sale = null;
         try {
             $validated = $request->validated();
             $validated['created_by'] = Auth::id();
@@ -57,19 +58,22 @@ class SalesController extends Controller
             return redirect()->route('sales.create')
                 ->with('success', 'Sale created successfully.');
 
-        } catch (SaleException $e) {
-            if ($request->wantsJson()) {
-                return response()->json(['message' => $e->getMessage()], 400);
+        } catch (\Throwable $e) {
+            if ($sale && $sale->exists) {
+                try {
+                    $saleService->deleteSale($sale);
+                } catch (\Throwable) {
+                    // Ignore secondary rollback failure
+                }
             }
 
-            return back()->with('error', $e->getMessage())->withInput();
+            $message = $e instanceof SaleException ? $e->getMessage() : ($e->getMessage() ?: 'An error occurred while creating the sale.');
 
-        } catch (\Exception $e) {
             if ($request->wantsJson()) {
-                return response()->json(['message' => $e->getMessage()], 400);
+                return response()->json(['message' => $message], 400);
             }
 
-            return back()->with('error', $e->getMessage())->withInput();
+            return back()->with('error', $message)->withInput();
         }
     }
 
@@ -136,13 +140,19 @@ class SalesController extends Controller
     public function destroy(Request $request, Sale $sale, SaleService $saleService)
     {
         try {
+            if ($request->boolean('permanent') || $request->input('action') === 'delete') {
+                $saleService->deleteSale($sale);
+
+                return redirect()->route('sales.index')->with('success', 'Sale deleted permanently and products returned to inventory.');
+            }
+
             $reason = $request->validate([
                 'reason' => ['nullable', 'string', 'max:1000'],
             ])['reason'] ?? null;
             $saleService->cancelSale($sale, $reason);
 
             return redirect()->route('sales.index')->with('success', 'Sale cancelled successfully.');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return back()->with('error', $e->getMessage());
         }
     }

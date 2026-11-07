@@ -378,6 +378,16 @@
                     </x-secondary-button>
                 @endif
 
+                @if(auth()->user()?->isAdmin())
+                    {{-- Permanent Delete Action --}}
+                    <x-danger-button
+                        class="!bg-red-700 hover:!bg-red-800"
+                        @click="confirmAction('{{ route('sales.destroy', ['sale' => $sale, 'permanent' => 1]) }}', 'DELETE', 'Delete Sale Permanently', 'Are you sure you want to permanently delete this sale? Products will be returned to inventory and all records cleared.', 'Yes, Delete Sale', '!bg-red-700 hover:!bg-red-800 focus:!ring-red-600')"
+                    >
+                        {{ __('Delete Sale') }}
+                    </x-danger-button>
+                @endif
+
                 <!-- Shared Confirmation Modal -->
                 <x-modal name="confirmation-modal">
                     <div class="p-6" x-data="{ submitting: false }">
