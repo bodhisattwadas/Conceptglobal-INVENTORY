@@ -75,6 +75,7 @@ class SaleService
                     'global_discount' => $data->global_discount,
                     'coupon_discount' => 0,
                     'round_off' => 0,
+                    'return_discount' => (float) $data->return_discount,
                     'total_discount' => 0,
                     'total' => 0,
                     'discount_coupon_id' => $appliedCoupon?->id,
@@ -194,15 +195,18 @@ class SaleService
                     }
                 }
 
+                $returnDiscount = round(max(0, (float) ($data->return_discount ?? 0)), 2);
+
                 if ($data->round_off !== null) {
                     $roundOff = round($data->round_off, 2);
                     $globalDiscount = round($couponDiscount - $roundOff, 2);
 
-                    if ($globalDiscount > $totalSubtotal) {
-                        throw SaleException::invalidDiscount('Discount ('.format_money($globalDiscount).') cannot exceed subtotal ('.format_money($totalSubtotal).').');
+                    if (($globalDiscount + $returnDiscount) > $totalSubtotal) {
+                        // Allow return discount to cap total at 0
+                        $total = 0;
+                    } else {
+                        $total = max(0, round($totalSubtotal - $globalDiscount - $returnDiscount, 2));
                     }
-
-                    $total = max(0, round($totalSubtotal - $globalDiscount, 2));
                 } else {
                     $rawBillDiscount = abs((float) $data->bill_discount);
                     $rawGlobalDiscount = abs((float) $data->global_discount);
@@ -210,11 +214,11 @@ class SaleService
                     $globalDiscount = round($couponDiscount + $billDiscount, 2);
                     $roundOff = round(-$billDiscount, 2);
 
-                    if ($globalDiscount > $totalSubtotal) {
-                        throw SaleException::invalidDiscount('Discount ('.format_money($globalDiscount).') cannot exceed subtotal ('.format_money($totalSubtotal).').');
+                    if (($globalDiscount + $returnDiscount) > $totalSubtotal) {
+                        $total = 0;
+                    } else {
+                        $total = max(0, round($totalSubtotal - $globalDiscount - $returnDiscount, 2));
                     }
-
-                    $total = round($totalSubtotal - $globalDiscount, 2);
                 }
 
                 if ($data->status === SaleStatus::COMPLETED) {
@@ -231,16 +235,22 @@ class SaleService
 
                 $sale->update([
                     'subtotal' => round($totalSubtotal + $totalDiscount, 2),
-                    'total_discount' => round($totalDiscount + $globalDiscount, 2),
+                    'total_discount' => round($totalDiscount + $globalDiscount + $returnDiscount, 2),
                     'global_discount' => $globalDiscount,
                     'coupon_discount' => $couponDiscount,
                     'round_off' => $roundOff,
+                    'return_discount' => $returnDiscount,
                     'total' => $total,
                     'cash_received' => $data->payment_method === PaymentMethod::CASH ? $data->cash_received : $total,
                     'change' => $change,
                     'discount_coupon_id' => $appliedCoupon?->id,
                     'coupon_code' => $appliedCoupon?->code ?? $data->coupon_code,
                 ]);
+
+                // Process customer returns if any
+                if (! empty($data->returned_items)) {
+                    $this->processReturnedItems($sale, $data->returned_items);
+                }
 
                 if ($sale->status === SaleStatus::COMPLETED) {
                     $this->financeService->recordIncomeFromSale($sale);
@@ -931,6 +941,83 @@ class SaleService
         }
 
         return round($discount, 2);
+    }
+
+    /**
+     * Process product returns associated with this sale:
+     * - Restores stock to the same batch in inventory
+     * - Logs inventory movements
+     * - Removes or decrements item from the original invoice
+     * - Recalculates the original invoice totals and synchronizes finance transaction
+     */
+    protected function processReturnedItems(Sale $newSale, array $returnedItems): void
+    {
+        if (empty($returnedItems)) {
+            return;
+        }
+
+        foreach ($returnedItems as $returnItemData) {
+            $saleItemId = $returnItemData['sale_item_id'] ?? null;
+            $returnQty = (int) ($returnItemData['return_qty'] ?? 1);
+
+            if (! $saleItemId || $returnQty <= 0) {
+                continue;
+            }
+
+            $originalSaleItem = SaleItem::with(['sale', 'product', 'inventoryMovements'])->find($saleItemId);
+            if (! $originalSaleItem || ! $originalSaleItem->product_id || ! $originalSaleItem->sale) {
+                continue;
+            }
+
+            $originalSale = $originalSaleItem->sale;
+            $productName = $originalSaleItem->item_name;
+
+            // Ensure return quantity doesn't exceed current sold quantity
+            $actualReturnQty = min($returnQty, (int) $originalSaleItem->quantity);
+            if ($actualReturnQty <= 0) {
+                continue;
+            }
+
+            // 1. Move product to same batch in inventory
+            $this->inventoryService->returnSaleItemToBatch($originalSaleItem, $actualReturnQty, $newSale);
+
+            // 2. Remove / adjust item on corresponding original invoice
+            if ($actualReturnQty >= $originalSaleItem->quantity) {
+                $originalSaleItem->delete();
+            } else {
+                $newQty = $originalSaleItem->quantity - $actualReturnQty;
+                $originalSaleItem->update([
+                    'quantity' => $newQty,
+                    'subtotal' => round($newQty * $originalSaleItem->final_price, 2),
+                ]);
+            }
+
+            // 3. Recalculate original sale invoice totals
+            $remainingItems = $originalSale->items()->get();
+            $newSubtotal = (float) $remainingItems->sum(fn ($i) => round($i->unit_price * $i->quantity, 2));
+            $newItemDiscounts = (float) $remainingItems->sum(fn ($i) => round($i->discount * $i->quantity, 2));
+            $remainingLineTotals = (float) $remainingItems->sum('subtotal');
+
+            $newGlobalDisc = min($remainingLineTotals, (float) ($originalSale->global_discount ?? 0));
+            $newTotal = max(0, round($remainingLineTotals - $newGlobalDisc, 2));
+
+            $origNotes = $originalSale->notes ?? '';
+            $returnNote = "[Returned on {$newSale->invoice_number}]: {$actualReturnQty}x {$productName}";
+            $origNotes = trim($origNotes."\n".$returnNote);
+
+            $originalSale->update([
+                'subtotal' => $newSubtotal,
+                'total_discount' => round($newItemDiscounts + $newGlobalDisc, 2),
+                'total' => $newTotal,
+                'notes' => $origNotes,
+                'cash_received' => $originalSale->payment_method === PaymentMethod::CASH ? min((float) $originalSale->cash_received, $newTotal) : $newTotal,
+            ]);
+
+            // Synchronize finance record for original sale
+            if ($originalSale->status === SaleStatus::COMPLETED) {
+                $this->financeService->recordIncomeFromSale($originalSale);
+            }
+        }
     }
 
     /**

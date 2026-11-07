@@ -58,6 +58,11 @@ class Purchase extends Model
         return $this->hasOne(VendorInvoice::class);
     }
 
+    public function vendorReturns(): HasMany
+    {
+        return $this->hasMany(VendorReturn::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

@@ -26,6 +26,8 @@ readonly class SaleData
         public ?float $round_off = null,
         public ?int $coupon_id = null,
         public ?string $coupon_code = null,
+        public float $return_discount = 0,
+        public array $returned_items = [],
     ) {}
 
     public static function fromArray(array $data): self
@@ -45,6 +47,8 @@ readonly class SaleData
             round_off: isset($data['round_off']) && $data['round_off'] !== '' && $data['round_off'] !== null ? (float) $data['round_off'] : null,
             coupon_id: isset($data['coupon_id']) && ! empty($data['coupon_id']) ? (int) $data['coupon_id'] : null,
             coupon_code: ! empty($data['coupon_code']) ? strtoupper(trim($data['coupon_code'])) : null,
+            return_discount: (float) ($data['return_discount'] ?? 0),
+            returned_items: (array) ($data['returned_items'] ?? []),
         );
     }
 
@@ -65,6 +69,8 @@ readonly class SaleData
             'round_off' => $this->round_off,
             'coupon_id' => $this->coupon_id,
             'coupon_code' => $this->coupon_code,
+            'return_discount' => $this->return_discount,
+            'returned_items' => $this->returned_items,
         ];
     }
 }

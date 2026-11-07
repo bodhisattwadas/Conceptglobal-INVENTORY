@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\InventoryMovement;
 use App\Models\InventoryStock;
+use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\Sale;
@@ -232,6 +233,128 @@ class InventoryService
                 'sale_id' => $sale?->id ?? $movement->sale_id,
                 'sale_item_id' => $movement->sale_item_id,
             ]);
+        }
+    }
+
+    /**
+     * Restore product units back to their original batch from a previously sold SaleItem.
+     */
+    public function returnSaleItemToBatch(SaleItem $originalSaleItem, int $returnQuantity, Sale $newSale, string $type = 'sale_return'): void
+    {
+        if ($returnQuantity <= 0 || ! $originalSaleItem->product_id) {
+            return;
+        }
+
+        $productId = $originalSaleItem->product_id;
+        $product = Product::query()->lockForUpdate()->find($productId);
+        if ($product) {
+            $product->increment('quantity', $returnQuantity);
+        }
+
+        $stock = InventoryStock::query()->where('product_id', $productId)->lockForUpdate()->first();
+        if (! $stock) {
+            $stock = InventoryStock::create([
+                'product_id' => $productId,
+                'quantity' => 0,
+            ]);
+        }
+        $stock->increment('quantity', $returnQuantity);
+        $stock->refresh();
+
+        // Create product-level movement
+        $originalInvoice = $originalSaleItem->sale?->invoice_number ?? 'N/A';
+        InventoryMovement::create([
+            'product_id' => $productId,
+            'type' => $type,
+            'quantity' => $returnQuantity,
+            'balance_after' => $stock->quantity,
+            'reference' => $newSale->invoice_number,
+            'notes' => "Customer return of {$returnQuantity} unit(s) from invoice {$originalInvoice}",
+            'sale_id' => $newSale->id,
+            'sale_item_id' => $originalSaleItem->id,
+        ]);
+
+        // Find batch movements previously recorded for this original sale item
+        $batchMovements = InventoryMovement::query()
+            ->where('sale_item_id', $originalSaleItem->id)
+            ->whereNotNull('purchase_item_id')
+            ->where('quantity', '<', 0)
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $remainingToRestore = $returnQuantity;
+
+        foreach ($batchMovements as $bm) {
+            if ($remainingToRestore <= 0) {
+                break;
+            }
+
+            $batch = PurchaseItem::query()->where('id', $bm->purchase_item_id)->lockForUpdate()->first();
+            if (! $batch) {
+                continue;
+            }
+
+            // Check how many units have already been restored for this batch on this sale item
+            $alreadyRestored = (int) InventoryMovement::query()
+                ->where('sale_item_id', $originalSaleItem->id)
+                ->where('purchase_item_id', $bm->purchase_item_id)
+                ->where('type', 'sale_return')
+                ->sum('quantity');
+
+            $availableToRestore = max(0, abs($bm->quantity) - $alreadyRestored);
+            $restore = min($remainingToRestore, $availableToRestore);
+
+            if ($restore <= 0) {
+                continue;
+            }
+
+            $batch->increment('received_quantity', $restore);
+            $batch->refresh();
+
+            InventoryMovement::create([
+                'product_id' => $productId,
+                'purchase_id' => $batch->purchase_id,
+                'purchase_item_id' => $batch->id,
+                'type' => $type,
+                'location' => $batch->location?->value ?? ($batch->location ?: 'shop'),
+                'quantity' => $restore,
+                'balance_after' => $batch->received_quantity,
+                'reference' => $newSale->invoice_number,
+                'notes' => "Customer return of {$restore} unit(s) from invoice {$originalInvoice} to batch {$batch->batch_number}",
+                'sale_id' => $newSale->id,
+                'sale_item_id' => $originalSaleItem->id,
+            ]);
+
+            $remainingToRestore -= $restore;
+        }
+
+        // Fallback: If no batch movements were tracked on this sale item (e.g. historical sales)
+        // restore to the latest available batch for this product
+        if ($remainingToRestore > 0) {
+            $fallbackBatch = PurchaseItem::query()
+                ->where('product_id', $productId)
+                ->orderBy('id', 'desc')
+                ->lockForUpdate()
+                ->first();
+
+            if ($fallbackBatch) {
+                $fallbackBatch->increment('received_quantity', $remainingToRestore);
+                $fallbackBatch->refresh();
+
+                InventoryMovement::create([
+                    'product_id' => $productId,
+                    'purchase_id' => $fallbackBatch->purchase_id,
+                    'purchase_item_id' => $fallbackBatch->id,
+                    'type' => $type,
+                    'location' => $fallbackBatch->location?->value ?? ($fallbackBatch->location ?: 'shop'),
+                    'quantity' => $remainingToRestore,
+                    'balance_after' => $fallbackBatch->received_quantity,
+                    'reference' => $newSale->invoice_number,
+                    'notes' => "Customer return of {$remainingToRestore} unit(s) from invoice {$originalInvoice} to batch {$fallbackBatch->batch_number}",
+                    'sale_id' => $newSale->id,
+                    'sale_item_id' => $originalSaleItem->id,
+                ]);
+            }
         }
     }
 }

@@ -39,6 +39,7 @@ class StoreSaleRequest extends FormRequest
             'bill_discount' => $this->normalizeMoney($this->input('bill_discount')),
             'global_discount' => $this->normalizeMoney($this->input('global_discount')),
             'round_off' => $this->normalizeMoney($this->input('round_off')),
+            'return_discount' => $this->normalizeMoney($this->input('return_discount')),
             'items' => $items,
         ]);
     }
@@ -71,6 +72,11 @@ class StoreSaleRequest extends FormRequest
             'round_off' => ['nullable', 'numeric'],
             'coupon_id' => ['nullable', 'integer', 'exists:discount_coupons,id'],
             'coupon_code' => ['nullable', 'string', 'max:50'],
+            'return_discount' => ['nullable', 'numeric', 'min:0'],
+            'returned_items' => ['nullable', 'array'],
+            'returned_items.*.sale_item_id' => ['required_with:returned_items', 'integer', 'exists:sale_items,id'],
+            'returned_items.*.return_qty' => ['required_with:returned_items', 'integer', 'min:1'],
+            'returned_items.*.refund_amount' => ['nullable', 'numeric', 'min:0'],
 
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['nullable', 'required_without:items.*.service_id', 'integer', 'exists:products,id'],

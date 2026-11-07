@@ -50,7 +50,7 @@
 
                         <!-- Buying Dropdown -->
                         @if(Auth::user()->hasRole('admin', 'manager'))
-                        <x-nav-dropdown active="{{ request()->routeIs(['purchases.*', 'vendor-invoices.*', 'suppliers.*']) }}">
+                        <x-nav-dropdown active="{{ request()->routeIs(['purchases.*', 'vendor-invoices.*', 'vendor-returns.*', 'suppliers.*']) }}">
                             <x-slot name="icon">
                                 <x-heroicon-o-shopping-cart class="mr-2 h-4 w-4" />
                             </x-slot>
@@ -63,6 +63,9 @@
                                 </x-dropdown-link>
                                 <x-dropdown-link :href="route('vendor-invoices.index')" :active="request()->routeIs('vendor-invoices.*')">
                                     Vendor Invoices
+                                </x-dropdown-link>
+                                <x-dropdown-link :href="route('vendor-returns.index')" :active="request()->routeIs('vendor-returns.*')">
+                                    Vendor Returns
                                 </x-dropdown-link>
                                 <x-dropdown-link :href="route('suppliers.index')" :active="request()->routeIs('suppliers.*')">
                                     Vendors / Suppliers
@@ -258,8 +261,8 @@
 
                         <!-- Mobile Buying Accordion -->
                         @if(Auth::user()->hasRole('admin', 'manager'))
-                        <div x-data="{ expanded: {{ request()->routeIs(['purchases.*', 'vendor-invoices.*', 'suppliers.*']) ? 'true' : 'false' }} }" class="border-b-0">
-                            <button @click="expanded = !expanded" class="flex flex-1 items-center justify-between py-0 font-semibold transition-all hover:underline [&[data-state=open]>svg]:rotate-180 w-full text-left text-md {{ request()->routeIs(['purchases.*', 'vendor-invoices.*', 'suppliers.*']) ? 'text-primary' : '' }}">
+                        <div x-data="{ expanded: {{ request()->routeIs(['purchases.*', 'vendor-invoices.*', 'vendor-returns.*', 'suppliers.*']) ? 'true' : 'false' }} }" class="border-b-0">
+                            <button @click="expanded = !expanded" class="flex flex-1 items-center justify-between py-0 font-semibold transition-all hover:underline [&[data-state=open]>svg]:rotate-180 w-full text-left text-md {{ request()->routeIs(['purchases.*', 'vendor-invoices.*', 'vendor-returns.*', 'suppliers.*']) ? 'text-primary' : '' }}">
                                 Buying
                                 <x-heroicon-o-chevron-down :class="{'rotate-180': expanded}" class="h-4 w-4 shrink-0 transition-transform duration-200" />
                             </button>
@@ -267,6 +270,7 @@
                                 <div class="mt-2 flex flex-col gap-2 pl-4 border-l border-border ml-2">
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('purchases.*') ? 'text-primary' : '' }}" href="{{ route('purchases.index') }}">Purchase Orders</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('vendor-invoices.*') ? 'text-primary' : '' }}" href="{{ route('vendor-invoices.index') }}">Vendor Invoices</a>
+                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('vendor-returns.*') ? 'text-primary' : '' }}" href="{{ route('vendor-returns.index') }}">Vendor Returns</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('suppliers.*') ? 'text-primary' : '' }}" href="{{ route('suppliers.index') }}">Vendors / Suppliers</a>
                                 </div>
                             </div>

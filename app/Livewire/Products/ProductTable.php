@@ -61,6 +61,7 @@ final class ProductTable extends PowerGridComponent
                 'products.company_id',
                 'products.sku',
                 'products.product_code',
+                'products.hsn_code',
                 'products.name',
                 'products.mrp',
                 'products.min_stock',
@@ -84,6 +85,7 @@ final class ProductTable extends PowerGridComponent
             ->add('action_buttons', fn (Product $model) => $this->actionButtons($model))
             ->add('sku')
             ->add('product_code', fn (Product $model) => $model->product_code ?: '-')
+            ->add('hsn_code', fn (Product $model) => $model->hsn_code ?: '-')
             ->add('image_path')
             ->add('image_preview', function (Product $model) {
                 if (! $model->image_path) {
@@ -130,6 +132,12 @@ final class ProductTable extends PowerGridComponent
             Column::make('Product Code', 'product_code')
                 ->searchable()
                 ->sortable(),
+
+            Column::make('HSN Code', 'hsn_code')
+                ->searchable()
+                ->sortable()
+                ->hidden()
+                ->visibleInExport(true),
 
             Column::make('Image', 'image_preview')
                 ->visibleInExport(false),

@@ -18,6 +18,7 @@ class Product extends Model
         'company_id',
         'sku',
         'product_code',
+        'hsn_code',
         'name',
         'mrp',
         'purchase_price',

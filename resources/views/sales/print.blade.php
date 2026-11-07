@@ -366,6 +366,12 @@
                     <span class="amount-value">{{ $roundOffAmount < 0 ? '- ' : '+ ' }}@money(abs($roundOffAmount))</span>
                 </div>
                 @endif
+                @if(($sale->return_discount ?? 0) > 0)
+                <div class="amount-row">
+                    <span class="amount-label">Return Discount</span>
+                    <span class="amount-value">- @money($sale->return_discount)</span>
+                </div>
+                @endif
                 <div class="amount-row">
                     <span class="amount-label">Total</span>
                     <span class="amount-value">@money($sale->total)</span>

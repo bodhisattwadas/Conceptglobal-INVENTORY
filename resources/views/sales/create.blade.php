@@ -186,8 +186,71 @@
             </div>
         </div>
 
-        <!-- Middle Section: Products & Cart Table (Full Width) -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col space-y-4">
+        <!-- POS Mode Navigation Tabs -->
+        <div class="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl shadow-sm border border-gray-200 p-2.5">
+            <div class="flex items-center gap-2">
+                <!-- Tab 1: New Sale (Cart) -->
+                <button
+                    type="button"
+                    @click="activeTab = 'sale'"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all"
+                    :class="activeTab === 'sale'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                    <span>New Sale (Cart)</span>
+                    <span
+                        x-show="validCartItems.length > 0"
+                        class="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold"
+                        :class="activeTab === 'sale' ? 'bg-white text-indigo-700' : 'bg-indigo-100 text-indigo-700'"
+                        x-text="validCartItems.length"
+                    ></span>
+                </button>
+
+                <!-- Tab 2: Customer Return -->
+                <button
+                    type="button"
+                    @click="switchTab('return')"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all"
+                    :class="activeTab === 'return'
+                        ? 'bg-rose-600 text-white shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                    <span>Customer Return</span>
+                    <template x-if="returnedItems.length > 0">
+                        <span
+                            class="px-2 py-0.5 rounded-full text-[10px] font-extrabold"
+                            :class="activeTab === 'return' ? 'bg-white text-rose-700' : 'bg-rose-100 text-rose-700'"
+                            x-text="returnedItems.length + ' item' + (returnedItems.length > 1 ? 's' : '')"
+                        ></span>
+                    </template>
+                </button>
+            </div>
+
+            <!-- Return Discount Indicator in Tab Bar -->
+            <div x-show="returnDiscount > 0" class="flex items-center gap-2 pr-2">
+                <span class="text-xs text-gray-500 font-medium hidden sm:inline">Return Credit Active:</span>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-rose-50 border border-rose-200 text-rose-700">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span x-text="'- ' + formatCurrency(returnDiscount)"></span>
+                </span>
+                <button
+                    type="button"
+                    @click="clearAllReturns()"
+                    class="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-gray-100 transition-colors"
+                    title="Clear return discount"
+                >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab 1 View: New Sale (Cart & Checkout) -->
+        <div x-show="activeTab === 'sale'" class="space-y-4">
+            <!-- Middle Section: Products & Cart Table (Full Width) -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col space-y-4">
             <!-- Cart Table -->
             <div class="overflow-hidden rounded-lg border border-gray-200">
                 <div class="overflow-x-auto" style="min-height: 280px;">
@@ -717,6 +780,28 @@
                             </div>
                         </div>
 
+                        <!-- Customer Return Discount -->
+                        <div x-show="returnDiscount > 0" class="py-1 px-2 rounded-lg bg-rose-50 border border-rose-200 text-xs flex items-center justify-between">
+                            <div class="flex items-center gap-1.5 overflow-hidden">
+                                <div class="flex items-center justify-center w-4 h-4 rounded bg-rose-200/80 text-rose-800 shrink-0 text-[10px] font-bold">
+                                    ↺
+                                </div>
+                                <span class="font-bold text-rose-900 truncate">Customer Return Credit</span>
+                                <span class="text-[10px] font-semibold px-1 py-0.2 rounded bg-rose-200 text-rose-800 shrink-0" x-text="returnedItems.length + ' item' + (returnedItems.length > 1 ? 's' : '')"></span>
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <span class="font-bold text-rose-700" x-text="'- ' + formatCurrency(returnDiscount)"></span>
+                                <button
+                                    type="button"
+                                    @click="clearAllReturns()"
+                                    class="text-gray-400 hover:text-red-600 p-0.5 rounded transition-colors"
+                                    title="Remove return discount"
+                                >
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- Round Off Box at Final Bill -->
                         <div class="flex justify-between items-center py-1">
                             <div class="flex items-center gap-1.5">
@@ -822,6 +907,269 @@
 
             </div>
         </div>
+        </div>
+
+        <!-- Tab 2 View: Customer Return -->
+        <div x-show="activeTab === 'return'" class="space-y-4">
+            <!-- Customer Return Top Banner / Search Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                    <div class="flex items-center gap-2.5">
+                        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-rose-50 text-rose-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xs font-bold text-gray-800 uppercase tracking-wider">Customer Product Return</h3>
+                            <p class="text-xs text-gray-500">Track past purchases by Invoice Number or Customer Phone to return products to inventory</p>
+                        </div>
+                    </div>
+
+                    <!-- Search Input & Buttons -->
+                    <div class="flex items-center gap-2">
+                        <div class="relative w-72 sm:w-80">
+                            <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            </div>
+                            <input
+                                type="text"
+                                x-model="returnSearchQuery"
+                                @keydown.enter.prevent="loadCustomerSales(true)"
+                                @input.debounce.400ms="if (returnSearchQuery.trim().length >= 3) loadCustomerSales(true);"
+                                placeholder="Search by Invoice # (e.g. INV-...) or Phone..."
+                                class="block w-full text-xs font-semibold rounded-lg border-gray-300 shadow-sm focus:border-rose-500 focus:ring-rose-500 pl-8 pr-8 py-1.5"
+                            >
+                            <div class="absolute inset-y-0 right-0 pr-2 flex items-center">
+                                <template x-if="isLoadingCustomerSales">
+                                    <svg class="animate-spin h-3.5 w-3.5 text-rose-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                </template>
+                                <button
+                                    type="button"
+                                    x-show="!isLoadingCustomerSales && returnSearchQuery"
+                                    @click="returnSearchQuery = ''; customerSales = []; customerSalesLoadedFor = null;"
+                                    class="text-gray-400 hover:text-gray-600 p-0.5 rounded"
+                                    title="Clear search"
+                                >
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            @click="loadCustomerSales(true)"
+                            :disabled="isLoadingCustomerSales || !returnSearchQuery.trim()"
+                            class="px-3 py-1.5 text-xs font-bold rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 shadow-sm shrink-0"
+                        >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            <span>Search</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Customer Info & Stats Bar -->
+                <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div class="flex items-center gap-2">
+                        <template x-if="customerFound && customer.name">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
+                                <svg class="w-3.5 h-3.5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path></svg>
+                                <span x-text="customer.name"></span>
+                                <span class="text-emerald-600 font-normal" x-show="customer.phone" x-text="'(' + customer.phone + ')'"></span>
+                            </span>
+                        </template>
+                        <template x-if="!returnSearchQuery.trim()">
+                            <span class="text-gray-500 italic">Enter an Invoice Number (e.g. INV-...) or Customer Phone number to load previous bills.</span>
+                        </template>
+                        <template x-if="returnSearchQuery.trim() && !customerFound">
+                            <span class="text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
+                                Results for: <strong class="font-mono text-gray-900" x-text="returnSearchQuery"></strong>
+                            </span>
+                        </template>
+                    </div>
+                    <div>
+                        <span class="text-xs font-semibold text-gray-500" x-text="customerSales.length + ' bill(s) found'"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div x-show="isLoadingCustomerSales" class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center space-y-2">
+                <svg class="animate-spin h-7 w-7 text-rose-600 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <p class="text-xs font-semibold text-gray-600">Searching purchase bills...</p>
+            </div>
+
+            <!-- Empty State when query entered but no bills -->
+            <div x-show="!isLoadingCustomerSales && customerSales.length === 0 && returnSearchQuery.trim()" class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center space-y-2">
+                <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-rose-50 text-rose-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                </div>
+                <h4 class="text-sm font-bold text-gray-700">No completed bills found</h4>
+                <p class="text-xs text-gray-500 max-w-sm mx-auto">There are no completed invoices with returnable products matching <strong x-text="returnSearchQuery"></strong>.</p>
+            </div>
+
+            <!-- Empty State when no query entered -->
+            <div x-show="!isLoadingCustomerSales && !returnSearchQuery.trim()" class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center space-y-2">
+                <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 text-gray-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+                <h4 class="text-sm font-bold text-gray-700">Search by Invoice Number or Phone</h4>
+                <p class="text-xs text-gray-500 max-w-sm mx-auto">Type or scan the customer's invoice number (e.g. INV-...) or phone number above to pull previous bills for product return.</p>
+            </div>
+
+            <!-- Invoices Accordion List -->
+            <div x-show="!isLoadingCustomerSales && customerSales.length > 0" class="space-y-3">
+                <template x-for="sale in customerSales" :key="sale.id">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <!-- Bill Accordion Header -->
+                        <div
+                            @click="toggleSaleAccordion(sale.id)"
+                            class="p-3.5 bg-gray-50/80 hover:bg-gray-100/70 cursor-pointer flex flex-wrap items-center justify-between gap-3 transition-colors border-b border-gray-200"
+                        >
+                            <div class="flex items-center gap-3">
+                                <div class="w-7 h-7 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                                    #
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-sm text-gray-900" x-text="sale.invoice_number"></span>
+                                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold" x-text="sale.payment_method"></span>
+                                    </div>
+                                    <span class="text-xs text-gray-500" x-text="sale.sale_date"></span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-4">
+                                <div class="text-right">
+                                    <span class="text-[10px] text-gray-500 uppercase font-semibold block">Total Paid</span>
+                                    <span class="text-sm font-black text-gray-900" x-text="formatCurrency(sale.total)"></span>
+                                </div>
+                                <div class="text-gray-400">
+                                    <svg
+                                        class="w-4 h-4 transform transition-transform"
+                                        :class="expandedSales.includes(sale.id) ? 'rotate-180' : ''"
+                                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bill Line Items Table -->
+                        <div x-show="expandedSales.includes(sale.id)" class="p-3">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-gray-50 text-gray-500 uppercase font-semibold">
+                                        <tr>
+                                            <th class="p-2.5 w-12 text-center">Select</th>
+                                            <th class="p-2.5">Product & Batch</th>
+                                            <th class="p-2.5">Brand</th>
+                                            <th class="p-2.5 text-center">Bought Qty</th>
+                                            <th class="p-2.5 text-right">Unit Price Paid</th>
+                                            <th class="p-2.5 text-center w-36">Return Qty</th>
+                                            <th class="p-2.5 text-right">Return Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100">
+                                        <template x-for="item in sale.items" :key="item.id">
+                                            <tr class="hover:bg-rose-50/30 transition-colors" :class="isItemReturnSelected(item.id) ? 'bg-rose-50/50' : ''">
+                                                <!-- Checkbox -->
+                                                <td class="p-2.5 text-center align-middle">
+                                                    <input
+                                                        type="checkbox"
+                                                        :checked="isItemReturnSelected(item.id)"
+                                                        @change="toggleItemReturn(sale, item)"
+                                                        class="rounded border-gray-300 text-rose-600 focus:ring-rose-500 h-4 w-4 cursor-pointer"
+                                                    >
+                                                </td>
+
+                                                <!-- Product & Batch -->
+                                                <td class="p-2.5 align-middle">
+                                                    <div class="font-bold text-gray-800" x-text="item.product_name"></div>
+                                                    <div class="flex items-center gap-1.5 mt-0.5">
+                                                        <span class="text-[10px] font-mono text-gray-500" x-show="item.sku" x-text="item.sku"></span>
+                                                        <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200" x-text="'Batch: ' + item.batch_number"></span>
+                                                    </div>
+                                                </td>
+
+                                                <!-- Brand -->
+                                                <td class="p-2.5 align-middle text-gray-600 font-medium" x-text="item.brand_name"></td>
+
+                                                <!-- Bought Qty -->
+                                                <td class="p-2.5 align-middle text-center font-bold text-gray-800" x-text="item.quantity + ' ' + item.unit"></td>
+
+                                                <!-- Unit Price Paid -->
+                                                <td class="p-2.5 align-middle text-right font-semibold text-gray-700" x-text="formatCurrency(item.effective_unit_price)"></td>
+
+                                                <!-- Return Qty Selector -->
+                                                <td class="p-2.5 align-middle text-center">
+                                                    <div class="inline-flex items-center rounded-lg border border-gray-300 bg-white overflow-hidden shadow-sm" :class="!isItemReturnSelected(item.id) ? 'opacity-50 pointer-events-none' : ''">
+                                                        <button
+                                                            type="button"
+                                                            @click="decrementReturnQty(item.id)"
+                                                            class="px-2 py-1 text-gray-600 hover:bg-gray-100 font-bold transition-colors"
+                                                        >-</button>
+                                                        <input
+                                                            type="number"
+                                                            :value="getReturnQty(item.id, item.quantity)"
+                                                            @input="setReturnQty(item.id, $event.target.value, item.quantity)"
+                                                            min="1"
+                                                            :max="item.quantity"
+                                                            class="w-12 text-center text-xs font-bold border-0 p-1 focus:ring-0 text-gray-800"
+                                                        >
+                                                        <button
+                                                            type="button"
+                                                            @click="incrementReturnQty(item.id, item.quantity)"
+                                                            class="px-2 py-1 text-gray-600 hover:bg-gray-100 font-bold transition-colors"
+                                                        >+</button>
+                                                    </div>
+                                                </td>
+
+                                                <!-- Return Value -->
+                                                <td class="p-2.5 align-middle text-right font-bold text-rose-600" x-text="formatCurrency(calcItemReturnValue(item))"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Sticky Bottom Return Summary & Action Bar -->
+            <div class="sticky bottom-4 bg-white rounded-xl shadow-lg border border-rose-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-rose-100 text-rose-700 font-black text-lg">
+                        ↺
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Calculated Return Credit</div>
+                        <div class="text-xl font-black text-rose-600" x-text="formatCurrency(selectedReturnsTotalValue)"></div>
+                    </div>
+                    <div class="hidden sm:block pl-3 border-l border-gray-200 text-xs text-gray-500">
+                        <span class="font-bold text-gray-800" x-text="selectedReturnsCount"></span> item(s) selected
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                        type="button"
+                        @click="switchTab('sale')"
+                        class="w-1/2 sm:w-auto px-4 py-2 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    >
+                        Back to POS Cart
+                    </button>
+                    <button
+                        type="button"
+                        @click="applyCustomerReturns()"
+                        :disabled="selectedReturnsCount === 0"
+                        class="w-1/2 sm:w-auto px-6 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        <span>Return & Apply Discount (<span x-text="formatCurrency(selectedReturnsTotalValue)"></span>)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <!-- Alpine Component Logic -->
         <script>
@@ -857,6 +1205,16 @@
                     isApplyingCoupon: false,
                     saleStatus: 'completed',
                     isSubmitting: false,
+
+                    // Tabs & Customer Returns
+                    activeTab: 'sale',
+                    customerSales: [],
+                    isLoadingCustomerSales: false,
+                    customerSalesLoadedFor: null,
+                    returnSearchQuery: '',
+                    expandedSales: [],
+                    customerReturnSelections: {},
+                    returnedItems: [],
 
                     init() {
                         // Load saved data from LocalStorage
@@ -1617,6 +1975,9 @@
                                 this.customerFound = true;
                                 this.lastLookedUpPhone = currentSearch;
                                 this.$dispatch('toast', { message: 'Existing customer found: ' + data.customer.name, type: 'success' });
+                                if (this.activeTab === 'return') {
+                                    this.loadCustomerSales(true);
+                                }
                             } else {
                                 // Whole number does not match an existing customer
                                 if (this.customerFound || this.customer.id) {
@@ -1651,6 +2012,9 @@
                     resetCustomer() {
                         this.clearAutoFilledCustomer();
                         this.customer.phone = '';
+                        this.customerSales = [];
+                        this.customerSalesLoadedFor = null;
+                        this.clearAllReturns();
                         this.focusPhoneInput();
                     },
 
@@ -2098,8 +2462,26 @@
                         return Math.round((this.productDiscount + this.serviceDiscount) * 100) / 100;
                     },
 
+                    get returnDiscount() {
+                        return this.returnedItems.reduce((sum, item) => sum + (parseFloat(item.total_refund) || 0), 0);
+                    },
+
+                    get selectedReturnsCount() {
+                        return Object.values(this.customerReturnSelections).filter(s => s.selected).length;
+                    },
+
+                    get selectedReturnsTotalValue() {
+                        return Object.values(this.customerReturnSelections)
+                            .filter(s => s.selected)
+                            .reduce((sum, s) => {
+                                const qty = s.return_qty || 1;
+                                const price = s.item.effective_unit_price || 0;
+                                return sum + Math.round(qty * price * 100) / 100;
+                            }, 0);
+                    },
+
                     get unroundedPayable() {
-                        return Math.max(0, Math.round((this.subtotal - this.totalDiscount - this.couponDiscount) * 100) / 100);
+                        return Math.max(0, Math.round((this.subtotal - this.totalDiscount - this.couponDiscount - this.returnDiscount) * 100) / 100);
                     },
 
                     get numericRoundOff() {
@@ -2215,6 +2597,178 @@
                         return isNegative ? '-' + num : num;
                     },
 
+                    // Customer Returns & Tab Management
+                    switchTab(tab) {
+                        this.activeTab = tab;
+                        if (tab === 'return') {
+                            if (!this.returnSearchQuery && this.customer.phone) {
+                                this.returnSearchQuery = this.customer.phone;
+                            }
+                            if (this.returnSearchQuery && this.customerSalesLoadedFor !== this.returnSearchQuery) {
+                                this.loadCustomerSales();
+                            }
+                        }
+                    },
+
+                    async loadCustomerSales(force = false) {
+                        const query = (this.returnSearchQuery || this.customer.phone || '').trim();
+                        if (!query) {
+                            this.customerSales = [];
+                            this.customerSalesLoadedFor = null;
+                            return;
+                        }
+
+                        if (!force && this.customerSalesLoadedFor === query && this.customerSales.length > 0) {
+                            return;
+                        }
+
+                        this.isLoadingCustomerSales = true;
+                        try {
+                            const res = await fetch('{{ route("ajax.customers.sales-history") }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                },
+                                body: JSON.stringify({
+                                    query: query,
+                                    phone: query,
+                                    invoice_number: query,
+                                    customer_id: this.customer.id
+                                })
+                            });
+
+                            if (res.ok) {
+                                const data = await res.json();
+                                if (data.found && data.customer) {
+                                    if (!this.customer.name && data.customer.name && !data.customer.name.startsWith('Customer (')) {
+                                        this.customer.name = data.customer.name;
+                                    }
+                                    if (!this.customer.id && data.customer.id) {
+                                        this.customer.id = data.customer.id;
+                                    }
+                                    if (!this.customer.phone && data.customer.raw_phone && !data.customer.raw_phone.toUpperCase().startsWith('INV')) {
+                                        this.customer.phone = data.customer.raw_phone;
+                                    }
+                                    this.customerFound = Boolean(this.customer.id || (this.customer.name && !this.customer.name.startsWith('Customer (')));
+                                }
+                                this.customerSales = data.sales || [];
+                                this.customerSalesLoadedFor = query;
+                                this.expandedSales = this.customerSales.map(s => s.id);
+                            } else {
+                                this.customerSales = [];
+                            }
+                        } catch (err) {
+                            console.error('Failed to load customer sales:', err);
+                            this.$dispatch('toast', { message: 'Could not load customer purchase bills.', type: 'error' });
+                        } finally {
+                            this.isLoadingCustomerSales = false;
+                        }
+                    },
+
+                    toggleSaleAccordion(saleId) {
+                        if (this.expandedSales.includes(saleId)) {
+                            this.expandedSales = this.expandedSales.filter(id => id !== saleId);
+                        } else {
+                            this.expandedSales.push(saleId);
+                        }
+                    },
+
+                    isItemReturnSelected(itemId) {
+                        return Boolean(this.customerReturnSelections[itemId]?.selected);
+                    },
+
+                    toggleItemReturn(sale, item) {
+                        const current = this.customerReturnSelections[item.id];
+                        if (current && current.selected) {
+                            this.customerReturnSelections[item.id] = {
+                                ...current,
+                                selected: false,
+                            };
+                        } else {
+                            this.customerReturnSelections[item.id] = {
+                                selected: true,
+                                return_qty: current?.return_qty || 1,
+                                item: item,
+                                sale: sale,
+                            };
+                        }
+                    },
+
+                    getReturnQty(itemId, maxQty) {
+                        const sel = this.customerReturnSelections[itemId];
+                        if (!sel) return 1;
+                        return Math.min(Math.max(1, sel.return_qty || 1), maxQty);
+                    },
+
+                    setReturnQty(itemId, val, maxQty) {
+                        const parsed = parseInt(val) || 1;
+                        const clamped = Math.min(Math.max(1, parsed), maxQty);
+                        if (this.customerReturnSelections[itemId]) {
+                            this.customerReturnSelections[itemId].return_qty = clamped;
+                        }
+                    },
+
+                    incrementReturnQty(itemId, maxQty) {
+                        const current = this.getReturnQty(itemId, maxQty);
+                        if (current < maxQty) {
+                            this.setReturnQty(itemId, current + 1, maxQty);
+                        }
+                    },
+
+                    decrementReturnQty(itemId) {
+                        const current = this.getReturnQty(itemId, 99999);
+                        if (current > 1) {
+                            this.setReturnQty(itemId, current - 1, 99999);
+                        }
+                    },
+
+                    calcItemReturnValue(item) {
+                        const qty = this.getReturnQty(item.id, item.quantity);
+                        return Math.round(qty * item.effective_unit_price * 100) / 100;
+                    },
+
+                    applyCustomerReturns() {
+                        const selectedEntries = Object.values(this.customerReturnSelections).filter(s => s.selected);
+                        if (selectedEntries.length === 0) {
+                            this.$dispatch('toast', { message: 'No products selected for return.', type: 'warning' });
+                            return;
+                        }
+
+                        this.returnedItems = selectedEntries.map(s => {
+                            const qty = s.return_qty || 1;
+                            const totalRefund = Math.round(qty * s.item.effective_unit_price * 100) / 100;
+                            return {
+                                sale_id: s.sale.id,
+                                invoice_number: s.sale.invoice_number,
+                                sale_item_id: s.item.id,
+                                product_id: s.item.product_id,
+                                product_name: s.item.product_name,
+                                brand_name: s.item.brand_name,
+                                batch_number: s.item.batch_number,
+                                purchase_item_id: s.item.purchase_item_id,
+                                return_qty: qty,
+                                unit_refund_price: s.item.effective_unit_price,
+                                total_refund: totalRefund,
+                            };
+                        });
+
+                        const totalVal = this.returnDiscount;
+                        this.$dispatch('toast', {
+                            message: 'Customer return applied: ' + this.formatCurrency(totalVal) + ' added as Return Discount.',
+                            type: 'success'
+                        });
+
+                        this.activeTab = 'sale';
+                    },
+
+                    clearAllReturns() {
+                        this.returnedItems = [];
+                        this.customerReturnSelections = {};
+                        this.$dispatch('toast', { message: 'Return discount and returned items removed.', type: 'info' });
+                    },
+
                     // Confirmation & Submission
                     openConfirmation() {
                         if (this.validCartItems.length === 0) {
@@ -2319,6 +2873,14 @@
                                 coupon_code: this.appliedCoupon ? this.appliedCoupon.code : null,
                                 status: this.saleStatus,
                                 sale_date: this.saleDate || '{{ now()->format('Y-m-d') }}',
+                                return_discount: this.returnDiscount,
+                                returned_items: this.returnedItems.map(item => ({
+                                    sale_id: item.sale_id,
+                                    sale_item_id: item.sale_item_id,
+                                    product_id: item.product_id,
+                                    return_qty: item.return_qty,
+                                    refund_amount: item.total_refund,
+                                })),
                                 _token: '{{ csrf_token() }}'
                             };
 
@@ -2361,6 +2923,9 @@
                         this.cart.forEach(item => this.destroyRowSelect(item));
                         this.cart = [this.blankItem()];
                         this.resetCustomer();
+                        this.activeTab = 'sale';
+                        this.returnedItems = [];
+                        this.customerReturnSelections = {};
                         this.saleDate = '{{ now()->format('Y-m-d') }}';
                         this.payment = {
                             method: 'cash',
@@ -2455,6 +3020,11 @@
                     <div class="flex items-center justify-between" :class="numericRoundOff < 0 ? 'text-red-600' : 'text-emerald-700'" x-show="numericRoundOff !== 0">
                         <span>Round Off</span>
                         <span class="font-semibold" x-text="(numericRoundOff < 0 ? '- ' : '+ ') + formatCurrency(Math.abs(numericRoundOff))"></span>
+                    </div>
+
+                    <div class="flex items-center justify-between text-rose-600 font-semibold" x-show="returnDiscount > 0">
+                        <span x-text="'Customer Return Credit (' + returnedItems.length + ' item' + (returnedItems.length > 1 ? 's' : '') + ')'"></span>
+                        <span x-text="'- ' + formatCurrency(returnDiscount)"></span>
                     </div>
 
                     <!-- Total -->

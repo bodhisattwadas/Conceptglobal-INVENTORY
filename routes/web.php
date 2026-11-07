@@ -14,11 +14,13 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinanceReportController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ProductController as ProductReportController;
+use App\Http\Controllers\ProductHsnController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SalesController;
 use App\Http\Controllers\SupplierProfileController;
 use App\Http\Controllers\VendorInvoiceController;
+use App\Http\Controllers\VendorReturnController;
 use App\Models\InventoryStock;
 use App\Models\PurchaseItem;
 use App\Models\Supplier;
@@ -101,6 +103,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::view('companies', 'companies.index')->name('master.companies.index');
         Route::view('categories', 'categories.index')->name('categories.index');
         Route::view('units', 'units.index')->name('units.index');
+        Route::get('products/hsn-template', [ProductHsnController::class, 'downloadTemplate'])->name('products.hsn-template');
         Route::view('products', 'products.index')->name('products.index');
     });
 
@@ -153,6 +156,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('vendor-invoices/{vendorInvoice}', [VendorInvoiceController::class, 'show'])->middleware('role:admin,manager')->name('vendor-invoices.show');
     Route::patch('vendor-invoices/{vendorInvoice}/paid', [VendorInvoiceController::class, 'markPaid'])->middleware('role:admin,manager')->name('vendor-invoices.mark-paid');
 
+    // Vendor Returns
+    Route::resource('vendor-returns', VendorReturnController::class)->only(['index', 'create', 'store', 'show'])->middleware('role:admin,manager');
+    Route::get('vendor-returns/{vendorReturn}/print', [VendorReturnController::class, 'print'])->middleware('role:admin,manager')->name('vendor-returns.print');
+
     // =========================================================================
     // Reports
     // =========================================================================
@@ -179,6 +186,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('companies', [App\Http\Controllers\Api\CompanyController::class, 'search'])->middleware('role:admin,manager')->name('companies.search');
         Route::post('customers', [CustomerController::class, 'search'])->middleware('role:admin,sales')->name('customers.search');
         Route::post('customers/by-phone', [CustomerController::class, 'byPhone'])->middleware('role:admin,sales')->name('customers.by-phone');
+        Route::post('customers/sales-history', [CustomerController::class, 'salesHistory'])->middleware('role:admin,sales')->name('customers.sales-history');
         Route::post('customers/store', [CustomerController::class, 'store'])->middleware('role:admin,sales')->name('customers.store');
         Route::get('coupons/available', [CouponController::class, 'available'])->middleware('role:admin,sales')->name('coupons.available');
         Route::post('coupons/apply', [CouponController::class, 'apply'])->middleware('role:admin,sales')->name('coupons.apply');

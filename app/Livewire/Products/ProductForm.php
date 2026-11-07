@@ -29,6 +29,8 @@ class ProductForm extends Component
 
     public ?string $product_code = null;
 
+    public ?string $hsn_code = null;
+
     public ?string $duplicateBarcodeWarning = null;
 
     public string $name = '';
@@ -79,7 +81,7 @@ class ProductForm extends Component
     #[On('create-product')]
     public function create(): void
     {
-        $this->reset(['sku', 'product_code', 'duplicateBarcodeWarning', 'name', 'category_id', 'unit_id', 'company_id', 'brandName', 'mrp', 'purchase_price', 'selling_price', 'min_stock', 'description', 'notes', 'image', 'currentImagePath', 'product', 'isEditing', 'isCloning', 'categoryName', 'unitName']);
+        $this->reset(['sku', 'product_code', 'hsn_code', 'duplicateBarcodeWarning', 'name', 'category_id', 'unit_id', 'company_id', 'brandName', 'mrp', 'purchase_price', 'selling_price', 'min_stock', 'description', 'notes', 'image', 'currentImagePath', 'product', 'isEditing', 'isCloning', 'categoryName', 'unitName']);
         $this->location = 'shop';
         $this->is_active = true;
         $this->formKey++;
@@ -94,6 +96,7 @@ class ProductForm extends Component
         $this->product = $product->load('priceHistories.changedBy');
         $this->sku = $product->sku;
         $this->product_code = $product->product_code;
+        $this->hsn_code = $product->hsn_code;
         $this->duplicateBarcodeWarning = null;
         $this->name = $product->name;
         $this->category_id = $product->category_id;
@@ -129,6 +132,7 @@ class ProductForm extends Component
         $this->product = null;
         $this->sku = null;
         $this->product_code = null;
+        $this->hsn_code = $product->hsn_code;
         $this->duplicateBarcodeWarning = null;
         $this->name = $product->name;
         $this->category_id = $product->category_id;
@@ -163,6 +167,7 @@ class ProductForm extends Component
         return [
             'name' => ['required', 'string', 'max:150'],
             'product_code' => ['nullable', 'string', 'max:100'],
+            'hsn_code' => ['nullable', 'string', 'max:50'],
             'sku' => [
                 'nullable',
                 'string',

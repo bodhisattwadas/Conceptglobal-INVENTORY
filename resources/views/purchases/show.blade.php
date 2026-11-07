@@ -60,6 +60,12 @@
                         {{ __('Make Active') }}
                     </button>
                 @endif
+                @if($isReceived)
+                    <a href="{{ route('vendor-returns.create', ['purchase_id' => $purchase->id]) }}" class="inline-flex h-8 items-center justify-center gap-1.5 rounded bg-rose-600 px-3 text-xs font-semibold text-white hover:bg-rose-700">
+                        <x-heroicon-o-arrow-uturn-left class="h-4 w-4" />
+                        {{ __('Return to Vendor') }}
+                    </a>
+                @endif
                 <a href="{{ route('purchases.print', $purchase) }}" class="inline-flex h-8 items-center justify-center gap-1.5 rounded border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50">
                     <x-heroicon-o-arrow-down-tray class="h-4 w-4" />
                     {{ __('Download PDF') }}
@@ -373,7 +379,13 @@
                             {{ __('Make Active') }}
                         </button>
                     @endif
-                    <a href="{{ route('purchases.print', $purchase) }}" class="inline-flex h-8 items-center justify-center gap-1.5 rounded border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                    @if($isReceived)
+                    <a href="{{ route('vendor-returns.create', ['purchase_id' => $purchase->id]) }}" class="inline-flex h-8 items-center justify-center gap-1.5 rounded bg-rose-600 px-3 text-xs font-semibold text-white hover:bg-rose-700">
+                        <x-heroicon-o-arrow-uturn-left class="h-4 w-4" />
+                        {{ __('Return to Vendor') }}
+                    </a>
+                @endif
+                <a href="{{ route('purchases.print', $purchase) }}" class="inline-flex h-8 items-center justify-center gap-1.5 rounded border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50">
                         <x-heroicon-o-arrow-down-tray class="h-4 w-4" />
                         {{ __('Download PDF') }}
                     </a>

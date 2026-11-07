@@ -100,6 +100,11 @@
                     </div>
 
                     <div class="space-y-1">
+                        <x-input-label value="{{ __('HSN Code') }}" hint="Harmonized System of Nomenclature code." class="text-muted-foreground" />
+                        <p class="text-sm font-mono font-bold text-foreground">{{ $product->hsn_code ?: '-' }}</p>
+                    </div>
+
+                    <div class="space-y-1">
                         <x-input-label value="{{ __('Minimum Quantity') }}" hint="Reorder alert level for inventory. Example: 10." class="text-muted-foreground" />
                         <p class="text-sm text-foreground font-medium">{{ $product->min_stock }}</p>
                     </div>

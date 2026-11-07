@@ -30,6 +30,7 @@ class ProductFactory extends Factory
             'unit_id' => ! empty($units) ? fake()->randomElement($units) : Unit::factory(),
             'company_id' => ! empty($companies) ? fake()->randomElement($companies) : null,
             'sku' => 'P.'.date('ymd').'.'.strtoupper(fake()->unique()->lexify('????')),
+            'hsn_code' => fake()->numerify('######'),
             'name' => fake()->words(3, true),
             'description' => fake()->sentence(),
             'mrp' => $mrp,

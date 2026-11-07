@@ -14,10 +14,18 @@
                 </h2>
                 <p class="mt-1 text-sm text-gray-500">{{ __('Track supplier invoice document, payable amount, and completed payment details.') }}</p>
             </div>
-            <a href="{{ route('vendor-invoices.index') }}" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                <x-heroicon-o-arrow-left class="h-4 w-4" />
-                {{ __('Back') }}
-            </a>
+            <div class="flex items-center gap-2">
+                @if($vendorInvoice->purchase_id)
+                    <a href="{{ route('vendor-returns.create', ['purchase_id' => $vendorInvoice->purchase_id]) }}" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-rose-600 px-3 text-sm font-semibold text-white hover:bg-rose-700 shadow-xs transition-colors">
+                        <x-heroicon-o-arrow-uturn-left class="h-4 w-4" />
+                        {{ __('Return to Vendor') }}
+                    </a>
+                @endif
+                <a href="{{ route('vendor-invoices.index') }}" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                    <x-heroicon-o-arrow-left class="h-4 w-4" />
+                    {{ __('Back') }}
+                </a>
+            </div>
         </div>
     </x-slot>
 

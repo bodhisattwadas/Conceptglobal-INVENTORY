@@ -1,13 +1,19 @@
 <x-app-layout title="Products">
     <x-slot name="header">
-        <div class="flex justify-between items-center">
+        <div class="flex justify-between items-center gap-3">
             <h2 class="font-semibold text-xl text-foreground leading-tight">
                 {{ __('Products') }}
             </h2>
-            <x-primary-button x-data x-on:click="$dispatch('create-product')">
-                <x-heroicon-o-plus class="w-4 h-4 mr-2" />
-                {{ __('Create Product') }}
-            </x-primary-button>
+            <div class="flex items-center gap-2.5">
+                <x-secondary-button x-data x-on:click="$dispatch('open-hsn-import')">
+                    <x-heroicon-o-arrow-up-tray class="w-4 h-4 mr-2 text-indigo-600" />
+                    {{ __('Import / Sync HSN') }}
+                </x-secondary-button>
+                <x-primary-button x-data x-on:click="$dispatch('create-product')">
+                    <x-heroicon-o-plus class="w-4 h-4 mr-2" />
+                    {{ __('Create Product') }}
+                </x-primary-button>
+            </div>
         </div>
     </x-slot>
 
@@ -38,6 +44,7 @@
 
     <livewire:products.product-form />
     <livewire:products.product-detail />
+    <livewire:products.product-hsn-import />
 
     @push('scripts')
         <script>

@@ -242,6 +242,16 @@
                                         </td>
                                     </tr>
                                 @endif
+                                @if(($sale->return_discount ?? 0) > 0)
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-right text-rose-600 font-medium">
+                                            Return Discount
+                                        </td>
+                                        <td class="px-6 py-4 text-right text-rose-600 font-bold">
+                                            - @money($sale->return_discount)
+                                        </td>
+                                    </tr>
+                                @endif
                                 <tr>
                                     <td colspan="7" class="px-6 py-4 text-right">Total</td>
                                     <td class="px-6 py-4 text-right text-indigo-600 text-lg">

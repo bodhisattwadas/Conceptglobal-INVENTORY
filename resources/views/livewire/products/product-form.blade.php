@@ -191,7 +191,7 @@
                 </div>
             </div>
 
-            <!-- MRP -->
+            <!-- MRP & HSN Code -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="space-y-2">
                     <x-input-label for="mrp" :value="__('MRP') . ' (' . \App\Models\Setting::get('currency_symbol', 'Rp') . ')'" hint="Maximum retail price before discounts. Example: 999." />
@@ -203,6 +203,16 @@
                     />
                     <x-input-error :messages="$errors->get('mrp')" />
                 </div>
+
+                <!-- HSN Code -->
+                <x-form-input
+                    name="hsn_code"
+                    label="HSN Code"
+                    placeholder="e.g. 330499"
+                    type="text"
+                    wire:model="hsn_code"
+                    hint="Harmonized System of Nomenclature code for taxation (e.g. 330499)."
+                />
             </div>
 
             <!-- Minimum Quantity, Location, and Active Status -->
