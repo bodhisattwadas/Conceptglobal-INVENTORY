@@ -852,4 +852,59 @@ class HistoricalSaleEditTest extends TestCase
             str_contains($createdCustomer->phone, '91234') || $createdCustomer->phone === $newPhone
         );
     }
+
+    public function test_historical_sale_with_uninventorized_product_can_be_edited_without_fifo_error(): void
+    {
+        // Product without any purchase batches in purchase_items
+        $uninventorizedProduct = Product::factory()->create([
+            'category_id' => $this->category->id,
+            'unit_id' => $this->unit->id,
+            'purchase_price' => 100,
+            'selling_price' => 150,
+            'quantity' => 5,
+            'is_active' => true,
+        ]);
+
+        $sale = Sale::create([
+            'invoice_number' => 'INV.TEST.UNINV',
+            'created_by' => $this->admin->id,
+            'sale_date' => now(),
+            'status' => SaleStatus::COMPLETED,
+            'payment_method' => PaymentMethod::CASH,
+            'subtotal' => 150,
+            'total' => 150,
+            'cash_received' => 150,
+        ]);
+
+        $saleItem = $sale->items()->create([
+            'product_id' => $uninventorizedProduct->id,
+            'quantity' => 1,
+            'cost_price' => 100,
+            'unit_price' => 150,
+            'final_price' => 150,
+            'subtotal' => 150,
+        ]);
+
+        // Attempting to edit historical sale with uninventorized product should not throw "Insufficient FIFO batch stock"
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::CASH->value,
+            'cash_received' => 150,
+            'customer_name' => 'Updated Uninventorized Customer',
+            'customer_phone' => '9988776655',
+            'items' => [
+                [
+                    'product_id' => $uninventorizedProduct->id,
+                    'quantity' => 1,
+                    'unit_price' => 150,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $sale->refresh();
+        $this->assertEquals(1, $sale->items->count());
+        $this->assertEquals($uninventorizedProduct->id, $sale->items->first()->product_id);
+    }
 }

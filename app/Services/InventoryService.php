@@ -189,7 +189,35 @@ class InventoryService
         }
 
         if ($remaining > 0) {
-            throw new \RuntimeException("Insufficient FIFO batch stock for product {$productId}. Missing {$remaining} unit(s).");
+            $hasAnyBatches = PurchaseItem::query()
+                ->where('product_id', $productId)
+                ->whereHas('purchase')
+                ->exists();
+
+            $wasUninventorizedInSale = $sale && InventoryMovement::query()
+                ->where('sale_id', $sale->id)
+                ->where('product_id', $productId)
+                ->where('type', 'sale_uninventorized')
+                ->exists();
+
+            if (! $hasAnyBatches || $wasUninventorizedInSale) {
+                $stockBal = (int) (InventoryStock::query()->where('product_id', $productId)->value('quantity') ?? 0);
+                InventoryMovement::create([
+                    'product_id' => $productId,
+                    'purchase_id' => null,
+                    'purchase_item_id' => null,
+                    'type' => 'sale_uninventorized',
+                    'location' => $location ?: 'shop',
+                    'quantity' => -$remaining,
+                    'balance_after' => $stockBal,
+                    'reference' => $reference,
+                    'notes' => $notes ?: "Sold {$remaining} unit(s) (uninventorized, pending PO back-trace).",
+                    'sale_id' => $sale?->id,
+                    'sale_item_id' => $saleItem?->id,
+                ]);
+            } else {
+                throw new \RuntimeException("Insufficient FIFO batch stock for product {$productId}. Missing {$remaining} unit(s).");
+            }
         }
     }
 

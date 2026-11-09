@@ -331,7 +331,7 @@ class SaleService
 
                         $originalType = InventoryMovement::query()
                             ->where('sale_item_id', $item->id)
-                            ->whereIn('type', ['sale', 'sale_restore', 'sale_edit_deduct'])
+                            ->whereIn('type', ['sale', 'sale_restore', 'sale_edit_deduct', 'sale_uninventorized'])
                             ->pluck('type')
                             ->unique()
                             ->all();
