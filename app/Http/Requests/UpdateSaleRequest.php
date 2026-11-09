@@ -59,7 +59,9 @@ class UpdateSaleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'customer_id' => ['nullable', 'exists:customers,id'],
+            'customer_id' => ['nullable', 'integer'],
+            'customer_phone' => ['nullable', 'string', 'max:50'],
+            'customer_name' => ['nullable', 'string', 'max:255'],
             'sale_date' => ['required', 'date'],
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
             'status' => ['nullable', Rule::in([SaleStatus::PENDING->value, SaleStatus::COMPLETED->value])],

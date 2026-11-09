@@ -8,6 +8,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Models\AuditLog;
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\DiscountCoupon;
 use App\Models\FinanceTransaction;
 use App\Models\InventoryStock;
@@ -767,5 +768,88 @@ class HistoricalSaleEditTest extends TestCase
         $this->assertEquals(300.00, (float) $sale->total); // 400 - 100
         $this->assertEquals(0, $couponA->fresh()->used_count);
         $this->assertEquals(1, $couponB->fresh()->used_count);
+    }
+
+    public function test_edit_view_renders_customer_phone_first_then_name_and_warning(): void
+    {
+        $sale = $this->createTestSale(1, PaymentMethod::CASH);
+
+        $response = $this->actingAs($this->admin)->get(route('sales.edit', $sale));
+
+        $response->assertOk();
+        $response->assertSeeInOrder(['Customer Phone', 'Customer Name']);
+        $response->assertSee('phoneWarning');
+        $response->assertSee('checkPhoneExists');
+    }
+
+    public function test_updating_sale_with_existing_customer_phone_links_to_existing_customer(): void
+    {
+        $existingCustomer = Customer::create([
+            'name' => 'Existing Customer',
+            'phone' => '+91 98765 43210',
+        ]);
+
+        $sale = $this->createTestSale(2, PaymentMethod::CASH);
+        $this->assertNull($sale->customer_id);
+
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::CASH->value,
+            'cash_received' => 400,
+            'customer_phone' => '9876543210',
+            'customer_name' => 'Existing Customer',
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $sale->refresh();
+
+        $this->assertEquals($existingCustomer->id, $sale->customer_id);
+    }
+
+    public function test_updating_sale_with_new_customer_phone_creates_customer_in_db(): void
+    {
+        $sale = $this->createTestSale(2, PaymentMethod::CASH);
+        $this->assertNull($sale->customer_id);
+
+        $newPhone = '9123456789';
+        $newName = 'New Walkin Client';
+
+        $this->assertDatabaseMissing('customers', [
+            'phone' => '+91 91234 56789',
+        ]);
+
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::CASH->value,
+            'cash_received' => 400,
+            'customer_phone' => $newPhone,
+            'customer_name' => $newName,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $sale->refresh();
+
+        $this->assertNotNull($sale->customer_id);
+        $createdCustomer = Customer::find($sale->customer_id);
+        $this->assertEquals($newName, $createdCustomer->name);
+        $this->assertTrue(
+            str_contains($createdCustomer->phone, '91234') || $createdCustomer->phone === $newPhone
+        );
     }
 }

@@ -9,6 +9,7 @@ use App\Http\Requests\CompleteSaleRequest;
 use App\Http\Requests\StoreSaleRequest;
 use App\Http\Requests\UpdateSaleRequest;
 use App\Models\Company;
+use App\Models\Customer;
 use App\Models\Sale;
 use App\Services\DiscountCouponService;
 use App\Services\SaleService;
@@ -104,6 +105,61 @@ class SalesController extends Controller
             $validated['status'] = $sale->status->value;
             $reason = $validated['reason'] ?? null;
             $paymentRef = $validated['payment_ref'] ?? null;
+
+            // Handle Customer Phone and Name:
+            // If phone exists, link to existing customer; if new, save in db; first phone, then name.
+            $customerId = $validated['customer_id'] ?? null;
+            $customerPhone = isset($validated['customer_phone']) ? trim((string) $validated['customer_phone']) : null;
+            $customerName = isset($validated['customer_name']) ? trim((string) $validated['customer_name']) : null;
+
+            if ($customerPhone !== null && $customerPhone !== '') {
+                $digits = preg_replace('/\D+/', '', $customerPhone);
+                $formatted = normalize_indian_phone($customerPhone);
+
+                $existingCustomer = Customer::query()
+                    ->where(function ($q) use ($customerPhone, $digits, $formatted) {
+                        $q->where('phone', $customerPhone);
+                        if ($formatted) {
+                            $q->orWhere('phone', $formatted);
+                        }
+                        if (! empty($digits) && strlen($digits) >= 10) {
+                            $last10 = substr($digits, -10);
+                            $q->orWhere('phone', 'like', "%{$last10}%");
+                        }
+                    })
+                    ->first();
+
+                if ($existingCustomer) {
+                    $customerId = $existingCustomer->id;
+                    if ($customerName && strtolower($customerName) !== 'guest' && $customerName !== $existingCustomer->name) {
+                        $existingCustomer->update(['name' => $customerName]);
+                    }
+                } else {
+                    // New phone number: save new customer in database
+                    $newCustomer = Customer::create([
+                        'name' => $customerName && strtolower($customerName) !== 'guest' ? $customerName : ($customerPhone ? 'Customer '.$customerPhone : 'Guest'),
+                        'phone' => normalize_indian_phone($customerPhone) ?: $customerPhone,
+                    ]);
+                    $customerId = $newCustomer->id;
+                }
+            } elseif ($customerName !== null && $customerName !== '' && strtolower($customerName) !== 'guest') {
+                if ($customerId && Customer::where('id', $customerId)->exists()) {
+                    $customer = Customer::find($customerId);
+                    if ($customer && $customer->name !== $customerName) {
+                        $customer->update(['name' => $customerName]);
+                    }
+                } else {
+                    $newCustomer = Customer::create([
+                        'name' => $customerName,
+                        'phone' => null,
+                    ]);
+                    $customerId = $newCustomer->id;
+                }
+            } elseif ($customerPhone === '' && ($customerName === '' || strtolower((string) $customerName) === 'guest')) {
+                $customerId = null;
+            }
+
+            $validated['customer_id'] = $customerId;
 
             $saleData = SaleData::fromArray($validated);
 

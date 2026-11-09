@@ -3,6 +3,14 @@
     if (preg_match('/Ref:\s*([^\|\n\r]+)/i', $sale->notes ?? '', $matches)) {
         $existingPaymentRef = trim($matches[1]);
     }
+    $initialCustomerPhone = $sale->customer?->phone ?? '';
+    $initialCustomerName = $sale->customer?->name ?? '';
+    if (empty($initialCustomerPhone) && preg_match('/Phone:\s*([^\,\|\n\r]+)/i', $sale->notes ?? '', $phoneMatch)) {
+        $initialCustomerPhone = trim($phoneMatch[1]);
+    }
+    if (empty($initialCustomerName) && preg_match('/Name:\s*([^\,\|\n\r]+)/i', $sale->notes ?? '', $nameMatch)) {
+        $initialCustomerName = trim($nameMatch[1]);
+    }
 @endphp
 <x-app-layout title="Edit Sale" header-max-width="max-w-7xl">
     <x-slot name="header">
@@ -76,7 +84,10 @@
                     paymentMethod: {{ Js::from(old('payment_method', $sale->payment_method->value)) }},
                     paymentRef: {{ Js::from(old('payment_ref', $existingPaymentRef)) }},
                     customerId: {{ Js::from(old('customer_id', $sale->customer_id)) }},
-                    customerName: {{ Js::from($sale->customer?->name ?? 'Guest') }},
+                    customerPhone: {{ Js::from(old('customer_phone', $initialCustomerPhone)) }},
+                    customerName: {{ Js::from(old('customer_name', $initialCustomerName)) }},
+                    initialPhone: {{ Js::from($initialCustomerPhone) }},
+                    initialCustomerId: {{ Js::from($sale->customer_id) }},
                     notes: {{ Js::from(old('notes', $sale->notes)) }},
                     reason: {{ Js::from(old('reason', '')) }},
                     cashReceived: {{ Js::from(old('cash_received', (float) $sale->cash_received)) }},
@@ -117,7 +128,7 @@
                         {{ __('Sale Metadata & Audit Information') }}
                     </h3>
 
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                         <!-- Invoice Number (Readonly) -->
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">{{ __('Invoice Number') }}</label>
@@ -142,18 +153,48 @@
                             >
                         </div>
 
-                        <!-- Customer -->
+                        <!-- Customer Phone (First phone) -->
                         <div>
-                            <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">{{ __('Customer') }}</label>
-                            <div class="flex items-center gap-2">
-                                <input type="hidden" name="customer_id" :value="customerId">
-                                <input
-                                    type="text"
-                                    readonly
-                                    :value="customerName"
-                                    class="w-full text-sm bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-gray-700"
-                                >
+                            <div class="flex items-center justify-between mb-1">
+                                <label for="customer_phone" class="block text-xs font-semibold text-gray-600 uppercase">{{ __('Customer Phone') }}</label>
+                                <span x-show="isCheckingPhone" class="text-[10px] text-indigo-600 flex items-center gap-1 font-normal" style="display: none;">
+                                    <svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                    {{ __('Checking...') }}
+                                </span>
                             </div>
+                            <input
+                                type="text"
+                                id="customer_phone"
+                                name="customer_phone"
+                                x-model="customerPhone"
+                                @input="onPhoneInput()"
+                                @blur="checkPhoneExists((customerPhone || '').trim())"
+                                placeholder="{{ __('Phone (e.g. 9876543210)') }}"
+                                autocomplete="off"
+                                class="w-full text-sm border rounded-lg px-3 py-2 text-gray-800 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                                :class="phoneWarning ? 'border-amber-400 bg-amber-50/20 ring-1 ring-amber-400' : 'border-gray-300 bg-white'"
+                            >
+                        </div>
+
+                        <!-- Customer Name (then name) -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label for="customer_name" class="block text-xs font-semibold text-gray-600 uppercase">{{ __('Customer Name') }}</label>
+                                <template x-if="isNewCustomer && customerPhone.length >= 7">
+                                    <span class="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                        {{ __('New') }}
+                                    </span>
+                                </template>
+                            </div>
+                            <input type="hidden" name="customer_id" :value="customerId">
+                            <input
+                                type="text"
+                                id="customer_name"
+                                name="customer_name"
+                                x-model="customerName"
+                                placeholder="{{ __('Guest or Customer Name') }}"
+                                class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 text-gray-800 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
                         </div>
 
                         <!-- Payment Method Selection -->
@@ -170,6 +211,25 @@
                                     <option value="{{ $method->value }}">{{ $method->label() }}</option>
                                 @endforeach
                             </select>
+                        </div>
+                    </div>
+
+                    <!-- Warning if Phone Exists -->
+                    <div x-show="phoneWarning" x-cloak class="p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5 shadow-xs">
+                        <svg class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        <div class="flex-1">
+                            <span class="font-bold text-amber-800">{{ __('Warning:') }}</span>
+                            <span x-text="phoneWarning"></span>
+                        </div>
+                        <button type="button" @click="phoneWarning = ''" class="text-amber-500 hover:text-amber-700 text-xs font-bold px-1.5 py-0.5">&times;</button>
+                    </div>
+
+                    <!-- Notice if Phone is New -->
+                    <div x-show="!phoneWarning && isNewCustomer && customerPhone.length >= 7" x-cloak class="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+                        <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+                        <div>
+                            <span class="font-bold text-emerald-900">{{ __('New Customer:') }}</span>
+                            <span>{{ __('Phone number is not in database. A new customer will be saved to the database upon update.') }}</span>
                         </div>
                     </div>
 
@@ -736,7 +796,14 @@
                 paymentMethod: config.paymentMethod,
                 paymentRef: config.paymentRef || '',
                 customerId: config.customerId,
-                customerName: config.customerName,
+                customerPhone: config.customerPhone || '',
+                customerName: config.customerName || '',
+                initialPhone: config.initialPhone || '',
+                initialCustomerId: config.initialCustomerId || null,
+                phoneWarning: '',
+                isCheckingPhone: false,
+                isNewCustomer: false,
+                phoneLookupTimeout: null,
                 notes: config.notes || '',
                 reason: config.reason || '',
                 cashReceived: config.cashReceived || 0,
@@ -755,6 +822,89 @@
                 init() {
                     this.items.forEach(item => this.calculateRow(item));
                     this.initQuickSelect();
+                },
+
+                onPhoneInput() {
+                    clearTimeout(this.phoneLookupTimeout);
+                    const rawPhone = (this.customerPhone || '').trim();
+                    const digits = rawPhone.replace(/\D+/g, '');
+
+                    if (!rawPhone || digits.length < 5) {
+                        this.phoneWarning = '';
+                        this.isNewCustomer = false;
+                        return;
+                    }
+
+                    if (this.initialPhone && (rawPhone === this.initialPhone || (digits.length >= 10 && this.initialPhone.replace(/\D+/g, '').endsWith(digits.slice(-10))))) {
+                        this.phoneWarning = '';
+                        this.customerId = this.initialCustomerId;
+                        this.isNewCustomer = false;
+                        return;
+                    }
+
+                    this.phoneLookupTimeout = setTimeout(() => {
+                        this.checkPhoneExists(rawPhone);
+                    }, 300);
+                },
+
+                async checkPhoneExists(rawPhone) {
+                    if (!rawPhone) return;
+                    const digits = rawPhone.replace(/\D+/g, '');
+                    if (digits.length < 5) {
+                        this.phoneWarning = '';
+                        this.isNewCustomer = false;
+                        return;
+                    }
+
+                    if (this.initialPhone && (rawPhone === this.initialPhone || (digits.length >= 10 && this.initialPhone.replace(/\D+/g, '').endsWith(digits.slice(-10))))) {
+                        this.phoneWarning = '';
+                        this.customerId = this.initialCustomerId;
+                        this.isNewCustomer = false;
+                        return;
+                    }
+
+                    this.isCheckingPhone = true;
+
+                    try {
+                        const res = await fetch('{{ route("ajax.customers.by-phone") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                            },
+                            body: JSON.stringify({ phone: rawPhone })
+                        });
+
+                        const data = await res.json();
+
+                        if ((this.customerPhone || '').trim() !== rawPhone) {
+                            return;
+                        }
+
+                        if (data.found && data.customer) {
+                            if (this.initialCustomerId && data.customer.id === this.initialCustomerId) {
+                                this.phoneWarning = '';
+                                this.customerId = data.customer.id;
+                                this.isNewCustomer = false;
+                            } else {
+                                this.phoneWarning = 'Customer with this phone number already exists: "' + data.customer.name + '" (' + (data.customer.phone || rawPhone) + '). This sale will be linked to this existing customer.';
+                                this.customerId = data.customer.id;
+                                if (!this.customerName || this.customerName === 'Guest' || this.customerName.trim() === '') {
+                                    this.customerName = data.customer.name;
+                                }
+                                this.isNewCustomer = false;
+                            }
+                        } else {
+                            this.phoneWarning = '';
+                            this.customerId = null;
+                            this.isNewCustomer = digits.length >= 7;
+                        }
+                    } catch (e) {
+                        console.error('Phone lookup error:', e);
+                    } finally {
+                        this.isCheckingPhone = false;
+                    }
                 },
 
                 calculateRow(item) {
