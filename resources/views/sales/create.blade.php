@@ -1616,14 +1616,6 @@
                         this.$dispatch('close-modal', { name: 'fetch-master-modal' });
                         this.$dispatch('toast', { message: `Fetched "${this.fetchModalTargetItem.name}" from product master!`, type: 'success' });
                     },
-                                select.focus();
-                            } else {
-                                setTimeout(() => {
-                                    document.getElementById(`product_search_${item.key}`)?.tomselect?.focus();
-                                }, 80);
-                            }
-                        });
-                    },
 
                     focusProductSelect() {
                         const emptyRow = this.cart.find(item => !item.id);
