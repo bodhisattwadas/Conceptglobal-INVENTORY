@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\PurchaseLocation;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Product extends Model
 {
@@ -45,6 +46,17 @@ class Product extends Model
     protected $attributes = [
         'location' => 'shop',
     ];
+
+    public static function generateSku(): string
+    {
+        $prefix = 'P.'.now()->format('ymd').'.';
+
+        do {
+            $sku = $prefix.strtoupper(Str::random(4));
+        } while (static::where('sku', $sku)->exists());
+
+        return $sku;
+    }
 
     public function getStockByLocation(): array
     {

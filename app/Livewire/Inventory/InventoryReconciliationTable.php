@@ -28,6 +28,10 @@ class InventoryReconciliationTable extends Component
 
     public string $sortDirection = 'desc';
 
+    public array $selectedIds = [];
+
+    public bool $selectAll = false;
+
     protected $queryString = [
         'search' => ['except' => ''],
         'statusFilter' => ['except' => 'pending'],
@@ -37,16 +41,79 @@ class InventoryReconciliationTable extends Component
     public function updatingSearch(): void
     {
         $this->resetPage();
+        $this->selectedIds = [];
+        $this->selectAll = false;
     }
 
     public function updatingStatusFilter(): void
     {
         $this->resetPage();
+        $this->selectedIds = [];
+        $this->selectAll = false;
     }
 
     public function updatingDateFilter(): void
     {
         $this->resetPage();
+        $this->selectedIds = [];
+        $this->selectAll = false;
+    }
+
+    public function updatedSelectAll(bool $value): void
+    {
+        if ($value) {
+            $this->selectedIds = InventoryReconciliation::query()
+                ->when($this->statusFilter !== 'all', fn (Builder $q) => $q->where('status', $this->statusFilter))
+                ->when($this->statusFilter === 'all', fn (Builder $q) => $q->where('status', 'pending'))
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->toArray();
+        } else {
+            $this->selectedIds = [];
+        }
+    }
+
+    public function createPurchaseOrderForSelected(): mixed
+    {
+        if (empty($this->selectedIds)) {
+            $this->dispatch('toast', [
+                'message' => 'Please select at least one pending reconciliation item.',
+                'type' => 'warning',
+            ]);
+
+            return null;
+        }
+
+        $items = InventoryReconciliation::with('matchedProduct')
+            ->whereIn('id', $this->selectedIds)
+            ->get();
+
+        $alreadyReconciled = $items->filter(fn ($i) => ! $i->isPending());
+        if ($alreadyReconciled->isNotEmpty()) {
+            $this->dispatch('toast', [
+                'message' => 'Some selected items are already reconciled. Please only select pending items.',
+                'type' => 'warning',
+            ]);
+
+            return null;
+        }
+
+        $unmatched = $items->filter(fn ($i) => empty($i->matched_product_id));
+        if ($unmatched->isNotEmpty()) {
+            $first = $unmatched->first();
+            $this->dispatch('toast', [
+                'message' => "'{$first->item_name}' is not in the Product Master yet. Please create it in Master before ordering.",
+                'type' => 'warning',
+            ]);
+
+            $this->openReconcileModal($first->id, 'create');
+
+            return null;
+        }
+
+        return redirect()->route('purchases.create', [
+            'recon_ids' => implode(',', $this->selectedIds),
+        ]);
     }
 
     public function setStatusFilter(string $status): void
@@ -65,9 +132,9 @@ class InventoryReconciliationTable extends Component
         }
     }
 
-    public function openReconcileModal(int $id): void
+    public function openReconcileModal(int $id, string $tab = 'po'): void
     {
-        $this->dispatch('open-reconciliation-modal', id: $id);
+        $this->dispatch('open-reconciliation-modal', id: $id, tab: $tab);
     }
 
     public function openEditModal(int $id): void
@@ -132,7 +199,7 @@ class InventoryReconciliationTable extends Component
         ];
 
         $query = InventoryReconciliation::query()
-            ->with(['sale', 'saleItem', 'matchedProduct', 'reconciledProduct', 'creator', 'reconciler'])
+            ->with(['sale', 'saleItem', 'matchedProduct', 'reconciledProduct', 'targetPurchase', 'reconciledPurchase', 'creator', 'reconciler'])
             ->when($this->statusFilter !== 'all', function (Builder $q) {
                 $q->where('status', $this->statusFilter);
             })

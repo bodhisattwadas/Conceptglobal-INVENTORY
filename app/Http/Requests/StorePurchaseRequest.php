@@ -109,6 +109,7 @@ class StorePurchaseRequest extends FormRequest
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'items.*.selling_price' => ['nullable', 'numeric', 'min:0'],
             'items.*.mrp' => ['nullable', 'numeric', 'min:0'],
+            'recon_ids' => ['nullable', 'string'],
         ];
     }
 

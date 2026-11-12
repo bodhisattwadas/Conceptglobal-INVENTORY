@@ -26,6 +26,8 @@ class InventoryReconciliation extends Model
         'status',
         'reconciled_product_id',
         'reconciled_purchase_item_id',
+        'target_purchase_id',
+        'reconciled_purchase_id',
         'reconciled_by',
         'reconciled_at',
         'action_taken',
@@ -65,6 +67,16 @@ class InventoryReconciliation extends Model
     public function reconciledPurchaseItem(): BelongsTo
     {
         return $this->belongsTo(PurchaseItem::class, 'reconciled_purchase_item_id');
+    }
+
+    public function targetPurchase(): BelongsTo
+    {
+        return $this->belongsTo(Purchase::class, 'target_purchase_id');
+    }
+
+    public function reconciledPurchase(): BelongsTo
+    {
+        return $this->belongsTo(Purchase::class, 'reconciled_purchase_id');
     }
 
     public function creator(): BelongsTo

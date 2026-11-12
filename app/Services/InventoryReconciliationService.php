@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Enums\PurchaseLocation;
+use App\Enums\PurchaseStatus;
 use App\Models\InventoryMovement;
 use App\Models\InventoryReconciliation;
 use App\Models\InventoryStock;
 use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\PurchaseItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use Illuminate\Support\Facades\Auth;
@@ -302,5 +305,181 @@ class InventoryReconciliationService
 
             return $reconciliation->fresh();
         });
+    }
+
+    /**
+     * Create a brand new Product Master entry for an uncataloged reconciliation record
+     * without immediately settling stock (so it can be placed on a PO).
+     */
+    public function createMasterProductOnly(
+        InventoryReconciliation $reconciliation,
+        array $productData
+    ): Product {
+        return DB::transaction(function () use ($reconciliation, $productData) {
+            $sku = ! empty($productData['sku']) ? $productData['sku'] : Product::generateSku();
+            $productCode = ! empty($productData['product_code']) ? $productData['product_code'] : ($reconciliation->barcode ?: null);
+
+            $product = Product::create([
+                'name' => $productData['name'] ?? $reconciliation->item_name,
+                'sku' => $sku,
+                'product_code' => $productCode,
+                'company_id' => $productData['company_id'] ?? null,
+                'category_id' => $productData['category_id'] ?? null,
+                'unit_id' => $productData['unit_id'] ?? null,
+                'selling_price' => $productData['selling_price'] ?? $reconciliation->unit_price,
+                'mrp' => $productData['mrp'] ?? $productData['selling_price'] ?? $reconciliation->unit_price,
+                'purchase_price' => $productData['purchase_price'] ?? $reconciliation->cost_price ?? 0,
+                'min_stock' => $productData['min_stock'] ?? 0,
+                'quantity' => 0,
+                'location' => PurchaseLocation::SHOP,
+                'is_active' => true,
+                'description' => $productData['description'] ?? 'Created from uncataloged POS manual item: '.$reconciliation->item_name,
+            ]);
+
+            InventoryStock::create([
+                'product_id' => $product->id,
+                'location' => PurchaseLocation::SHOP,
+                'quantity' => 0,
+            ]);
+
+            $reconciliation->update([
+                'matched_product_id' => $product->id,
+                'cost_price' => $product->purchase_price ?: $reconciliation->cost_price,
+            ]);
+
+            return $product;
+        });
+    }
+
+    /**
+     * Reconcile against a Purchase Item from an inward PO.
+     */
+    public function reconcileAgainstPurchaseItem(
+        InventoryReconciliation $reconciliation,
+        PurchaseItem $purchaseItem,
+        ?int $userId = null
+    ): InventoryReconciliation {
+        return DB::transaction(function () use ($reconciliation, $purchaseItem, $userId) {
+            $purchase = $purchaseItem->purchase;
+            $product = $purchaseItem->product ?? Product::findOrFail($purchaseItem->product_id);
+            $saleItem = $reconciliation->saleItem;
+            $sale = $reconciliation->sale;
+            $soldQty = $reconciliation->quantity;
+
+            if ($purchase->status === PurchaseStatus::RECEIVED || (int) ($purchaseItem->received_quantity ?? 0) > 0) {
+                // Deduct sold quantity from the newly inwarded product stock
+                $product->decrement('quantity', $soldQty);
+
+                // Adjust inventory stock
+                $this->inventoryService->adjustForSale(
+                    $product->id,
+                    -$soldQty,
+                    'reconciliation_deduct',
+                    $purchase->invoice_number,
+                    'Deducted via PO reconciliation for POS sale: '.$reconciliation->item_name,
+                    $sale,
+                    $saleItem
+                );
+
+                // Deduct from batches
+                try {
+                    $this->inventoryService->deductFromBatches(
+                        $product->id,
+                        $soldQty,
+                        'reconciliation_deduct',
+                        $purchase->invoice_number,
+                        'Deducted from PO batch for reconciliation: '.$reconciliation->reconciliation_number,
+                        $sale,
+                        $saleItem
+                    );
+                } catch (\Throwable) {
+                    // Batches deduction handled safely
+                }
+
+                // Update sale item with real product and actual PO cost price
+                if ($saleItem) {
+                    $saleItem->update([
+                        'product_id' => $product->id,
+                        'cost_price' => $purchaseItem->unit_price,
+                    ]);
+                }
+
+                $currentNotes = $reconciliation->notes ? $reconciliation->notes."\n" : '';
+                $refNote = "[Reconciled]: Settled against received PO #{$purchase->invoice_number} (Item: {$product->name}) at unit cost ₹".number_format($purchaseItem->unit_price, 2);
+
+                $reconciliation->update([
+                    'status' => 'reconciled',
+                    'reconciled_product_id' => $product->id,
+                    'reconciled_purchase_id' => $purchase->id,
+                    'reconciled_purchase_item_id' => $purchaseItem->id,
+                    'cost_price' => $purchaseItem->unit_price,
+                    'reconciled_by' => $userId ?? Auth::id(),
+                    'reconciled_at' => now(),
+                    'action_taken' => 'reconciled_via_po',
+                    'notes' => trim($currentNotes.$refNote),
+                ]);
+            } else {
+                // If PO is not yet received (Draft/Ordered), queue it for auto-settlement upon receive
+                $currentNotes = $reconciliation->notes ? $reconciliation->notes."\n" : '';
+                $refNote = "[Queued]: Linked to PO #{$purchase->invoice_number}. Will automatically settle upon PO receipt.";
+
+                $reconciliation->update([
+                    'target_purchase_id' => $purchase->id,
+                    'matched_product_id' => $product->id,
+                    'cost_price' => $purchaseItem->unit_price ?: $reconciliation->cost_price,
+                    'notes' => trim($currentNotes.$refNote),
+                ]);
+            }
+
+            return $reconciliation->fresh(['reconciledProduct', 'reconciler', 'reconciledPurchase']);
+        });
+    }
+
+    /**
+     * Link reconciliation record to a Purchase Order.
+     */
+    public function linkToPurchaseOrder(
+        InventoryReconciliation $reconciliation,
+        int $purchaseId,
+        ?int $purchaseItemId = null,
+        ?int $userId = null
+    ): InventoryReconciliation {
+        $purchase = Purchase::with('items.product')->findOrFail($purchaseId);
+
+        // Find or infer matching purchase item
+        $item = null;
+        if ($purchaseItemId) {
+            $item = $purchase->items->firstWhere('id', $purchaseItemId);
+        }
+
+        if (! $item) {
+            // Match by product ID or barcode
+            if ($reconciliation->matched_product_id) {
+                $item = $purchase->items->firstWhere('product_id', $reconciliation->matched_product_id);
+            }
+            if (! $item && $reconciliation->barcode) {
+                $item = $purchase->items->first(function ($pi) use ($reconciliation) {
+                    return $pi->product?->product_code === $reconciliation->barcode
+                        || $pi->product?->sku === $reconciliation->barcode;
+                });
+            }
+        }
+
+        if (! $item && $purchase->items->isNotEmpty()) {
+            $item = $purchase->items->first();
+        }
+
+        if ($item) {
+            return $this->reconcileAgainstPurchaseItem($reconciliation, $item, $userId);
+        }
+
+        // If PO has no matching line items yet, tag target PO
+        $currentNotes = $reconciliation->notes ? $reconciliation->notes."\n" : '';
+        $reconciliation->update([
+            'target_purchase_id' => $purchase->id,
+            'notes' => trim($currentNotes."[Queued]: Linked to PO #{$purchase->invoice_number}."),
+        ]);
+
+        return $reconciliation->fresh();
     }
 }

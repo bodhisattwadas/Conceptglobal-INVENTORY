@@ -63,6 +63,16 @@ class Purchase extends Model
         return $this->hasMany(VendorReturn::class);
     }
 
+    public function reconciliations(): HasMany
+    {
+        return $this->hasMany(InventoryReconciliation::class, 'reconciled_purchase_id');
+    }
+
+    public function pendingReconciliations(): HasMany
+    {
+        return $this->hasMany(InventoryReconciliation::class, 'target_purchase_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

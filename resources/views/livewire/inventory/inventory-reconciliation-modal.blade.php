@@ -54,13 +54,24 @@
                         <nav class="flex space-x-2 -mb-px flex-wrap gap-y-1">
                             <button
                                 type="button"
+                                wire:click="$set('activeTab', 'po')"
+                                class="inline-flex items-center gap-1.5 py-2.5 px-3 text-xs font-bold border-b-2 transition-all {{ $activeTab === 'po' ? 'border-indigo-600 text-indigo-700 bg-white rounded-t-lg shadow-sm' : 'border-transparent text-gray-500 hover:text-gray-700' }}"
+                            >
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span>{{ __('1. Link to PO') }}</span>
+                            </button>
+
+                            <button
+                                type="button"
                                 wire:click="$set('activeTab', 'link')"
                                 class="inline-flex items-center gap-1.5 py-2.5 px-3 text-xs font-bold border-b-2 transition-all {{ $activeTab === 'link' ? 'border-blue-600 text-blue-700 bg-white rounded-t-lg shadow-sm' : 'border-transparent text-gray-500 hover:text-gray-700' }}"
                             >
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                 </svg>
-                                <span>{{ __('1. Link Existing Product') }}</span>
+                                <span>{{ __('2. Link Product') }}</span>
                             </button>
 
                             <button
@@ -71,7 +82,7 @@
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                                 </svg>
-                                <span>{{ __('2. Create in Master') }}</span>
+                                <span>{{ __('3. Create in Master') }}</span>
                             </button>
 
                             <button
@@ -82,7 +93,7 @@
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                <span>{{ __('3. Mark Reconciled') }}</span>
+                                <span>{{ __('4. Mark Reconciled') }}</span>
                             </button>
 
                             <button
@@ -100,6 +111,130 @@
 
                     <!-- Modal Body Container -->
                     <div class="p-6 max-h-[65vh] overflow-y-auto">
+
+                        <!-- ================= TAB: LINK TO PURCHASE ORDER ================= -->
+                        @if($activeTab === 'po')
+                            <div class="space-y-4">
+                                <div class="bg-indigo-50/70 rounded-xl p-3.5 border border-indigo-200 text-xs text-indigo-900 space-y-1">
+                                    <div class="font-bold flex items-center gap-1.5">
+                                        <svg class="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                        {{ __('Link to Purchase Order (Regularize Inward Shipment)') }}
+                                    </div>
+                                    <p class="text-indigo-700">
+                                        {{ __('If goods were delivered by a vendor and sold at POS prior to PO entry, select the corresponding Purchase Order below. If the PO is already Received, the sold quantity will be deducted from the new batch immediately. If Ordered/Draft, it will auto-settle upon receiving.') }}
+                                    </p>
+                                </div>
+
+                                <!-- Selected Purchase Card (if chosen) -->
+                                @if($selectedPurchase)
+                                    <div class="rounded-xl border-2 border-indigo-500 bg-indigo-50/30 p-4 relative">
+                                        <button
+                                            type="button"
+                                            wire:click="clearSelectedPurchase"
+                                            class="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-600"
+                                            title="{{ __('Choose a different PO') }}"
+                                        >
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                        </button>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs font-bold text-indigo-700 uppercase tracking-wider">{{ __('Selected Purchase Order') }}</span>
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase {{ $selectedPurchase->status->color() }}">
+                                                {{ $selectedPurchase->status->label() }}
+                                            </span>
+                                        </div>
+                                        <div class="text-sm font-bold text-gray-900 mt-1 font-mono">
+                                            {{ $selectedPurchase->invoice_number }}
+                                            @if($selectedPurchase->supplier)
+                                                <span class="text-gray-600 font-normal">({{ $selectedPurchase->supplier->name }})</span>
+                                            @endif
+                                        </div>
+                                        <div class="mt-2 text-xs text-gray-600 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                            <div>Date: <strong>{{ $selectedPurchase->purchase_date?->format('d M Y') ?? 'N/A' }}</strong></div>
+                                            <div>Items in PO: <strong>{{ $selectedPurchase->items->count() }}</strong></div>
+                                            <div>Total PO Value: <strong>{{ format_money($selectedPurchase->total) }}</strong></div>
+                                        </div>
+
+                                        @if($selectedPurchase->items->isNotEmpty())
+                                            <div class="mt-3 pt-3 border-t border-indigo-100">
+                                                <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                                    {{ __('Select Matching Line Item in this PO:') }}
+                                                </label>
+                                                <select
+                                                    wire:model="selectedPurchaseItemId"
+                                                    class="w-full text-xs rounded-lg border-gray-300 py-1.5 px-3 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
+                                                >
+                                                    @foreach($selectedPurchase->items as $pItem)
+                                                        <option value="{{ $pItem->id }}">
+                                                            {{ $pItem->product?->name ?? 'Product #'.$pItem->product_id }} - Qty: {{ $pItem->quantity }} @ {{ format_money($pItem->unit_price) }} (Buy)
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <!-- Search Input -->
+                                    <div class="space-y-2">
+                                        <div class="flex items-center justify-between">
+                                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                                {{ __('Search Purchase Orders') }}
+                                            </label>
+                                            @if($reconciliation->matched_product_id)
+                                                <button
+                                                    type="button"
+                                                    wire:click="createPurchaseOrderNow"
+                                                    class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold inline-flex items-center gap-1"
+                                                >
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                                                    <span>{{ __('+ Create New PO for this item') }}</span>
+                                                </button>
+                                            @endif
+                                        </div>
+                                        <div class="relative">
+                                            <input
+                                                type="text"
+                                                wire:model.live.debounce.300ms="poSearch"
+                                                placeholder="{{ __('Search by PO #, Supplier Name, or Product Name...') }}"
+                                                class="w-full text-xs rounded-lg border-gray-300 py-2 pl-9 pr-4 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm"
+                                            >
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                            </div>
+                                        </div>
+
+                                        <!-- PO Search Results List -->
+                                        <div class="border border-gray-200 rounded-xl divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                                            @forelse($this->poSearchResults as $po)
+                                                <div
+                                                    wire:click="selectPurchase({{ $po->id }})"
+                                                    class="p-3 hover:bg-indigo-50/60 cursor-pointer flex items-center justify-between transition-colors text-xs"
+                                                >
+                                                    <div>
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="font-mono font-bold text-gray-900">{{ $po->invoice_number }}</span>
+                                                            <span class="px-1.5 py-0.2 rounded text-[10px] font-semibold {{ $po->status->color() }}">
+                                                                {{ $po->status->label() }}
+                                                            </span>
+                                                        </div>
+                                                        <div class="text-gray-500 mt-0.5">
+                                                            {{ $po->supplier?->name ?? 'No Supplier' }} • {{ $po->purchase_date?->format('d M Y') }}
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-right">
+                                                        <div class="font-bold text-gray-900">{{ format_money($po->total) }}</div>
+                                                        <div class="text-[10px] text-indigo-600 font-semibold">{{ __('Select PO &rarr;') }}</div>
+                                                    </div>
+                                                </div>
+                                            @empty
+                                                <div class="p-6 text-center text-xs text-gray-400">
+                                                    {{ __('No purchase orders found matching query.') }}
+                                                </div>
+                                            @endforelse
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
 
                         <!-- ================= TAB 1: LINK EXISTING PRODUCT ================= -->
                         @if($activeTab === 'link')
@@ -498,7 +633,18 @@
                         </button>
 
                         <div>
-                            @if($activeTab === 'link')
+                            @if($activeTab === 'po')
+                                <button
+                                    type="button"
+                                    wire:click="submitLinkPurchase"
+                                    wire:loading.attr="disabled"
+                                    :disabled="!$wire.selectedPurchaseId"
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 transition-colors"
+                                >
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                    <span>{{ __('Link to Purchase Order') }}</span>
+                                </button>
+                            @elseif($activeTab === 'link')
                                 <button
                                     type="button"
                                     wire:click="submitLink"
@@ -510,15 +656,28 @@
                                     <span>{{ __('Link Product & Mark Reconciled') }}</span>
                                 </button>
                             @elseif($activeTab === 'create')
-                                <button
-                                    type="button"
-                                    wire:click="submitCreate"
-                                    wire:loading.attr="disabled"
-                                    class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:opacity-50 transition-colors"
-                                >
-                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                                    <span>{{ __('Create Product & Reconcile') }}</span>
-                                </button>
+                                <div class="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        wire:click="submitCreateProductAndDraftPO"
+                                        wire:loading.attr="disabled"
+                                        class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 transition-colors"
+                                        title="{{ __('Save product in Master Catalog and immediately open PO form') }}"
+                                    >
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                                        <span>{{ __('Create Master & Draft PO') }}</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        wire:click="submitCreate"
+                                        wire:loading.attr="disabled"
+                                        class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:opacity-50 transition-colors"
+                                    >
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                                        <span>{{ __('Create & Settle Directly') }}</span>
+                                    </button>
+                                </div>
                             @elseif($activeTab === 'direct')
                                 <button
                                     type="button"

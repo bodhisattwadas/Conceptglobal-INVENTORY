@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\InventoryReconciliation;
 use App\Models\Product;
+use App\Models\Purchase;
 use App\Models\Unit;
 use App\Services\InventoryReconciliationService;
 use Illuminate\Contracts\View\View;
@@ -24,6 +25,15 @@ class InventoryReconciliationModal extends Component
 
     // Tabs: 'link', 'create', 'direct', 'edit'
     public string $activeTab = 'link';
+
+    // --- Tab: Link Purchase Order ---
+    public string $poSearch = '';
+
+    public ?int $selectedPurchaseId = null;
+
+    public ?Purchase $selectedPurchase = null;
+
+    public ?int $selectedPurchaseItemId = null;
 
     // --- Tab 1: Link Existing Product ---
     public string $productSearch = '';
@@ -84,9 +94,9 @@ class InventoryReconciliationModal extends Component
     public bool $edit_sync_sale = true;
 
     #[On('open-reconciliation-modal')]
-    public function openModal(int $id): void
+    public function openModal(int $id, string $tab = 'po'): void
     {
-        $this->loadRecord($id, 'link');
+        $this->loadRecord($id, $tab);
     }
 
     #[On('open-edit-reconciliation-modal')]
@@ -103,11 +113,19 @@ class InventoryReconciliationModal extends Component
             'saleItem',
             'matchedProduct',
             'reconciledProduct',
+            'targetPurchase',
+            'reconciledPurchase',
             'creator',
         ])->findOrFail($id);
 
         $this->activeTab = $defaultTab;
         $this->isOpen = true;
+
+        // Reset & Populate PO State
+        $this->poSearch = '';
+        $this->selectedPurchaseId = $this->reconciliation->reconciled_purchase_id ?: $this->reconciliation->target_purchase_id;
+        $this->selectedPurchase = $this->selectedPurchaseId ? Purchase::with(['supplier', 'company', 'items.product'])->find($this->selectedPurchaseId) : null;
+        $this->selectedPurchaseItemId = $this->reconciliation->reconciled_purchase_item_id;
 
         // Reset & Populate Link State
         $this->productSearch = $this->reconciliation->barcode ?: $this->reconciliation->item_name;
@@ -155,6 +173,92 @@ class InventoryReconciliationModal extends Component
     {
         $this->selectedProductId = null;
         $this->selectedProduct = null;
+    }
+
+    public function selectPurchase(int $id): void
+    {
+        $this->selectedPurchaseId = $id;
+        $this->selectedPurchase = Purchase::with(['supplier', 'company', 'items.product'])->find($id);
+
+        if ($this->selectedPurchase) {
+            $matchingItem = null;
+            if ($this->reconciliation->matched_product_id) {
+                $matchingItem = $this->selectedPurchase->items->firstWhere('product_id', $this->reconciliation->matched_product_id);
+            }
+            if (! $matchingItem && $this->reconciliation->barcode) {
+                $matchingItem = $this->selectedPurchase->items->first(function ($item) {
+                    return $item->product?->product_code === $this->reconciliation->barcode
+                        || $item->product?->sku === $this->reconciliation->barcode;
+                });
+            }
+            $this->selectedPurchaseItemId = $matchingItem?->id ?? $this->selectedPurchase->items->first()?->id;
+        }
+    }
+
+    public function clearSelectedPurchase(): void
+    {
+        $this->selectedPurchaseId = null;
+        $this->selectedPurchase = null;
+        $this->selectedPurchaseItemId = null;
+    }
+
+    public function getPoSearchResultsProperty(): Collection
+    {
+        $term = trim($this->poSearch);
+        if (strlen($term) < 2) {
+            return Purchase::query()
+                ->with(['supplier', 'company', 'items.product'])
+                ->latest('id')
+                ->limit(6)
+                ->get();
+        }
+
+        return Purchase::query()
+            ->with(['supplier', 'company', 'items.product'])
+            ->where(function ($q) use ($term) {
+                $q->where('invoice_number', 'like', "%{$term}%")
+                    ->orWhereHas('supplier', function ($sq) use ($term) {
+                        $sq->where('name', 'like', "%{$term}%");
+                    })
+                    ->orWhereHas('items.product', function ($pq) use ($term) {
+                        $pq->where('name', 'like', "%{$term}%")
+                            ->orWhere('sku', 'like', "%{$term}%")
+                            ->orWhere('product_code', 'like', "%{$term}%");
+                    });
+            })
+            ->latest('id')
+            ->limit(10)
+            ->get();
+    }
+
+    public function submitLinkPurchase(InventoryReconciliationService $service): void
+    {
+        $this->validate([
+            'selectedPurchaseId' => ['required', 'integer', 'exists:purchases,id'],
+        ]);
+
+        $service->linkToPurchaseOrder(
+            reconciliation: $this->reconciliation,
+            purchaseId: $this->selectedPurchaseId,
+            purchaseItemId: $this->selectedPurchaseItemId,
+            userId: Auth::id()
+        );
+
+        $this->closeModal();
+        $this->dispatch('toast', [
+            'message' => 'Successfully linked to Purchase Order!',
+            'type' => 'success',
+        ]);
+        $this->dispatch('reconciliation-updated');
+    }
+
+    public function createPurchaseOrderNow()
+    {
+        $this->closeModal();
+
+        return redirect()->route('purchases.create', [
+            'recon_ids' => $this->reconciliation->id,
+        ]);
     }
 
     public function getSearchResultsProperty(): Collection
@@ -236,6 +340,40 @@ class InventoryReconciliationModal extends Component
             'type' => 'success',
         ]);
         $this->dispatch('reconciliation-updated');
+    }
+
+    public function submitCreateProductAndDraftPO(InventoryReconciliationService $service)
+    {
+        $this->validate([
+            'create_name' => ['required', 'string', 'max:255'],
+            'create_selling_price' => ['required', 'numeric', 'min:0'],
+            'create_company_id' => ['nullable', 'integer', 'exists:companies,id'],
+            'create_category_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'create_unit_id' => ['nullable', 'integer', 'exists:units,id'],
+            'create_purchase_price' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $service->createMasterProductOnly(
+            reconciliation: $this->reconciliation,
+            productData: [
+                'name' => $this->create_name,
+                'sku' => $this->create_sku,
+                'product_code' => $this->create_barcode ?: null,
+                'company_id' => $this->create_company_id,
+                'category_id' => $this->create_category_id,
+                'unit_id' => $this->create_unit_id,
+                'selling_price' => $this->create_selling_price,
+                'mrp' => $this->create_mrp ?: $this->create_selling_price,
+                'purchase_price' => $this->create_purchase_price,
+            ]
+        );
+
+        $reconId = $this->reconciliation->id;
+        $this->closeModal();
+
+        return redirect()->route('purchases.create', [
+            'recon_ids' => $reconId,
+        ]);
     }
 
     public function submitDirect(InventoryReconciliationService $service): void

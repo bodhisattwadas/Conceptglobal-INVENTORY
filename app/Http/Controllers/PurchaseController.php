@@ -7,6 +7,7 @@ use App\Enums\PurchaseStatus;
 use App\Exceptions\PurchaseException;
 use App\Http\Requests\StorePurchaseRequest;
 use App\Http\Requests\UpdatePurchaseRequest;
+use App\Models\InventoryReconciliation;
 use App\Models\Purchase;
 use App\Services\PurchaseService;
 use App\Services\VendorInvoiceService;
@@ -31,14 +32,58 @@ class PurchaseController extends Controller
         return view('purchases.index');
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $purchaseDate = old('purchase_date') ? Carbon::parse(old('purchase_date')) : now();
+
+        $initialItems = [];
+        $initialSupplierId = null;
+        $initialCompanyId = null;
+        $reconIds = [];
+
+        if ($request->filled('recon_ids')) {
+            $rawIds = is_array($request->input('recon_ids'))
+                ? $request->input('recon_ids')
+                : explode(',', (string) $request->input('recon_ids'));
+            $ids = array_filter(array_map('intval', $rawIds));
+
+            $reconciliations = InventoryReconciliation::whereIn('id', $ids)
+                ->where('status', 'pending')
+                ->with('matchedProduct.company')
+                ->get();
+
+            $reconIds = $reconciliations->pluck('id')->all();
+
+            foreach ($reconciliations as $recon) {
+                if ($recon->matched_product_id && $recon->matchedProduct) {
+                    $prod = $recon->matchedProduct;
+                    $initialItems[] = [
+                        'product_id' => $prod->id,
+                        'product_name' => $prod->name,
+                        'product_code' => $prod->product_code ?: ($prod->sku ?: $recon->barcode),
+                        'company_id' => $prod->company_id,
+                        'brand' => $prod->company?->company_name ?? '',
+                        'mrp' => (float) ($prod->mrp ?: $prod->selling_price ?: $recon->unit_price),
+                        'selling_price' => (float) ($prod->selling_price ?: $recon->unit_price),
+                        'unit_price' => (float) ($prod->purchase_price ?: $recon->cost_price),
+                        'quantity' => (int) $recon->quantity,
+                        'discount_percent' => 0,
+                    ];
+                    if (! $initialCompanyId && $prod->company_id) {
+                        $initialCompanyId = $prod->company_id;
+                    }
+                }
+            }
+        }
 
         return view('purchases.create', [
             'purchase' => new Purchase,
             'statuses' => PurchaseStatus::cases(),
             'previewPoReference' => $this->service->previewPurchaseOrderReference($purchaseDate),
+            'initialItems' => $initialItems,
+            'initialSupplierId' => $initialSupplierId,
+            'initialCompanyId' => $initialCompanyId,
+            'reconIds' => $reconIds,
         ]);
     }
 
@@ -68,6 +113,19 @@ class PurchaseController extends Controller
             $purchaseData = PurchaseData::fromArray($data);
 
             $purchase = $this->service->createPurchase($purchaseData, Auth::id());
+
+            if ($request->filled('recon_ids')) {
+                $rawReconIds = is_array($request->input('recon_ids'))
+                    ? $request->input('recon_ids')
+                    : explode(',', (string) $request->input('recon_ids'));
+                $reconIds = array_filter(array_map('intval', $rawReconIds));
+
+                if (! empty($reconIds)) {
+                    InventoryReconciliation::whereIn('id', $reconIds)
+                        ->where('status', 'pending')
+                        ->update(['target_purchase_id' => $purchase->id]);
+                }
+            }
 
             return redirect()->route('purchases.show', $purchase)
                 ->with('success', 'Purchase created successfully.');

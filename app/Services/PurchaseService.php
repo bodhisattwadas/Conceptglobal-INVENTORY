@@ -7,6 +7,7 @@ use App\Enums\PurchaseStatus;
 use App\Enums\VendorInvoiceStatus;
 use App\Exceptions\PurchaseException;
 use App\Models\InventoryMovement;
+use App\Models\InventoryReconciliation;
 use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -471,6 +472,33 @@ class PurchaseService
                     }
 
                     $product->update($updateData);
+
+                    // Auto-reconcile any pending POS reconciliations for this inwarded product or linked to this PO
+                    $pendingReconciliations = InventoryReconciliation::where('status', 'pending')
+                        ->where(function ($q) use ($purchase, $product) {
+                            $q->where('target_purchase_id', $purchase->id)
+                                ->orWhere('matched_product_id', $product->id)
+                                ->orWhere(function ($q2) use ($product) {
+                                    if ($product->product_code) {
+                                        $q2->where('barcode', $product->product_code);
+                                    }
+                                    if ($product->sku) {
+                                        $q2->orWhere('barcode', $product->sku);
+                                    }
+                                });
+                        })
+                        ->get();
+
+                    if ($pendingReconciliations->isNotEmpty()) {
+                        $reconService = app(InventoryReconciliationService::class);
+                        foreach ($pendingReconciliations as $recon) {
+                            try {
+                                $reconService->reconcileAgainstPurchaseItem($recon, $item, Auth::id());
+                            } catch (\Throwable $e) {
+                                Log::warning("[PurchaseService] Failed to auto-reconcile record #{$recon->id} against PO #{$purchase->id}: {$e->getMessage()}");
+                            }
+                        }
+                    }
                 }
             }
 

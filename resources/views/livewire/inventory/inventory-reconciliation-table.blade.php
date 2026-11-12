@@ -110,12 +110,57 @@
         </div>
     </div>
 
+    <!-- Bulk Selection Toolbar -->
+    @if(count($selectedIds) > 0)
+        <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-indigo-900 shadow-xs">
+            <div class="flex items-center gap-2.5">
+                <span class="font-bold bg-indigo-600 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs shadow-xs">
+                    {{ count($selectedIds) }}
+                </span>
+                <span class="font-semibold text-indigo-950">
+                    {{ count($selectedIds) }} {{ __('pending item(s) selected') }}
+                </span>
+                <span class="text-indigo-500">•</span>
+                <span class="text-indigo-700">
+                    {{ __('Generate a Purchase Order to order these items from a vendor and auto-reconcile once received.') }}
+                </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button
+                    type="button"
+                    wire:click="createPurchaseOrderForSelected"
+                    class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-sm transition-colors text-xs"
+                >
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    <span>{{ __('Create PO for Selected') }}</span>
+                </button>
+                <button
+                    type="button"
+                    wire:click="$set('selectedIds', [])"
+                    class="text-xs text-indigo-700 hover:text-indigo-950 underline font-medium px-2 py-1"
+                >
+                    {{ __('Clear selection') }}
+                </button>
+            </div>
+        </div>
+    @endif
+
     <!-- Data Table -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div class="overflow-x-auto min-h-[300px]">
             <table class="w-full divide-y divide-gray-200 text-left text-xs">
                 <thead class="bg-gray-50 text-gray-500 font-semibold uppercase tracking-wider">
                     <tr>
+                        <th scope="col" class="w-10 px-3 py-3 text-center">
+                            <input
+                                type="checkbox"
+                                wire:model.live="selectAll"
+                                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                title="{{ __('Select all pending') }}"
+                            >
+                        </th>
                         <th scope="col" class="px-4 py-3 cursor-pointer hover:text-gray-700" wire:click="sortBy('created_at')">
                             <div class="flex items-center gap-1">
                                 <span>{{ __('Date / Ref') }}</span>
@@ -145,6 +190,20 @@
                 <tbody class="divide-y divide-gray-100 bg-white">
                     @forelse($reconciliations as $recon)
                         <tr class="hover:bg-indigo-50/30 transition-colors {{ $recon->isPending() ? 'bg-amber-50/20' : '' }}">
+                            <!-- Checkbox -->
+                            <td class="px-3 py-3 text-center whitespace-nowrap">
+                                @if($recon->isPending())
+                                    <input
+                                        type="checkbox"
+                                        wire:model.live="selectedIds"
+                                        value="{{ $recon->id }}"
+                                        class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                    >
+                                @else
+                                    <span class="text-gray-300">-</span>
+                                @endif
+                            </td>
+
                             <!-- Date / Ref -->
                             <td class="px-4 py-3 whitespace-nowrap">
                                 <div class="font-mono font-bold text-gray-900">{{ $recon->reconciliation_number }}</div>
@@ -219,6 +278,16 @@
                                             <div class="text-[11px] text-blue-700 font-medium">
                                                 Matched: {{ $recon->matchedProduct->name }} ({{ $recon->matchedProduct->sku }})
                                             </div>
+                                        @else
+                                            <div class="text-[10px] text-amber-600 font-medium">
+                                                {{ __('Not in Master Catalog') }}
+                                            </div>
+                                        @endif
+                                        @if($recon->targetPurchase)
+                                            <div class="text-[11px] text-purple-700 font-medium flex items-center gap-1 mt-0.5">
+                                                <span>PO: {{ $recon->targetPurchase->po_reference }}</span>
+                                                <span class="text-[9px] px-1 py-0.2 rounded bg-purple-100 text-purple-800 font-bold uppercase">{{ $recon->targetPurchase->status }}</span>
+                                            </div>
                                         @endif
                                     @elseif($recon->isReconciled())
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
@@ -227,6 +296,11 @@
                                         @if($recon->reconciledProduct)
                                             <div class="text-[11px] text-gray-700 font-medium">
                                                 Product: {{ $recon->reconciledProduct->name }} ({{ $recon->reconciledProduct->sku }})
+                                            </div>
+                                        @endif
+                                        @if($recon->reconciledPurchase)
+                                            <div class="text-[11px] text-indigo-700 font-medium">
+                                                From PO: {{ $recon->reconciledPurchase->po_reference }}
                                             </div>
                                         @endif
                                         @if($recon->reconciled_at)
@@ -251,10 +325,37 @@
                             <td class="px-4 py-3 whitespace-nowrap text-center">
                                 <div class="inline-flex items-center gap-1.5">
                                     @if($recon->isPending())
+                                        @if($recon->matched_product_id)
+                                            <!-- PO Shortcut Button -->
+                                            <a
+                                                href="{{ route('purchases.create', ['recon_ids' => $recon->id]) }}"
+                                                class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition-colors shadow-2xs"
+                                                title="{{ __('Create Purchase Order for this item') }}"
+                                            >
+                                                <svg class="h-3.5 w-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                                </svg>
+                                                <span>{{ __('+ PO') }}</span>
+                                            </a>
+                                        @else
+                                            <!-- Create in Master Shortcut -->
+                                            <button
+                                                type="button"
+                                                wire:click="openReconcileModal({{ $recon->id }}, 'create')"
+                                                class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-colors shadow-2xs"
+                                                title="{{ __('Create this item in Master Catalog and draft PO') }}"
+                                            >
+                                                <svg class="h-3.5 w-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                                </svg>
+                                                <span>{{ __('+ Master') }}</span>
+                                            </button>
+                                        @endif
+
                                         <!-- Reconcile Button -->
                                         <button
                                             type="button"
-                                            wire:click="openReconcileModal({{ $recon->id }})"
+                                            wire:click="openReconcileModal({{ $recon->id }}, 'po')"
                                             class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
                                             title="{{ __('Open reconciliation options') }}"
                                         >
@@ -296,7 +397,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="px-6 py-12 text-center text-gray-500">
+                            <td colspan="11" class="px-6 py-12 text-center text-gray-500">
                                 <div class="max-w-sm mx-auto space-y-2">
                                     <svg class="h-10 w-10 text-gray-300 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
