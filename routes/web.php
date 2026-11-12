@@ -49,6 +49,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('profile', 'profile.index')->name('profile.index');
     Route::view('companies', 'companies.index')->middleware('role:admin,manager')->name('companies.index');
     Route::view('inventory', 'inventory.index')->middleware('role:admin,manager')->name('inventory.index');
+    Route::view('inventory/reconciliations', 'inventory.reconciliations')->middleware('role:admin,manager')->name('inventory.reconciliations');
     Route::get('inventory/print', [InventoryController::class, 'print'])->middleware('role:admin,manager')->name('inventory.print');
     Route::get('products/print', [ProductReportController::class, 'print'])->middleware('role:admin,manager')->name('products.print');
     Route::get('inventory/{inventoryStock}', function (InventoryStock $inventoryStock) {

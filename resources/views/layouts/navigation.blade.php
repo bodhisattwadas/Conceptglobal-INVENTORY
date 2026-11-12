@@ -82,8 +82,21 @@
                                 Stock
                             </x-slot>
                             <x-slot name="content">
-                                <x-dropdown-link :href="route('inventory.index')" :active="request()->routeIs('inventory.*')">
+                                <x-dropdown-link :href="route('inventory.index')" :active="request()->routeIs('inventory.index')">
                                     Inventory
+                                </x-dropdown-link>
+                                <x-dropdown-link :href="route('inventory.reconciliations')" :active="request()->routeIs('inventory.reconciliations')">
+                                    <div class="flex items-center justify-between w-full">
+                                        <span>{{ __('Reconciliation') }}</span>
+                                        @php
+                                            $pendingReconCount = \App\Models\InventoryReconciliation::where('status', 'pending')->count();
+                                        @endphp
+                                        @if($pendingReconCount > 0)
+                                            <span class="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-white">
+                                                {{ $pendingReconCount }}
+                                            </span>
+                                        @endif
+                                    </div>
                                 </x-dropdown-link>
                                 <x-dropdown-link :href="route('products.index')" :active="request()->routeIs('products.*')">
                                     Products
@@ -284,7 +297,15 @@
                             </button>
                             <div x-show="expanded" x-collapse>
                                 <div class="mt-2 flex flex-col gap-2 pl-4 border-l border-border ml-2">
-                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('inventory.*') ? 'text-primary' : '' }}" href="{{ route('inventory.index') }}">Inventory</a>
+                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('inventory.index') ? 'text-primary' : '' }}" href="{{ route('inventory.index') }}">Inventory</a>
+                                    <a class="text-sm font-medium hover:underline py-1 flex items-center justify-between {{ request()->routeIs('inventory.reconciliations') ? 'text-primary' : '' }}" href="{{ route('inventory.reconciliations') }}">
+                                        <span>Reconciliation</span>
+                                        @if($pendingReconCount > 0)
+                                            <span class="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-white">
+                                                {{ $pendingReconCount }}
+                                            </span>
+                                        @endif
+                                    </a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('products.index') ? 'text-primary' : '' }}" href="{{ route('products.index') }}">Products</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs(['companies.*', 'master.companies.*']) ? 'text-primary' : '' }}" href="{{ route('companies.index') }}">Brands</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('categories.index') ? 'text-primary' : '' }}" href="{{ route('categories.index') }}">Categories</a>

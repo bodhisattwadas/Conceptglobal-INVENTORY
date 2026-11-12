@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SaleItem extends Model
 {
@@ -15,6 +16,9 @@ class SaleItem extends Model
         'sale_id',
         'product_id',
         'service_id',
+        'custom_name',
+        'barcode',
+        'is_manual',
         'quantity',
         'cost_price',
         'unit_price',
@@ -24,6 +28,7 @@ class SaleItem extends Model
     ];
 
     protected $casts = [
+        'is_manual' => 'boolean',
         'cost_price' => 'decimal:2',
         'unit_price' => 'decimal:2',
         'discount' => 'decimal:2',
@@ -57,9 +62,19 @@ class SaleItem extends Model
         return ! empty($this->product_id);
     }
 
+    public function isManual(): bool
+    {
+        return (bool) $this->is_manual;
+    }
+
     public function getItemNameAttribute(): string
     {
-        return $this->service?->name ?? $this->product?->name ?? 'Unknown Item';
+        return $this->custom_name ?? $this->service?->name ?? $this->product?->name ?? 'Unknown Item';
+    }
+
+    public function reconciliation(): HasOne
+    {
+        return $this->hasOne(InventoryReconciliation::class);
     }
 
     public function inventoryMovements(): HasMany

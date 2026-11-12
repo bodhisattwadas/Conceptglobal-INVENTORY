@@ -55,6 +55,11 @@ class Sale extends Model
         return $this->hasMany(SaleItem::class);
     }
 
+    public function reconciliations(): HasMany
+    {
+        return $this->hasMany(InventoryReconciliation::class);
+    }
+
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);

@@ -55,11 +55,14 @@
                         old('items') ? collect(old('items'))->map(function ($item) {
                             return [
                                 'key' => $item['key'] ?? Str::random(8),
+                                'id' => !empty($item['id']) ? (int) $item['id'] : null,
                                 'product_id' => !empty($item['product_id']) ? (int) $item['product_id'] : null,
                                 'service_id' => !empty($item['service_id']) ? (int) $item['service_id'] : null,
                                 'is_service' => !empty($item['service_id']) || !empty($item['is_service']),
+                                'is_manual' => !empty($item['is_manual']),
+                                'barcode' => $item['barcode'] ?? '',
                                 'name' => $item['name'] ?? (!empty($item['product_id']) ? \App\Models\Product::find($item['product_id'])?->name : \App\Models\Service::find($item['service_id'] ?? null)?->name) ?? 'Item',
-                                'code' => $item['code'] ?? '',
+                                'code' => $item['code'] ?? ($item['barcode'] ?? ''),
                                 'unit_price' => (float) ($item['unit_price'] ?? 0),
                                 'quantity' => (int) ($item['quantity'] ?? 1),
                                 'discount' => (float) ($item['discount'] ?? 0),
@@ -68,11 +71,14 @@
                         }) : $sale->items->map(function ($item) {
                             return [
                                 'key' => Str::random(8),
+                                'id' => $item->id,
                                 'product_id' => $item->product_id,
                                 'service_id' => $item->service_id,
                                 'is_service' => $item->isService(),
-                                'name' => $item->product?->name ?? $item->service?->name ?? 'Unknown Item',
-                                'code' => $item->product?->product_code ?? $item->product?->sku ?? $item->service?->code ?? '',
+                                'is_manual' => $item->isManual(),
+                                'barcode' => $item->barcode,
+                                'name' => $item->item_name,
+                                'code' => $item->barcode ?: ($item->product?->product_code ?? $item->product?->sku ?? $item->service?->code ?? ''),
                                 'unit_price' => (float) $item->unit_price,
                                 'quantity' => (int) $item->quantity,
                                 'discount' => (float) $item->discount,
@@ -331,25 +337,67 @@
                                     >
                                         <!-- Item Info & Hidden Inputs -->
                                         <td class="py-2.5 px-3">
+                                            <template x-if="item.id">
+                                                <input type="hidden" :name="'items[' + index + '][id]'" :value="item.id">
+                                            </template>
                                             <template x-if="item.product_id">
                                                 <input type="hidden" :name="'items[' + index + '][product_id]'" :value="item.product_id">
                                             </template>
                                             <template x-if="item.service_id">
                                                 <input type="hidden" :name="'items[' + index + '][service_id]'" :value="item.service_id">
                                             </template>
-                                            <input type="hidden" :name="'items[' + index + '][name]'" :value="item.name">
                                             <input type="hidden" :name="'items[' + index + '][code]'" :value="item.code">
                                             <input type="hidden" :name="'items[' + index + '][is_service]'" :value="item.is_service ? 1 : 0">
+                                            <input type="hidden" :name="'items[' + index + '][is_manual]'" :value="item.is_manual ? 1 : 0">
 
-                                            <div class="flex items-center gap-2">
-                                                <span class="font-medium text-gray-900" x-text="item.name"></span>
-                                                <span
-                                                    class="text-[9px] px-1.5 py-0.2 rounded font-semibold uppercase tracking-wider"
-                                                    :class="item.is_service ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'"
-                                                    x-text="item.is_service ? 'Service' : 'Product'"
-                                                ></span>
-                                            </div>
-                                            <div class="text-xs text-gray-400 mt-0.5" x-text="item.code ? 'Code: ' + item.code : (item.is_service ? 'Service Item' : '')"></div>
+                                            <template x-if="!item.is_manual">
+                                                <div>
+                                                    <input type="hidden" :name="'items[' + index + '][name]'" :value="item.name">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="font-medium text-gray-900" x-text="item.name"></span>
+                                                        <span
+                                                            class="text-[9px] px-1.5 py-0.2 rounded font-semibold uppercase tracking-wider"
+                                                            :class="item.is_service ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'"
+                                                            x-text="item.is_service ? 'Service' : 'Product'"
+                                                        ></span>
+                                                    </div>
+                                                    <div class="text-xs text-gray-400 mt-0.5" x-text="item.code ? 'Code: ' + item.code : (item.is_service ? 'Service Item' : '')"></div>
+                                                </div>
+                                            </template>
+
+                                            <template x-if="item.is_manual">
+                                                <div class="space-y-1.5 min-w-[200px]">
+                                                    <div class="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            :name="'items[' + index + '][name]'"
+                                                            x-model="item.name"
+                                                            required
+                                                            placeholder="{{ __('Manual Product Name') }} *"
+                                                            class="w-full text-xs font-medium border border-amber-300 rounded px-2 py-1 text-gray-900 bg-amber-50/20 focus:ring-amber-500 focus:border-amber-500"
+                                                        >
+                                                        <span class="text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
+                                                            {{ __('Manual') }}
+                                                        </span>
+                                                    </div>
+                                                    <div class="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            :name="'items[' + index + '][barcode]'"
+                                                            x-model="item.barcode"
+                                                            placeholder="{{ __('Barcode (opt)') }}"
+                                                            class="w-32 text-[11px] font-mono border border-gray-200 rounded px-2 py-0.5 text-gray-600 focus:ring-amber-500 focus:border-amber-500"
+                                                        >
+                                                        <button
+                                                            type="button"
+                                                            @click="openFetchModalForEdit(index)"
+                                                            class="text-[11px] text-amber-700 hover:text-amber-900 font-semibold underline"
+                                                        >
+                                                            {{ __('Fetch Master') }}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </template>
                                         </td>
 
                                         <!-- Unit Price -->
@@ -441,6 +489,15 @@
                             >
                                 <x-heroicon-o-plus class="w-4 h-4" />
                                 <span>{{ __('Add Service') }}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                @click="addManualItem()"
+                                class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white shadow-xs transition-colors cursor-pointer"
+                            >
+                                <x-heroicon-o-plus class="w-4 h-4" />
+                                <span>{{ __('Add Manual Item') }}</span>
                             </button>
                         </div>
 
@@ -784,6 +841,100 @@
                     </div>
                 </div>
             </form>
+
+            <!-- Fetch from Product Master Modal for Historical Edit -->
+            <x-modal name="fetch-master-modal-edit" focusable>
+                <div class="bg-white p-5 space-y-4">
+                    <div class="flex items-center justify-between border-b border-gray-200 pb-3">
+                        <div class="flex items-center gap-2.5">
+                            <div class="p-2 rounded-lg bg-amber-50 text-amber-600">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-gray-900">{{ __('Fetch from Product Master Table') }}</h3>
+                                <p class="text-xs text-gray-500">{{ __('Search catalog to populate Product Name, Barcode & Price into manual item.') }}</p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            @click="$dispatch('close-modal', { name: 'fetch-master-modal-edit' })"
+                            class="text-gray-400 hover:text-gray-600 p-1 rounded-md"
+                        >
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="relative">
+                        <input
+                            type="text"
+                            x-model="fetchSearchQuery"
+                            @input.debounce.300ms="searchMasterProductsForEdit()"
+                            @keydown.enter.prevent="searchMasterProductsForEdit()"
+                            placeholder="{{ __('Type product name, barcode, or SKU to search...') }}"
+                            class="w-full text-xs rounded-lg border-gray-300 focus:border-amber-500 focus:ring-amber-500 py-2 px-3 pr-20"
+                        >
+                        <button
+                            type="button"
+                            @click="searchMasterProductsForEdit()"
+                            class="absolute right-1.5 top-1.5 bottom-1.5 px-3 bg-amber-600 text-white rounded-md text-xs font-semibold hover:bg-amber-700"
+                        >
+                            {{ __('Search') }}
+                        </button>
+                    </div>
+
+                    <!-- Results List -->
+                    <div class="max-h-72 overflow-y-auto divide-y divide-gray-100 border border-gray-200 rounded-lg">
+                        <template x-if="isSearchingMaster">
+                            <div class="p-6 text-center text-xs text-gray-500">
+                                <svg class="animate-spin h-5 w-5 text-amber-600 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>{{ __('Searching product catalog...') }}</span>
+                            </div>
+                        </template>
+
+                        <template x-if="!isSearchingMaster && fetchSearchResults.length === 0 && fetchSearchQuery">
+                            <div class="p-6 text-center text-xs text-gray-500">
+                                {{ __('No products found matching query in product master.') }}
+                            </div>
+                        </template>
+
+                        <template x-for="product in fetchSearchResults" :key="product.id || product.value">
+                            <div
+                                @click="applyFetchedMasterForEdit(product)"
+                                class="p-2.5 hover:bg-amber-50/70 cursor-pointer flex items-center justify-between transition-colors"
+                            >
+                                <div class="min-w-0 pr-3">
+                                    <div class="text-xs font-bold text-gray-900 truncate" x-text="product.name || product.text"></div>
+                                    <div class="text-[11px] text-gray-500 font-mono mt-0.5 flex items-center gap-2">
+                                        <span x-show="product.product_code" x-text="'Barcode: ' + product.product_code"></span>
+                                        <span x-show="product.sku" x-text="'SKU: ' + product.sku"></span>
+                                    </div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <div class="text-xs font-bold text-amber-700" x-text="formatMoney(product.selling_price || product.mrp || product.cost || product.price || 0)"></div>
+                                    <div class="text-[10px] text-gray-400" x-text="'Stock: ' + (product.quantity ?? 0) + ' ' + (product.unit?.symbol || '')"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="bg-gray-50 px-2 py-2 flex justify-end">
+                        <button
+                            type="button"
+                            @click="$dispatch('close-modal', { name: 'fetch-master-modal-edit' })"
+                            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                            {{ __('Close') }}
+                        </button>
+                    </div>
+                </div>
+            </x-modal>
         </div>
     </div>
 
@@ -818,6 +969,12 @@
                 searchFilter: 'all',
                 highlightKey: null,
                 quickSelectInstance: null,
+
+                // Master fetch state for manual items
+                fetchModalTargetIndex: null,
+                fetchSearchQuery: '',
+                fetchSearchResults: [],
+                isSearchingMaster: false,
 
                 init() {
                     this.items.forEach(item => this.calculateRow(item));
@@ -1320,6 +1477,86 @@
                     }, 1500);
 
                     this.onPaymentMethodChange();
+                },
+
+                addManualItem(name = '', price = 0, barcode = '') {
+                    const newKey = 'manual_' + Date.now() + '_' + Math.random().toString(36).substring(7);
+                    const newItem = {
+                        key: newKey,
+                        id: null,
+                        product_id: null,
+                        service_id: null,
+                        is_service: false,
+                        is_manual: true,
+                        name: name || '',
+                        code: barcode || '',
+                        barcode: barcode || '',
+                        unit_price: parseFloat(price) || 0,
+                        discount: 0,
+                        quantity: 1,
+                        subtotal: parseFloat(price) || 0
+                    };
+                    this.items.push(newItem);
+                    this.highlightKey = newKey;
+                    setTimeout(() => {
+                        this.highlightKey = null;
+                    }, 1500);
+                    this.onPaymentMethodChange();
+                },
+
+                openFetchModalForEdit(index) {
+                    this.fetchModalTargetIndex = index;
+                    const item = this.items[index];
+                    this.fetchSearchQuery = item ? (item.barcode || item.name || '') : '';
+                    this.fetchSearchResults = [];
+                    this.$dispatch('open-modal', { name: 'fetch-master-modal-edit' });
+                    if (this.fetchSearchQuery.trim().length >= 2) {
+                        this.searchMasterProductsForEdit();
+                    }
+                },
+
+                async searchMasterProductsForEdit() {
+                    const query = (this.fetchSearchQuery || '').trim();
+                    if (!query) {
+                        this.fetchSearchResults = [];
+                        return;
+                    }
+                    this.isSearchingMaster = true;
+                    try {
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+                        const res = await fetch('{{ route("ajax.products.search") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken
+                            },
+                            body: JSON.stringify({ query: query, all_stock: 1 })
+                        });
+                        const data = await res.json();
+                        this.fetchSearchResults = Array.isArray(data) ? data : (data.data || []);
+                    } catch (err) {
+                        console.error('Master search error:', err);
+                        this.fetchSearchResults = [];
+                    } finally {
+                        this.isSearchingMaster = false;
+                    }
+                },
+
+                applyFetchedMasterForEdit(product) {
+                    if (this.fetchModalTargetIndex === null || !this.items[this.fetchModalTargetIndex]) {
+                        return;
+                    }
+                    const item = this.items[this.fetchModalTargetIndex];
+                    item.name = product.name || product.text || item.name;
+                    item.barcode = product.product_code || product.sku || product.code || item.barcode;
+                    item.code = item.barcode;
+                    const sellingPrice = parseFloat(product.price || product.selling_price || product.mrp || 0);
+                    if (sellingPrice > 0) {
+                        item.unit_price = sellingPrice;
+                    }
+                    this.calculateRow(item);
+                    this.$dispatch('close-modal', { name: 'fetch-master-modal-edit' });
                 },
 
                 formatMoney(amount) {

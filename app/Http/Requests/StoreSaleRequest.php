@@ -79,8 +79,12 @@ class StoreSaleRequest extends FormRequest
             'returned_items.*.refund_amount' => ['nullable', 'numeric', 'min:0'],
 
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['nullable', 'required_without:items.*.service_id', 'integer', 'exists:products,id'],
-            'items.*.service_id' => ['nullable', 'required_without:items.*.product_id', 'integer', 'exists:services,id'],
+            'items.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'items.*.service_id' => ['nullable', 'integer', 'exists:services,id'],
+            'items.*.is_manual' => ['nullable', 'boolean'],
+            'items.*.name' => ['nullable', 'string', 'max:255'],
+            'items.*.barcode' => ['nullable', 'string', 'max:100'],
+            'items.*.matched_product_id' => ['nullable', 'integer', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'items.*.discount' => ['nullable', 'numeric', 'min:0'],
@@ -101,8 +105,16 @@ class StoreSaleRequest extends FormRequest
 
                 $productId = $item['product_id'] ?? null;
                 $serviceId = $item['service_id'] ?? null;
+                $isManual = (bool) ($item['is_manual'] ?? false);
+                $name = trim((string) ($item['name'] ?? ''));
 
-                if (! empty($productId)) {
+                if (empty($productId) && empty($serviceId)) {
+                    if (! $isManual || empty($name)) {
+                        $validator->errors()->add("items.{$index}.name", 'Product name is required for manual entry item at row '.($index + 1).'.');
+                    }
+                }
+
+                if (! empty($productId) && ! $isManual) {
                     if (isset($productIndices[$productId])) {
                         $validator->errors()->add("items.{$index}.product_id", 'The items.'.$index.'.product_id field has a duplicate value.');
                         $validator->errors()->add("items.{$productIndices[$productId]}.product_id", 'The items.'.$productIndices[$productId].'.product_id field has a duplicate value.');
@@ -114,7 +126,7 @@ class StoreSaleRequest extends FormRequest
                 if (! empty($serviceId)) {
                     if (isset($serviceIndices[$serviceId])) {
                         $validator->errors()->add("items.{$index}.service_id", 'The items.'.$index.'.service_id field has a duplicate value.');
-                        $validator->errors()->add("items.{$serviceIndices[$serviceId]}.service_id", 'The items.{$serviceIndices[$serviceId]}.service_id field has a duplicate value.');
+                        $validator->errors()->add("items.{$serviceIndices[$serviceId]}.service_id", 'The items.'.$serviceIndices[$serviceId].'.service_id field has a duplicate value.');
                     } else {
                         $serviceIndices[$serviceId] = $index;
                     }

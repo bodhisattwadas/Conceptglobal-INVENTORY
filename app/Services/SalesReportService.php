@@ -418,10 +418,14 @@ class SalesReportService
                     $brandKey = $company ? 'brand_'.$company->id : 'brand_unbranded';
                     $brandName = $company ? ($company->short_name ?: $company->company_name) : 'Unbranded / Other';
                     $isService = false;
-                } else {
+                } elseif ($item->isService()) {
                     $brandKey = 'brand_services';
                     $brandName = 'Salon Services';
                     $isService = true;
+                } else {
+                    $brandKey = 'brand_manual';
+                    $brandName = 'Manual / Unreconciled Items';
+                    $isService = false;
                 }
 
                 if (! isset($brandsData[$brandKey])) {
@@ -456,11 +460,11 @@ class SalesReportService
                 $brandsData[$brandKey]['gross_profit'] += $profit;
 
                 // Group individual items under this brand
-                $itemKey = $item->isProduct() ? 'prod_'.$item->product_id : 'serv_'.$item->service_id;
+                $itemKey = $item->isProduct() ? 'prod_'.$item->product_id : ($item->isService() ? 'serv_'.$item->service_id : 'manual_'.$item->id);
                 $itemName = $item->item_name;
                 $itemCode = $item->isProduct()
                     ? ($item->product?->product_code ?? $item->product?->sku ?? '-')
-                    : ($item->service?->code ?? '-');
+                    : ($item->isService() ? ($item->service?->code ?? '-') : ($item->barcode ?: '-'));
 
                 if (! isset($brandsData[$brandKey]['items'][$itemKey])) {
                     $brandsData[$brandKey]['items'][$itemKey] = [
@@ -562,12 +566,12 @@ class SalesReportService
         foreach ($sales as $sale) {
             foreach ($sale->items as $item) {
                 $isProduct = $item->isProduct();
-                $isService = ! empty($item->service_id);
-                $itemKey = $isProduct ? 'prod_'.$item->product_id : 'serv_'.$item->service_id;
+                $isService = $item->isService();
+                $itemKey = $isProduct ? 'prod_'.$item->product_id : ($isService ? 'serv_'.$item->service_id : 'manual_'.$item->id);
                 $itemName = $item->item_name;
                 $itemCode = $isProduct
                     ? ($item->product?->product_code ?? $item->product?->sku ?? '-')
-                    : ($item->service?->code ?? '-');
+                    : ($isService ? ($item->service?->code ?? '-') : ($item->barcode ?: '-'));
 
                 $brandName = 'Unbranded / Other';
                 $brandKey = 'unbranded';
@@ -577,6 +581,9 @@ class SalesReportService
                 } elseif ($isService) {
                     $brandName = 'Salon Services';
                     $brandKey = 'brand_services';
+                } elseif ($item->isManual()) {
+                    $brandName = 'Manual / Unreconciled';
+                    $brandKey = 'brand_manual';
                 }
 
                 if (! isset($itemsData[$itemKey])) {

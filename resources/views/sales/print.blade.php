@@ -292,7 +292,7 @@
                     $finalPrice = $item->unit_price - $item->discount;
                 @endphp
                 <tr>
-                    <td class="col-name">{{ $item->service?->name ?? $item->product?->name }}</td>
+                    <td class="col-name">{{ $item->item_name }}</td>
                     <td class="col-qty">{{ $item->quantity }}</td>
                     <td class="col-price">@money($item->unit_price)</td>
                     <td class="col-disc">{!! $item->discount > 0 ? "<span>" . format_money($item->discount) . "</span>" : '-' !!}</td>

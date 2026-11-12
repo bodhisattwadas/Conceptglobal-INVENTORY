@@ -281,14 +281,14 @@
                             <template x-for="(item, index) in cart" :key="item.key">
                                 <tr :class="index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'" class="hover:bg-indigo-50/40 transition-colors">
                                     <td class="px-4 py-3 align-top min-w-[220px]">
-                                        <!-- Row Type Switcher (Product vs Service, visible when unselected) -->
-                                        <div x-show="!item.id" class="flex items-center justify-between mb-1.5">
+                                        <!-- Row Type Switcher (Product vs Service vs Manual, visible when unselected or manual) -->
+                                        <div x-show="!item.id || item.type === 'manual'" class="flex items-center justify-between mb-1.5 flex-wrap gap-1">
                                             <div class="inline-flex rounded-lg p-0.5 bg-gray-100 border border-gray-200">
                                                 <button
                                                     type="button"
                                                     @click="switchRowType(item, 'product')"
                                                     class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold transition-all"
-                                                    :class="item.type !== 'service'
+                                                    :class="item.type === 'product' || (!item.type && item.type !== 'service' && item.type !== 'manual')
                                                         ? 'bg-white text-emerald-700 shadow-sm border border-gray-200/60'
                                                         : 'text-gray-500 hover:text-gray-700'"
                                                 >
@@ -310,18 +310,81 @@
                                                     </svg>
                                                     <span>{{ __('Service') }}</span>
                                                 </button>
+                                                <button
+                                                    type="button"
+                                                    @click="switchRowType(item, 'manual')"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold transition-all"
+                                                    :class="item.type === 'manual'
+                                                        ? 'bg-amber-600 text-white shadow-sm'
+                                                        : 'text-gray-500 hover:text-gray-700'"
+                                                >
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                                    </svg>
+                                                    <span>{{ __('Manual') }}</span>
+                                                </button>
                                             </div>
-                                            <span class="text-[11px] font-medium" :class="item.type === 'service' ? 'text-purple-600' : 'text-emerald-600'" x-text="item.type === 'service' ? 'Service Mode' : 'Product Mode'"></span>
+                                            <span class="text-[10px] font-bold uppercase tracking-wider" 
+                                                  :class="item.type === 'service' ? 'text-purple-600' : (item.type === 'manual' ? 'text-amber-600' : 'text-emerald-600')" 
+                                                  x-text="item.type === 'service' ? 'Service Mode' : (item.type === 'manual' ? 'Manual Recon Mode' : 'Product Mode')"></span>
                                         </div>
 
-                                        <div class="w-full">
+                                        <!-- When type is product or service: show TomSelect -->
+                                        <div x-show="item.type !== 'manual'" class="w-full">
                                             <select
                                                 :id="`product_search_${item.key}`"
                                                 x-init="initRowProductSelect($el, item)"
                                                 autocomplete="off"
                                             ></select>
                                         </div>
-                                        <div x-show="item.sku || item.product_code || item.type === 'service'" class="mt-1 flex items-center gap-2">
+
+                                        <!-- When type is manual: show direct input fields + Fetch Master button -->
+                                        <div x-show="item.type === 'manual'" class="w-full space-y-1.5">
+                                            <div class="flex items-center gap-1.5">
+                                                <input
+                                                    type="text"
+                                                    x-model="item.name"
+                                                    @input="persistCart()"
+                                                    :id="`manual_name_${item.key}`"
+                                                    placeholder="{{ __('Product name (required)...') }}"
+                                                    class="focus:ring-amber-500 focus:border-amber-500 block w-full text-xs font-semibold border-amber-300 rounded-md py-1.5 px-2 bg-amber-50/20"
+                                                    required
+                                                >
+                                                <button
+                                                    type="button"
+                                                    @click="openFetchMasterModal(item)"
+                                                    class="shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 transition-colors"
+                                                    title="{{ __('Fetch / search from Product Master table') }}"
+                                                >
+                                                    <svg class="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                    </svg>
+                                                    <span>{{ __('Fetch') }}</span>
+                                                </button>
+                                            </div>
+
+                                            <div class="flex items-center gap-1.5">
+                                                <div class="w-1/2">
+                                                    <input
+                                                        type="text"
+                                                        x-model="item.product_code"
+                                                        @input="persistCart()"
+                                                        placeholder="{{ __('Barcode / SKU') }}"
+                                                        class="focus:ring-amber-500 focus:border-amber-500 block w-full text-[11px] font-mono border-gray-300 rounded-md py-1 px-2"
+                                                    >
+                                                </div>
+                                                <div class="w-1/2 flex items-center gap-1">
+                                                    <span class="inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
+                                                        {{ __('To Recon') }}
+                                                    </span>
+                                                    <span x-show="item.matched_product_id" class="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200">
+                                                        {{ __('Linked') }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div x-show="item.type !== 'manual' && (item.sku || item.product_code || item.type === 'service')" class="mt-1 flex items-center gap-2">
                                             <template x-if="item.type === 'service'">
                                                 <span class="inline-flex items-center rounded bg-purple-50 px-1.5 py-0.5 text-xs font-semibold text-purple-700 border border-purple-200">
                                                     Service
@@ -340,7 +403,7 @@
                                                     min="0"
                                                     x-model.number="item.price"
                                                     @input="persistCart()"
-                                                    title="{{ __('Edit Unit Price') }}"
+                                                    title="{{ __('Edit Unit Price / MRP') }}"
                                                     class="focus:ring-indigo-500 focus:border-indigo-500 block w-full text-right sm:text-xs border-gray-300 rounded-md font-semibold py-1 px-2"
                                                     placeholder="0.00"
                                                 >
@@ -359,14 +422,14 @@
                                                         name="pos_item_qty"
                                                         x-model.number="item.quantity"
                                                         min="1"
-                                                        :max="item.type === 'service' ? null : item.max_stock"
+                                                        :max="item.type === 'service' || item.type === 'manual' ? null : item.max_stock"
                                                         @input="validateQty(index)"
                                                         autocomplete="off"
                                                         class="w-20 text-center border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm shadow-sm font-semibold"
                                                         placeholder="1"
                                                     >
                                                 </div>
-                                                <div x-show="item.type !== 'service' && item.quantity > item.max_stock" class="text-xs text-red-600 mt-1">
+                                                <div x-show="item.type !== 'service' && item.type !== 'manual' && item.quantity > item.max_stock" class="text-xs text-red-600 mt-1">
                                                     Max: <span x-text="item.max_stock"></span>
                                                 </div>
                                             </div>
@@ -375,9 +438,23 @@
                                             <span class="text-gray-300 pt-1 block">—</span>
                                         </template>
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500 align-top pt-4">
-                                        <span x-show="item.id" x-text="item.unit || (item.type === 'service' ? 'srv' : '—')"></span>
-                                        <span x-show="!item.id" class="text-gray-300">—</span>
+                                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500 align-top pt-3">
+                                        <template x-if="item.type === 'manual'">
+                                            <input
+                                                type="text"
+                                                x-model="item.unit"
+                                                @input="persistCart()"
+                                                placeholder="Pcs"
+                                                title="{{ __('Unit of measurement') }}"
+                                                class="w-14 text-center border-gray-300 rounded text-xs py-1 px-1 font-semibold"
+                                            >
+                                        </template>
+                                        <template x-if="item.type !== 'manual'">
+                                            <div>
+                                                <span x-show="item.id" x-text="item.unit || (item.type === 'service' ? 'srv' : '—')"></span>
+                                                <span x-show="!item.id" class="text-gray-300">—</span>
+                                            </div>
+                                        </template>
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-semibold text-gray-900 align-top pt-4">
                                         <span x-show="item.id" x-text="formatCurrency(lineGrossTotal(item))"></span>
@@ -460,6 +537,18 @@
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879a3 3 0 11-4.242-4.242L7.757 7.757m0 0l7.071-7.071a3 3 0 114.243 4.243L12 12" />
                                             </svg>
                                             <span>{{ __('Add Service') }}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            @click="addManualRow()"
+                                            class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all bg-amber-600 hover:bg-amber-500 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600"
+                                            title="{{ __('Add manual unlisted product for quick sale and inventory reconciliation') }}"
+                                        >
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                            </svg>
+                                            <span>{{ __('+ Manual Item') }}</span>
                                         </button>
                                     </div>
                                 </td>
@@ -1216,6 +1305,12 @@
                     customerReturnSelections: {},
                     returnedItems: [],
 
+                    // Master Fetch for Manual Entries
+                    fetchModalTargetItem: null,
+                    fetchSearchQuery: '',
+                    fetchSearchResults: [],
+                    isFetchingMaster: false,
+
                     init() {
                         // Load saved data from LocalStorage
                         const savedCart = localStorage.getItem('pos_cart');
@@ -1320,17 +1415,20 @@
                     },
 
                     blankItem(type = 'product') {
+                        const isManual = type === 'manual';
                         return {
                             key: Math.random().toString(36).slice(2),
-                            id: null,
+                            id: isManual ? ('manual_' + Math.random().toString(36).slice(2)) : null,
                             type: type,
+                            is_manual: isManual,
+                            matched_product_id: null,
                             name: '',
                             sku: '',
                             product_code: '',
                             price: 0,
                             quantity: 1,
-                            max_stock: type === 'service' ? 999999 : 0,
-                            unit: type === 'service' ? 'srv' : '',
+                            max_stock: (type === 'service' || isManual) ? 999999 : 0,
+                            unit: type === 'service' ? 'srv' : 'Pcs',
                             discountPercent: 0
                         };
                     },
@@ -1339,23 +1437,29 @@
                         if (!item || item.type === newType) return;
                         this.destroyRowSelect(item);
                         item.type = newType;
-                        item.id = null;
+                        item.is_manual = (newType === 'manual');
+                        item.id = (newType === 'manual') ? ('manual_' + item.key) : null;
+                        item.matched_product_id = null;
                         item.name = '';
                         item.sku = '';
                         item.product_code = '';
                         item.price = 0;
                         item.quantity = 1;
-                        item.max_stock = newType === 'service' ? 999999 : 0;
-                        item.unit = newType === 'service' ? 'srv' : '';
+                        item.max_stock = (newType === 'service' || newType === 'manual') ? 999999 : 0;
+                        item.unit = newType === 'service' ? 'srv' : 'Pcs';
                         item.discountPercent = 0;
 
-                        this.$nextTick(() => {
-                            const el = document.getElementById(`product_search_${item.key}`);
-                            if (el) {
-                                this.initRowProductSelect(el, item);
-                            }
+                        if (newType !== 'manual') {
+                            this.$nextTick(() => {
+                                const el = document.getElementById(`product_search_${item.key}`);
+                                if (el) {
+                                    this.initRowProductSelect(el, item);
+                                }
+                                this.focusRowSelect(item);
+                            });
+                        } else {
                             this.focusRowSelect(item);
-                        });
+                        }
 
                         this.persistCart();
                         this.syncAllProductDropdowns();
@@ -1363,7 +1467,7 @@
 
                     addRow(type = 'product') {
                         // If cart has only 1 row and it is unselected, switch its type if different
-                        if (this.cart.length === 1 && !this.cart[0].id) {
+                        if (this.cart.length === 1 && (!this.cart[0].id || this.cart[0].type === 'manual') && (!this.cart[0].name || !this.cart[0].name.trim())) {
                             if (this.cart[0].type !== type) {
                                 this.switchRowType(this.cart[0], type);
                                 return;
@@ -1372,30 +1476,27 @@
                             return;
                         }
 
-                        // Check if there is already an existing blank row of the same type
-                        const existingBlankSameType = this.cart.find(item => !item.id && item.type === type);
-                        if (existingBlankSameType) {
-                            this.focusRowSelect(existingBlankSameType);
-                            this.$dispatch('toast', {
-                                message: `Please select a ${type === 'service' ? 'service' : 'product'} for the existing blank row first.`,
-                                type: 'warning'
-                            });
-                            return;
-                        }
-
-                        // Check if there is an existing blank row of the other type
-                        const existingBlankOtherType = this.cart.find(item => !item.id && item.type !== type);
-                        if (existingBlankOtherType) {
-                            if (this.cart.filter(item => !!item.id).length === 0) {
-                                this.switchRowType(existingBlankOtherType, type);
+                        if (type !== 'manual') {
+                            // Check if there is already an existing blank row of the same type
+                            const existingBlankSameType = this.cart.find(item => !item.id && item.type === type);
+                            if (existingBlankSameType) {
+                                this.focusRowSelect(existingBlankSameType);
+                                this.$dispatch('toast', {
+                                    message: `Please select a ${type === 'service' ? 'service' : 'product'} for the existing blank row first.`,
+                                    type: 'warning'
+                                });
                                 return;
                             }
-                            this.focusRowSelect(existingBlankOtherType);
-                            this.$dispatch('toast', {
-                                message: `Please select an item for the existing blank row first.`,
-                                type: 'warning'
-                            });
-                            return;
+                        } else {
+                            const existingBlankManual = this.cart.find(item => item.type === 'manual' && (!item.name || !item.name.trim()));
+                            if (existingBlankManual) {
+                                this.focusRowSelect(existingBlankManual);
+                                this.$dispatch('toast', {
+                                    message: `Please enter the product name for the existing manual row first.`,
+                                    type: 'warning'
+                                });
+                                return;
+                            }
                         }
 
                         const newItem = this.blankItem(type);
@@ -1414,6 +1515,10 @@
 
                     addServiceRow() {
                         this.addRow('service');
+                    },
+
+                    addManualRow() {
+                        this.addRow('manual');
                     },
 
                     removeItem(index) {
@@ -1446,8 +1551,71 @@
 
                     focusRowSelect(item) {
                         this.$nextTick(() => {
+                            if (item.type === 'manual') {
+                                const input = document.getElementById(`manual_name_${item.key}`);
+                                if (input) input.focus();
+                                return;
+                            }
                             const select = document.getElementById(`product_search_${item.key}`)?.tomselect;
                             if (select) {
+                                select.focus();
+                            } else {
+                                setTimeout(() => {
+                                    document.getElementById(`product_search_${item.key}`)?.tomselect?.focus();
+                                }, 80);
+                            }
+                        });
+                    },
+
+                    openFetchMasterModal(item) {
+                        this.fetchModalTargetItem = item;
+                        this.fetchSearchQuery = item.product_code || item.name || '';
+                        this.fetchSearchResults = [];
+                        this.$dispatch('open-modal', { name: 'fetch-master-modal' });
+                        if (this.fetchSearchQuery.trim().length >= 2) {
+                            this.searchMasterProducts();
+                        }
+                    },
+
+                    searchMasterProducts() {
+                        const q = (this.fetchSearchQuery || '').trim();
+                        if (!q) {
+                            this.fetchSearchResults = [];
+                            return;
+                        }
+                        this.isFetchingMaster = true;
+                        fetch('{{ route("ajax.products.search") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                            },
+                            body: JSON.stringify({ q: q, all_stock: 1 })
+                        })
+                        .then(r => r.json())
+                        .then(items => {
+                            this.fetchSearchResults = Array.isArray(items) ? items : [];
+                        })
+                        .catch(() => {
+                            this.fetchSearchResults = [];
+                        })
+                        .finally(() => {
+                            this.isFetchingMaster = false;
+                        });
+                    },
+
+                    applyMasterProductToManual(product) {
+                        if (!this.fetchModalTargetItem) return;
+                        this.fetchModalTargetItem.name = product.name || product.text || '';
+                        this.fetchModalTargetItem.product_code = product.product_code || product.sku || '';
+                        this.fetchModalTargetItem.price = parseFloat(product.selling_price || product.mrp || product.price || 0) || 0;
+                        this.fetchModalTargetItem.unit = product.unit?.symbol || product.unit?.name || 'Pcs';
+                        this.fetchModalTargetItem.matched_product_id = product.id || product.value;
+                        this.persistCart();
+                        this.$dispatch('close-modal', { name: 'fetch-master-modal' });
+                        this.$dispatch('toast', { message: `Fetched "${this.fetchModalTargetItem.name}" from product master!`, type: 'success' });
+                    },
                                 select.focus();
                             } else {
                                 setTimeout(() => {
@@ -1469,7 +1637,7 @@
                     selectedProductIds(exceptItem = null) {
                         const exceptKey = exceptItem?.key;
                         return this.cart
-                            .filter(row => row.key !== exceptKey && row.type !== 'service')
+                            .filter(row => row.key !== exceptKey && row.type !== 'service' && row.type !== 'manual')
                             .map(row => String(row.id || ''))
                             .filter(Boolean);
                     },
@@ -1560,7 +1728,7 @@
                     },
 
                     refreshCartPrices() {
-                        const productIds = (this.cart || []).filter(item => item.type !== 'service' && item.id).map(item => item.id);
+                        const productIds = (this.cart || []).filter(item => item.type !== 'service' && item.type !== 'manual' && item.id).map(item => item.id);
                         const serviceIds = (this.cart || []).filter(item => item.type === 'service' && item.id).map(item => item.id);
 
                         if (productIds.length) {
@@ -1661,7 +1829,26 @@
                         .then(items => {
                             const list = Array.isArray(items) ? items : [];
                             if (list.length === 0) {
-                                this.$dispatch('toast', { message: `No available ${isService ? 'service' : 'product'} found matching "${query}"`, type: 'warning' });
+                                if (!isService) {
+                                    this.destroyRowSelect(item);
+                                    item.type = 'manual';
+                                    item.is_manual = true;
+                                    item.id = 'manual_' + item.key;
+                                    item.product_code = query;
+                                    item.name = '';
+                                    item.price = 0;
+                                    item.quantity = 1;
+                                    item.unit = 'Pcs';
+                                    item.max_stock = 999999;
+                                    this.persistCart();
+                                    this.$nextTick(() => {
+                                        const input = document.getElementById(`manual_name_${item.key}`);
+                                        if (input) input.focus();
+                                    });
+                                    this.$dispatch('toast', { message: `Barcode "${query}" not found in master. Added as manual item for sale & reconciliation.`, type: 'info' });
+                                    return;
+                                }
+                                this.$dispatch('toast', { message: `No available service found matching "${query}"`, type: 'warning' });
                                 return;
                             }
 
@@ -2429,15 +2616,24 @@
 
                     // Computed properties
                     get validCartItems() {
-                        return this.cart.filter(item => !!item.id);
+                        return this.cart.filter(item => {
+                            if (item.type === 'manual') {
+                                return item.name && item.name.trim().length > 0;
+                            }
+                            return !!item.id;
+                        });
                     },
 
                     get hasBlankRow() {
-                        return this.cart.some(item => !item.id && item.type !== 'service');
+                        return this.cart.some(item => !item.id && item.type === 'product');
                     },
 
                     get hasBlankServiceRow() {
                         return this.cart.some(item => !item.id && item.type === 'service');
+                    },
+
+                    get hasBlankManualRow() {
+                        return this.cart.some(item => item.type === 'manual' && (!item.name || !item.name.trim()));
                     },
 
                     get subtotal() {
@@ -2828,16 +3024,20 @@
                                 }
                             }
 
-                            // Build items payload from valid selected products and services (products at top, then services)
+                            // Build items payload from valid selected products, manual items, and services
                             const sortedItems = [...this.validCartItems].sort((a, b) => {
-                                const aRank = a.type === 'service' ? 1 : 0;
-                                const bRank = b.type === 'service' ? 1 : 0;
+                                const aRank = a.type === 'service' ? 2 : (a.type === 'manual' ? 1 : 0);
+                                const bRank = b.type === 'service' ? 2 : (b.type === 'manual' ? 1 : 0);
                                 return aRank - bRank;
                             });
 
                             const items = sortedItems.map(item => ({
-                                product_id: item.type === 'service' ? null : item.id,
+                                product_id: (item.type === 'service' || item.type === 'manual') ? null : item.id,
                                 service_id: item.type === 'service' ? item.id : null,
+                                is_manual: item.type === 'manual',
+                                name: item.name || '',
+                                barcode: item.product_code || item.sku || '',
+                                matched_product_id: item.matched_product_id || null,
                                 quantity: item.quantity,
                                 unit_price: item.price,
                                 discount: this.lineDiscountAmount(item)
@@ -3131,6 +3331,100 @@
                 >
                     {{ __('No, Return') }}
                 </button>
+            </div>
+        </x-modal>
+
+        <!-- Fetch from Product Master Modal -->
+        <x-modal name="fetch-master-modal" focusable>
+            <div class="bg-white p-5 space-y-4">
+                <div class="flex items-center justify-between border-b border-gray-200 pb-3">
+                    <div class="flex items-center gap-2.5">
+                        <div class="p-2 rounded-lg bg-blue-50 text-blue-600">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-gray-900">{{ __('Fetch from Product Master Table') }}</h3>
+                            <p class="text-xs text-gray-500">{{ __('Search catalog to populate Product Name, Barcode & Price into manual item.') }}</p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        @click="$dispatch('close-modal', { name: 'fetch-master-modal' })"
+                        class="text-gray-400 hover:text-gray-600 p-1 rounded-md"
+                    >
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="relative">
+                    <input
+                        type="text"
+                        x-model="fetchSearchQuery"
+                        @input.debounce.300ms="searchMasterProducts()"
+                        @keydown.enter.prevent="searchMasterProducts()"
+                        placeholder="{{ __('Type product name, barcode, or SKU to search...') }}"
+                        class="w-full text-xs rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 py-2 px-3 pr-20"
+                    >
+                    <button
+                        type="button"
+                        @click="searchMasterProducts()"
+                        class="absolute right-1.5 top-1.5 bottom-1.5 px-3 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700"
+                    >
+                        {{ __('Search') }}
+                    </button>
+                </div>
+
+                <!-- Results List -->
+                <div class="max-h-72 overflow-y-auto divide-y divide-gray-100 border border-gray-200 rounded-lg">
+                    <template x-if="isFetchingMaster">
+                        <div class="p-6 text-center text-xs text-gray-500">
+                            <svg class="animate-spin h-5 w-5 text-blue-600 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>{{ __('Searching product catalog...') }}</span>
+                        </div>
+                    </template>
+
+                    <template x-if="!isFetchingMaster && fetchSearchResults.length === 0 && fetchSearchQuery">
+                        <div class="p-6 text-center text-xs text-gray-500">
+                            {{ __('No products found matching query in product master.') }}
+                        </div>
+                    </template>
+
+                    <template x-for="product in fetchSearchResults" :key="product.id || product.value">
+                        <div
+                            @click="applyMasterProductToManual(product)"
+                            class="p-2.5 hover:bg-blue-50/70 cursor-pointer flex items-center justify-between transition-colors"
+                        >
+                            <div class="min-w-0 pr-3">
+                                <div class="text-xs font-bold text-gray-900 truncate" x-text="product.name || product.text"></div>
+                                <div class="text-[11px] text-gray-500 font-mono mt-0.5 flex items-center gap-2">
+                                    <span x-show="product.product_code" x-text="'Barcode: ' + product.product_code"></span>
+                                    <span x-show="product.sku" x-text="'SKU: ' + product.sku"></span>
+                                </div>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <div class="text-xs font-bold text-blue-700" x-text="formatCurrency(product.selling_price || product.mrp || product.cost || product.price || 0)"></div>
+                                <div class="text-[10px] text-gray-400" x-text="'Stock: ' + (product.quantity ?? 0) + ' ' + (product.unit?.symbol || '')"></div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="bg-gray-50 px-2 py-2 flex justify-end">
+                    <button
+                        type="button"
+                        @click="$dispatch('close-modal', { name: 'fetch-master-modal' })"
+                        class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                        {{ __('Close') }}
+                    </button>
+                </div>
             </div>
         </x-modal>
     </div>

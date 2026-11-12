@@ -13,6 +13,7 @@ use App\Models\AuditLog;
 use App\Models\DiscountCoupon;
 use App\Models\FinanceTransaction;
 use App\Models\InventoryMovement;
+use App\Models\InventoryReconciliation;
 use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\PurchaseItem;
@@ -87,11 +88,11 @@ class SaleService
                 $totalSubtotal = 0;
                 $totalDiscount = 0;
 
-                // Ensure products are created at top, then services
+                // Ensure products are created at top, then manual items, then services
                 $sortedItems = $data->items;
                 usort($sortedItems, function ($a, $b) {
-                    $aRank = $a->service_id ? 1 : 0;
-                    $bRank = $b->service_id ? 1 : 0;
+                    $aRank = $a->service_id ? 2 : ($a->isManual() ? 1 : 0);
+                    $bRank = $b->service_id ? 2 : ($b->isManual() ? 1 : 0);
 
                     return $aRank <=> $bRank;
                 });
@@ -125,6 +126,68 @@ class SaleService
                             'discount' => $discount,
                             'final_price' => $finalPrice,
                             'subtotal' => $subtotal,
+                        ]);
+
+                        $totalSubtotal = round($totalSubtotal + $subtotal, 2);
+                        $totalDiscount = round($totalDiscount + $discount * $quantity, 2);
+
+                        continue;
+                    }
+
+                    if ($itemData->isManual()) {
+                        $unitPrice = $itemData->unit_price;
+                        $quantity = $itemData->quantity;
+                        $discount = $itemData->discount;
+
+                        $itemName = trim($itemData->name ?: 'Manual Entry Item');
+                        if ($discount > $unitPrice) {
+                            throw SaleException::invalidDiscount('Item discount ('.format_money($discount).') cannot exceed unit price ('.format_money($unitPrice).") for '{$itemName}'.");
+                        }
+
+                        $finalPrice = round($unitPrice - $discount, 2);
+                        $subtotal = round($finalPrice * $quantity, 2);
+
+                        $matchedProduct = null;
+                        if (! empty($itemData->matched_product_id)) {
+                            $matchedProduct = Product::find($itemData->matched_product_id);
+                        } elseif (! empty($itemData->barcode)) {
+                            $matchedProduct = Product::where('product_code', $itemData->barcode)
+                                ->orWhere('sku', $itemData->barcode)
+                                ->first();
+                        }
+
+                        $barcode = $itemData->barcode ?: ($matchedProduct?->product_code ?? $matchedProduct?->sku);
+                        $costPrice = $matchedProduct?->purchase_price ?: 0.00;
+
+                        $saleItem = SaleItem::create([
+                            'sale_id' => $sale->id,
+                            'product_id' => null,
+                            'service_id' => null,
+                            'custom_name' => $itemName,
+                            'barcode' => $barcode,
+                            'is_manual' => true,
+                            'quantity' => $quantity,
+                            'cost_price' => $costPrice,
+                            'unit_price' => $unitPrice,
+                            'discount' => $discount,
+                            'final_price' => $finalPrice,
+                            'subtotal' => $subtotal,
+                        ]);
+
+                        InventoryReconciliation::create([
+                            'reconciliation_number' => InventoryReconciliation::generateReconciliationNumber(),
+                            'sale_id' => $sale->id,
+                            'sale_item_id' => $saleItem->id,
+                            'matched_product_id' => $matchedProduct?->id ?? $itemData->matched_product_id,
+                            'item_name' => $itemName,
+                            'barcode' => $barcode,
+                            'quantity' => $quantity,
+                            'unit_price' => $unitPrice,
+                            'cost_price' => $costPrice,
+                            'discount' => $discount,
+                            'subtotal' => $subtotal,
+                            'status' => 'pending',
+                            'created_by' => $data->created_by ?? Auth::id(),
                         ]);
 
                         $totalSubtotal = round($totalSubtotal + $subtotal, 2);
@@ -351,6 +414,13 @@ class SaleService
                     }
                 }
 
+                // Cache existing reconciliations before items are deleted
+                $existingReconciliations = InventoryReconciliation::where('sale_id', $sale->id)->get();
+                $reconciliationsByItemId = $existingReconciliations->keyBy('sale_item_id');
+                $reconciliationsByNameKey = $existingReconciliations->keyBy(function ($r) {
+                    return strtolower(trim($r->item_name)).'|'.trim((string) $r->barcode);
+                });
+
                 // Delete existing items to be recreated fresh
                 $sale->items()->delete();
 
@@ -391,11 +461,11 @@ class SaleService
                 $totalSubtotal = 0;
                 $totalDiscount = 0;
 
-                // Ensure products are created at top, then services
+                // Ensure products are created at top, then manual items, then services
                 $sortedItems = $data->items;
                 usort($sortedItems, function ($a, $b) {
-                    $aRank = $a->service_id ? 1 : 0;
-                    $bRank = $b->service_id ? 1 : 0;
+                    $aRank = $a->service_id ? 2 : ($a->isManual() ? 1 : 0);
+                    $bRank = $b->service_id ? 2 : ($b->isManual() ? 1 : 0);
 
                     return $aRank <=> $bRank;
                 });
@@ -429,6 +499,131 @@ class SaleService
                             'discount' => $discount,
                             'final_price' => $finalPrice,
                             'subtotal' => $subtotal,
+                        ]);
+
+                        $totalSubtotal = round($totalSubtotal + $subtotal, 2);
+                        $totalDiscount = round($totalDiscount + $discount * $quantity, 2);
+
+                        continue;
+                    }
+
+                    if ($itemData->isManual()) {
+                        $unitPrice = $itemData->unit_price;
+                        $quantity = $itemData->quantity;
+                        $discount = $itemData->discount;
+
+                        $itemName = trim($itemData->name ?: 'Manual Entry Item');
+                        if ($discount > $unitPrice) {
+                            throw SaleException::invalidDiscount('Item discount ('.format_money($discount).') cannot exceed unit price ('.format_money($unitPrice).") for '{$itemName}'.");
+                        }
+
+                        $finalPrice = round($unitPrice - $discount, 2);
+                        $subtotal = round($finalPrice * $quantity, 2);
+
+                        $matchedProduct = null;
+                        if (! empty($itemData->matched_product_id)) {
+                            $matchedProduct = Product::find($itemData->matched_product_id);
+                        } elseif (! empty($itemData->barcode)) {
+                            $matchedProduct = Product::where('product_code', $itemData->barcode)
+                                ->orWhere('sku', $itemData->barcode)
+                                ->first();
+                        }
+
+                        $barcode = $itemData->barcode ?: ($matchedProduct?->product_code ?? $matchedProduct?->sku);
+                        $costPrice = $matchedProduct?->purchase_price ?: 0.00;
+
+                        // Check if this item had a previous reconciliation
+                        $existingRecon = null;
+                        if (! empty($itemData->id) && $reconciliationsByItemId->has($itemData->id)) {
+                            $existingRecon = $reconciliationsByItemId->get($itemData->id);
+                        } else {
+                            $nameKey = strtolower(trim($itemName)).'|'.trim((string) $barcode);
+                            if ($reconciliationsByNameKey->has($nameKey)) {
+                                $existingRecon = $reconciliationsByNameKey->get($nameKey);
+                                $reconciliationsByNameKey->forget($nameKey);
+                            }
+                        }
+
+                        $reconciledProductId = $existingRecon?->reconciled_product_id;
+                        $isAlreadyReconciled = $existingRecon && $existingRecon->status === 'reconciled';
+
+                        // If already reconciled to a product, maintain product_id connection and deduct stock for updated quantity
+                        $productIdToSet = null;
+                        $reconciledProduct = null;
+                        if ($isAlreadyReconciled && $reconciledProductId) {
+                            $reconciledProduct = Product::where('id', $reconciledProductId)->lockForUpdate()->first();
+                            if ($reconciledProduct) {
+                                $productIdToSet = $reconciledProduct->id;
+                                $costPrice = $reconciledProduct->purchase_price ?: $costPrice;
+                            }
+                        }
+
+                        $saleItem = SaleItem::create([
+                            'sale_id' => $sale->id,
+                            'product_id' => $productIdToSet,
+                            'service_id' => null,
+                            'custom_name' => $itemName,
+                            'barcode' => $barcode,
+                            'is_manual' => true,
+                            'quantity' => $quantity,
+                            'cost_price' => $costPrice,
+                            'unit_price' => $unitPrice,
+                            'discount' => $discount,
+                            'final_price' => $finalPrice,
+                            'subtotal' => $subtotal,
+                        ]);
+
+                        if ($productIdToSet && $reconciledProduct) {
+                            $this->inventoryService->adjustForSale(
+                                $productIdToSet,
+                                -$quantity,
+                                'reconciliation_deduct',
+                                $sale->invoice_number,
+                                'Deducted via reconciliation for manual sale item (historical edit): '.$itemName,
+                                $sale,
+                                $saleItem
+                            );
+                            try {
+                                $this->inventoryService->deductFromBatches(
+                                    $productIdToSet,
+                                    $quantity,
+                                    'reconciliation_deduct',
+                                    $sale->invoice_number,
+                                    'Deducted from batches for reconciliation (historical edit).',
+                                    $sale,
+                                    $saleItem
+                                );
+                            } catch (Throwable) {
+                                // Batches might not have sufficient stock
+                            }
+                            $reconciledProduct->quantity -= $quantity;
+                            $reconciledProduct->save();
+                        }
+
+                        $syncNotes = $existingRecon
+                            ? ($existingRecon->notes ? $existingRecon->notes."\n[Sale Edit]: Details synchronized on ".now()->format('Y-m-d H:i') : '[Sale Edit]: Details synchronized on '.now()->format('Y-m-d H:i'))
+                            : null;
+
+                        InventoryReconciliation::create([
+                            'reconciliation_number' => $existingRecon?->reconciliation_number ?? InventoryReconciliation::generateReconciliationNumber(),
+                            'sale_id' => $sale->id,
+                            'sale_item_id' => $saleItem->id,
+                            'matched_product_id' => $matchedProduct?->id ?? $itemData->matched_product_id ?? $existingRecon?->matched_product_id,
+                            'item_name' => $itemName,
+                            'barcode' => $barcode,
+                            'quantity' => $quantity,
+                            'unit_price' => $unitPrice,
+                            'cost_price' => $costPrice,
+                            'discount' => $discount,
+                            'subtotal' => $subtotal,
+                            'status' => $existingRecon?->status ?? 'pending',
+                            'reconciled_product_id' => $reconciledProductId,
+                            'reconciled_purchase_item_id' => $existingRecon?->reconciled_purchase_item_id,
+                            'reconciled_by' => $existingRecon?->reconciled_by,
+                            'reconciled_at' => $existingRecon?->reconciled_at,
+                            'action_taken' => $existingRecon?->action_taken,
+                            'notes' => $syncNotes,
+                            'created_by' => $existingRecon?->created_by ?? ($data->created_by ?? Auth::id()),
                         ]);
 
                         $totalSubtotal = round($totalSubtotal + $subtotal, 2);

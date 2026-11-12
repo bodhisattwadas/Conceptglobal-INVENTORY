@@ -142,12 +142,14 @@
                                 @foreach($sortedItems as $item)
                                     <tr class="bg-white hover:bg-gray-50">
                                         <td class="px-6 py-4 text-sm text-gray-500">
-                                            {{ $item->isService() ? ($item->service?->code ?? '-') : ($item->product?->product_code ?? $item->product?->sku ?? '-') }}
+                                            {{ $item->isService() ? ($item->service?->code ?? '-') : ($item->barcode ?: ($item->product?->product_code ?? $item->product?->sku ?? '-')) }}
                                         </td>
                                         <td class="px-6 py-4 font-medium text-gray-900">
-                                            {{ $item->isService() ? $item->service?->name : $item->product?->name }}
+                                            {{ $item->item_name }}
                                             @if($item->isService())
                                                 <span class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-700">Service</span>
+                                            @elseif($item->isManual())
+                                                <span class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">Manual Entry</span>
                                             @endif
                                         </td>
                                         <td class="px-6 py-4 text-sm text-gray-700">
