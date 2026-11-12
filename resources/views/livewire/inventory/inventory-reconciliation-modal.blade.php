@@ -1,6 +1,7 @@
 <div>
     @if($isOpen && $reconciliation)
         <div
+            x-data
             x-cloak
             class="fixed inset-0 z-50 overflow-y-auto"
             aria-labelledby="modal-title"
@@ -186,7 +187,7 @@
                                                     class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold inline-flex items-center gap-1"
                                                 >
                                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                                                    <span>{{ __('+ Create New PO for this item') }}</span>
+                                                    <span>{{ __('Create New PO for this item') }}</span>
                                                 </button>
                                             @endif
                                         </div>
@@ -203,26 +204,47 @@
                                         </div>
 
                                         <!-- PO Search Results List -->
-                                        <div class="border border-gray-200 rounded-xl divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                                        <div class="border border-gray-200 rounded-xl divide-y divide-gray-100 max-h-60 overflow-y-auto bg-white">
                                             @forelse($this->poSearchResults as $po)
                                                 <div
-                                                    wire:click="selectPurchase({{ $po->id }})"
-                                                    class="p-3 hover:bg-indigo-50/60 cursor-pointer flex items-center justify-between transition-colors text-xs"
+                                                    wire:key="po-item-{{ $po->id }}"
+                                                    class="p-3 hover:bg-indigo-50/60 transition-colors text-xs flex items-center justify-between gap-3"
                                                 >
-                                                    <div>
+                                                    <div
+                                                        wire:click="selectPurchase({{ $po->id }})"
+                                                        class="flex-1 cursor-pointer"
+                                                        title="{{ __('Click to select and review items') }}"
+                                                    >
                                                         <div class="flex items-center gap-2">
-                                                            <span class="font-mono font-bold text-gray-900">{{ $po->invoice_number }}</span>
-                                                            <span class="px-1.5 py-0.2 rounded text-[10px] font-semibold {{ $po->status->color() }}">
+                                                            <span class="font-mono font-bold text-gray-900 hover:text-indigo-600">{{ $po->invoice_number }}</span>
+                                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold {{ $po->status->color() }}">
                                                                 {{ $po->status->label() }}
                                                             </span>
                                                         </div>
                                                         <div class="text-gray-500 mt-0.5">
-                                                            {{ $po->supplier?->name ?? 'No Supplier' }} • {{ $po->purchase_date?->format('d M Y') }}
+                                                            {{ $po->supplier?->name ?? 'No Supplier' }} • {{ $po->purchase_date?->format('d M Y') ?? 'N/A' }}
                                                         </div>
                                                     </div>
-                                                    <div class="text-right">
-                                                        <div class="font-bold text-gray-900">{{ format_money($po->total) }}</div>
-                                                        <div class="text-[10px] text-indigo-600 font-semibold">{{ __('Select PO &rarr;') }}</div>
+                                                    <div class="text-right flex items-center gap-2 shrink-0">
+                                                        <div class="font-bold text-gray-900 mr-1">{{ format_money($po->total) }}</div>
+                                                        <button
+                                                            type="button"
+                                                            wire:click="selectPurchase({{ $po->id }})"
+                                                            class="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-colors inline-flex items-center gap-1"
+                                                        >
+                                                            <span>{{ __('Select') }}</span>
+                                                            <span>&rarr;</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            wire:click="quickLinkPurchase({{ $po->id }})"
+                                                            wire:loading.attr="disabled"
+                                                            class="rounded-lg bg-indigo-600 px-3 py-1 text-[11px] font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors inline-flex items-center gap-1"
+                                                            title="{{ __('Link this item to this PO immediately') }}"
+                                                        >
+                                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                                            <span>{{ __('Link Now') }}</span>
+                                                        </button>
                                                     </div>
                                                 </div>
                                             @empty
@@ -356,13 +378,13 @@
                         <!-- ================= TAB 2: CREATE IN MASTER ================= -->
                         @if($activeTab === 'create')
                             <div class="space-y-3.5">
-                                <div class="bg-emerald-50/60 rounded-xl p-3.5 border border-emerald-200 text-xs text-emerald-800 space-y-1">
+                                <div class="bg-indigo-50/70 rounded-xl p-3.5 border border-indigo-200 text-xs text-indigo-900 space-y-1">
                                     <div class="font-bold flex items-center gap-1.5">
-                                        <svg class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                                        {{ __('Create Brand New Product in Master Catalog') }}
+                                        <svg class="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                                        {{ __('Create Product in Master Catalog & Open Purchase Order') }}
                                     </div>
-                                    <p class="text-emerald-700">
-                                        {{ __('The item does not exist in master. Enter details to register it. It will be added to products and linked to this sale.') }}
+                                    <p class="text-indigo-700">
+                                        {{ __('Register this uncataloged item in the Master Catalog. Submitting will save the product and open the Purchase Order form pre-filled with this item to record vendor inward shipment and settle inventory.') }}
                                     </p>
                                 </div>
 
@@ -372,7 +394,7 @@
                                         <input
                                             type="text"
                                             wire:model="create_name"
-                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-emerald-500 focus:border-emerald-500"
+                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"
                                             required
                                         >
                                         @error('create_name') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
@@ -384,7 +406,7 @@
                                             type="text"
                                             wire:model="create_barcode"
                                             placeholder="{{ __('e.g. 890123456789') }}"
-                                            class="w-full text-xs font-mono rounded-lg border-gray-300 py-2 px-3 focus:ring-emerald-500 focus:border-emerald-500"
+                                            class="w-full text-xs font-mono rounded-lg border-gray-300 py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"
                                         >
                                     </div>
 
@@ -393,7 +415,7 @@
                                         <input
                                             type="text"
                                             wire:model="create_sku"
-                                            class="w-full text-xs font-mono rounded-lg border-gray-300 py-2 px-3 focus:ring-emerald-500 focus:border-emerald-500 bg-gray-50"
+                                            class="w-full text-xs font-mono rounded-lg border-gray-300 py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50"
                                         >
                                     </div>
 
@@ -401,7 +423,7 @@
                                         <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ __('Brand / Company') }}</label>
                                         <select
                                             wire:model="create_company_id"
-                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-emerald-500 focus:border-emerald-500"
+                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"
                                         >
                                             <option value="">{{ __('Select Brand...') }}</option>
                                             @foreach($companies as $company)
@@ -414,7 +436,7 @@
                                         <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ __('Category') }}</label>
                                         <select
                                             wire:model="create_category_id"
-                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-emerald-500 focus:border-emerald-500"
+                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"
                                         >
                                             <option value="">{{ __('Select Category...') }}</option>
                                             @foreach($categories as $cat)
@@ -427,7 +449,7 @@
                                         <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ __('Unit') }}</label>
                                         <select
                                             wire:model="create_unit_id"
-                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-emerald-500 focus:border-emerald-500"
+                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"
                                         >
                                             <option value="">{{ __('Select Unit...') }}</option>
                                             @foreach($units as $unit)
@@ -442,43 +464,21 @@
                                             type="number"
                                             step="0.01"
                                             wire:model="create_selling_price"
-                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-emerald-500 focus:border-emerald-500"
+                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"
                                             required
                                         >
                                     </div>
 
                                     <div>
-                                        <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ __('Purchase Cost') }}</label>
+                                        <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ __('Purchase Cost (Estimated / Expected)') }}</label>
                                         <input
                                             type="number"
                                             step="0.01"
                                             wire:model="create_purchase_price"
                                             placeholder="0.00"
-                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-emerald-500 focus:border-emerald-500"
+                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"
                                         >
                                     </div>
-
-                                    <div>
-                                        <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ __('Initial Physical Stock Received') }}</label>
-                                        <input
-                                            type="number"
-                                            wire:model="create_initial_stock"
-                                            class="w-full text-xs rounded-lg border-gray-300 py-2 px-3 focus:ring-emerald-500 focus:border-emerald-500"
-                                        >
-                                    </div>
-                                </div>
-
-                                <div class="flex items-start gap-2 pt-2 border-t border-gray-100">
-                                    <input
-                                        type="checkbox"
-                                        id="create_deduct_sold"
-                                        wire:model="create_deduct_sold"
-                                        class="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 mt-0.5"
-                                    >
-                                    <label for="create_deduct_sold" class="text-xs text-gray-700 cursor-pointer">
-                                        <span class="font-bold">{{ __('Deduct sold quantity (:qty) from initial stock', ['qty' => $reconciliation->quantity]) }}</span>
-                                        <span class="block text-gray-500 text-[11px]">{{ __('Net remaining stock in shop will be :net.', ['net' => max(0, $create_initial_stock - $reconciliation->quantity)]) }}</span>
-                                    </label>
                                 </div>
                             </div>
                         @endif
@@ -638,8 +638,8 @@
                                     type="button"
                                     wire:click="submitLinkPurchase"
                                     wire:loading.attr="disabled"
-                                    :disabled="!$wire.selectedPurchaseId"
-                                    class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 transition-colors"
+                                    @disabled(! $selectedPurchaseId)
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                                     <span>{{ __('Link to Purchase Order') }}</span>
@@ -649,35 +649,23 @@
                                     type="button"
                                     wire:click="submitLink"
                                     wire:loading.attr="disabled"
-                                    :disabled="!$wire.selectedProductId"
-                                    class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 transition-colors"
+                                    @disabled(! $selectedProductId)
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                                     <span>{{ __('Link Product & Mark Reconciled') }}</span>
                                 </button>
                             @elseif($activeTab === 'create')
-                                <div class="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        wire:click="submitCreateProductAndDraftPO"
-                                        wire:loading.attr="disabled"
-                                        class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 transition-colors"
-                                        title="{{ __('Save product in Master Catalog and immediately open PO form') }}"
-                                    >
-                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
-                                        <span>{{ __('Create Master & Draft PO') }}</span>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        wire:click="submitCreate"
-                                        wire:loading.attr="disabled"
-                                        class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:opacity-50 transition-colors"
-                                    >
-                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                                        <span>{{ __('Create & Settle Directly') }}</span>
-                                    </button>
-                                </div>
+                                <button
+                                    type="button"
+                                    wire:click="submitCreateProductAndDraftPO"
+                                    wire:loading.attr="disabled"
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 transition-colors"
+                                    title="{{ __('Save product in Master Catalog and immediately open PO form') }}"
+                                >
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                                    <span>{{ __('Create Master Product & Draft PO') }}</span>
+                                </button>
                             @elseif($activeTab === 'direct')
                                 <button
                                     type="button"

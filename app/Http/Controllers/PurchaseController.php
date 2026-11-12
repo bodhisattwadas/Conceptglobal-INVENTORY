@@ -9,6 +9,7 @@ use App\Http\Requests\StorePurchaseRequest;
 use App\Http\Requests\UpdatePurchaseRequest;
 use App\Models\InventoryReconciliation;
 use App\Models\Purchase;
+use App\Models\Supplier;
 use App\Services\PurchaseService;
 use App\Services\VendorInvoiceService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -48,7 +49,10 @@ class PurchaseController extends Controller
             $ids = array_filter(array_map('intval', $rawIds));
 
             $reconciliations = InventoryReconciliation::whereIn('id', $ids)
-                ->where('status', 'pending')
+                ->where(function ($q) {
+                    $q->where('status', 'pending')
+                        ->orWhereNull('target_purchase_id');
+                })
                 ->with('matchedProduct.company')
                 ->get();
 
@@ -74,6 +78,20 @@ class PurchaseController extends Controller
                     }
                 }
             }
+
+            if ($initialCompanyId && ! $initialSupplierId) {
+                $initialSupplierId = Supplier::whereHas('companies', function ($q) use ($initialCompanyId) {
+                    $q->where('companies.id', $initialCompanyId);
+                })->orderBy('name')->value('id');
+            }
+        }
+
+        if (! $initialCompanyId && $request->filled('company_id')) {
+            $initialCompanyId = (int) $request->input('company_id');
+        }
+
+        if (! $initialSupplierId && $request->filled('supplier_id')) {
+            $initialSupplierId = (int) $request->input('supplier_id');
         }
 
         return view('purchases.create', [

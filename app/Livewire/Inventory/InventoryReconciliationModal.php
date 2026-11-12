@@ -93,6 +93,38 @@ class InventoryReconciliationModal extends Component
 
     public bool $edit_sync_sale = true;
 
+    public function hydrate(): void
+    {
+        if ($this->reconciliationId && ! $this->reconciliation) {
+            $this->reconciliation = InventoryReconciliation::with([
+                'sale',
+                'saleItem',
+                'matchedProduct',
+                'reconciledProduct',
+                'targetPurchase',
+                'reconciledPurchase',
+                'creator',
+            ])->find($this->reconciliationId);
+        }
+    }
+
+    public function getReconciliation(): ?InventoryReconciliation
+    {
+        if (! $this->reconciliation && $this->reconciliationId) {
+            $this->reconciliation = InventoryReconciliation::with([
+                'sale',
+                'saleItem',
+                'matchedProduct',
+                'reconciledProduct',
+                'targetPurchase',
+                'reconciledPurchase',
+                'creator',
+            ])->find($this->reconciliationId);
+        }
+
+        return $this->reconciliation;
+    }
+
     #[On('open-reconciliation-modal')]
     public function openModal(int $id, string $tab = 'po'): void
     {
@@ -180,19 +212,51 @@ class InventoryReconciliationModal extends Component
         $this->selectedPurchaseId = $id;
         $this->selectedPurchase = Purchase::with(['supplier', 'company', 'items.product'])->find($id);
 
-        if ($this->selectedPurchase) {
+        $recon = $this->getReconciliation();
+
+        if ($this->selectedPurchase && $recon) {
             $matchingItem = null;
-            if ($this->reconciliation->matched_product_id) {
-                $matchingItem = $this->selectedPurchase->items->firstWhere('product_id', $this->reconciliation->matched_product_id);
+            if ($recon->matched_product_id) {
+                $matchingItem = $this->selectedPurchase->items->firstWhere('product_id', $recon->matched_product_id);
             }
-            if (! $matchingItem && $this->reconciliation->barcode) {
-                $matchingItem = $this->selectedPurchase->items->first(function ($item) {
-                    return $item->product?->product_code === $this->reconciliation->barcode
-                        || $item->product?->sku === $this->reconciliation->barcode;
+            if (! $matchingItem && $recon->barcode) {
+                $matchingItem = $this->selectedPurchase->items->first(function ($item) use ($recon) {
+                    return $item->product?->product_code === $recon->barcode
+                        || $item->product?->sku === $recon->barcode;
                 });
             }
             $this->selectedPurchaseItemId = $matchingItem?->id ?? $this->selectedPurchase->items->first()?->id;
         }
+    }
+
+    public function quickLinkPurchase(int $purchaseId, InventoryReconciliationService $service): void
+    {
+        $this->selectPurchase($purchaseId);
+
+        $recon = $this->getReconciliation();
+        if (! $recon) {
+            $this->dispatch('toast', [
+                'message' => 'Reconciliation record not found.',
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
+        $service->linkToPurchaseOrder(
+            reconciliation: $recon,
+            purchaseId: $this->selectedPurchaseId,
+            purchaseItemId: $this->selectedPurchaseItemId,
+            userId: Auth::id()
+        );
+
+        $poNumber = $this->selectedPurchase?->invoice_number ?? 'PO';
+        $this->closeModal();
+        $this->dispatch('toast', [
+            'message' => "Successfully linked to Purchase Order {$poNumber}!",
+            'type' => 'success',
+        ]);
+        $this->dispatch('reconciliation-updated');
     }
 
     public function clearSelectedPurchase(): void
@@ -237,8 +301,18 @@ class InventoryReconciliationModal extends Component
             'selectedPurchaseId' => ['required', 'integer', 'exists:purchases,id'],
         ]);
 
+        $recon = $this->getReconciliation();
+        if (! $recon) {
+            $this->dispatch('toast', [
+                'message' => 'Reconciliation record not found.',
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
         $service->linkToPurchaseOrder(
-            reconciliation: $this->reconciliation,
+            reconciliation: $recon,
             purchaseId: $this->selectedPurchaseId,
             purchaseItemId: $this->selectedPurchaseItemId,
             userId: Auth::id()
@@ -254,10 +328,27 @@ class InventoryReconciliationModal extends Component
 
     public function createPurchaseOrderNow()
     {
+        $recon = $this->getReconciliation();
+
+        if (! $recon) {
+            return null;
+        }
+
+        if (! $recon->matched_product_id) {
+            $this->activeTab = 'create';
+            $this->dispatch('toast', [
+                'message' => 'Please register this item in the Master Catalog first so it can be added to the Purchase Order.',
+                'type' => 'info',
+            ]);
+
+            return null;
+        }
+
+        $reconId = $recon->id;
         $this->closeModal();
 
         return redirect()->route('purchases.create', [
-            'recon_ids' => $this->reconciliation->id,
+            'recon_ids' => $reconId,
         ]);
     }
 
@@ -286,8 +377,18 @@ class InventoryReconciliationModal extends Component
             'selectedProductId' => ['required', 'integer', 'exists:products,id'],
         ]);
 
+        $recon = $this->getReconciliation();
+        if (! $recon) {
+            $this->dispatch('toast', [
+                'message' => 'Reconciliation record not found.',
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
         $service->linkExistingProduct(
-            reconciliation: $this->reconciliation,
+            reconciliation: $recon,
             productId: $this->selectedProductId,
             purchaseItemId: null,
             deductStock: $this->deductStock,
@@ -303,47 +404,23 @@ class InventoryReconciliationModal extends Component
         $this->dispatch('reconciliation-updated');
     }
 
-    public function submitCreate(InventoryReconciliationService $service): void
+    public function submitCreate(InventoryReconciliationService $service)
     {
-        $this->validate([
-            'create_name' => ['required', 'string', 'max:255'],
-            'create_selling_price' => ['required', 'numeric', 'min:0'],
-            'create_company_id' => ['nullable', 'integer', 'exists:companies,id'],
-            'create_category_id' => ['nullable', 'integer', 'exists:categories,id'],
-            'create_unit_id' => ['nullable', 'integer', 'exists:units,id'],
-            'create_purchase_price' => ['nullable', 'numeric', 'min:0'],
-            'create_initial_stock' => ['nullable', 'integer', 'min:0'],
-        ]);
-
-        $service->createNewProductAndReconcile(
-            reconciliation: $this->reconciliation,
-            productData: [
-                'name' => $this->create_name,
-                'sku' => $this->create_sku,
-                'product_code' => $this->create_barcode ?: null,
-                'company_id' => $this->create_company_id,
-                'category_id' => $this->create_category_id,
-                'unit_id' => $this->create_unit_id,
-                'selling_price' => $this->create_selling_price,
-                'mrp' => $this->create_mrp ?: $this->create_selling_price,
-                'purchase_price' => $this->create_purchase_price,
-            ],
-            initialStock: $this->create_initial_stock,
-            deductSoldStock: $this->create_deduct_sold,
-            notes: $this->create_notes,
-            userId: Auth::id()
-        );
-
-        $this->closeModal();
-        $this->dispatch('toast', [
-            'message' => "Created product '{$this->create_name}' and reconciled successfully!",
-            'type' => 'success',
-        ]);
-        $this->dispatch('reconciliation-updated');
+        return $this->submitCreateProductAndDraftPO($service);
     }
 
     public function submitCreateProductAndDraftPO(InventoryReconciliationService $service)
     {
+        $recon = $this->getReconciliation();
+        if (! $recon) {
+            $this->dispatch('toast', [
+                'message' => 'Reconciliation record not found.',
+                'type' => 'error',
+            ]);
+
+            return null;
+        }
+
         $this->validate([
             'create_name' => ['required', 'string', 'max:255'],
             'create_selling_price' => ['required', 'numeric', 'min:0'],
@@ -354,7 +431,7 @@ class InventoryReconciliationModal extends Component
         ]);
 
         $service->createMasterProductOnly(
-            reconciliation: $this->reconciliation,
+            reconciliation: $recon,
             productData: [
                 'name' => $this->create_name,
                 'sku' => $this->create_sku,
@@ -368,7 +445,7 @@ class InventoryReconciliationModal extends Component
             ]
         );
 
-        $reconId = $this->reconciliation->id;
+        $reconId = $recon->id;
         $this->closeModal();
 
         return redirect()->route('purchases.create', [
@@ -378,8 +455,18 @@ class InventoryReconciliationModal extends Component
 
     public function submitDirect(InventoryReconciliationService $service): void
     {
+        $recon = $this->getReconciliation();
+        if (! $recon) {
+            $this->dispatch('toast', [
+                'message' => 'Reconciliation record not found.',
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
         $service->markAsReconciledDirectly(
-            reconciliation: $this->reconciliation,
+            reconciliation: $recon,
             notes: $this->directNotes,
             userId: Auth::id()
         );
@@ -394,6 +481,16 @@ class InventoryReconciliationModal extends Component
 
     public function submitEdit(InventoryReconciliationService $service): void
     {
+        $recon = $this->getReconciliation();
+        if (! $recon) {
+            $this->dispatch('toast', [
+                'message' => 'Reconciliation record not found.',
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
         $this->validate([
             'edit_item_name' => ['required', 'string', 'max:255'],
             'edit_quantity' => ['required', 'integer', 'min:1'],
@@ -404,7 +501,7 @@ class InventoryReconciliationModal extends Component
         ]);
 
         $service->updateReconciliationDetails(
-            reconciliation: $this->reconciliation,
+            reconciliation: $recon,
             data: [
                 'item_name' => $this->edit_item_name,
                 'barcode' => $this->edit_barcode,

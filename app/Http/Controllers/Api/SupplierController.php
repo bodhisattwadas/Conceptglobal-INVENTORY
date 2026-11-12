@@ -11,16 +11,32 @@ class SupplierController extends Controller
 {
     public function search(Request $request)
     {
-        $query = $request->input('q');
-        $cacheKey = 'suppliers_search_'.md5($query);
+        $query = $request->input('q') ?? $request->input('query') ?? $request->input('search');
+        $companyInput = $request->input('company_id') ?: $request->input('brand_id');
 
-        $suppliers = Cache::remember($cacheKey, 300, function () use ($query) {
+        $companyIds = [];
+        if (is_array($companyInput)) {
+            $companyIds = array_filter(array_map('intval', $companyInput));
+        } elseif (is_numeric($companyInput) && (int) $companyInput > 0) {
+            $companyIds = [(int) $companyInput];
+        }
+
+        $cacheKey = 'suppliers_search_'.md5(($query ?? '').'_'.implode(',', $companyIds));
+
+        $suppliers = Cache::remember($cacheKey, 60, function () use ($query, $companyIds) {
             return Supplier::query()
-                ->when($query, function ($q) use ($query) {
-                    $q->where('name', 'like', "%{$query}%")
-                        ->orWhere('phone', 'like', "%{$query}%");
+                ->when(! empty($companyIds), function ($q) use ($companyIds) {
+                    $q->whereHas('companies', function ($cq) use ($companyIds) {
+                        $cq->whereIn('companies.id', $companyIds);
+                    });
                 })
-                ->limit(20)
+                ->when(! empty($query), function ($q) use ($query) {
+                    $q->where(function ($sub) use ($query) {
+                        $sub->where('name', 'like', "%{$query}%")
+                            ->orWhere('phone', 'like', "%{$query}%");
+                    });
+                })
+                ->limit(30)
                 ->get()
                 ->map(function ($supplier) {
                     return [

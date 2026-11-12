@@ -230,9 +230,10 @@
 
                             <!-- Barcode / SKU -->
                             <td class="px-4 py-3 whitespace-nowrap">
-                                @if($recon->barcode)
+                                @php($displayBarcode = $recon->barcode ?: ($recon->matchedProduct?->product_code ?: $recon->matchedProduct?->sku))
+                                @if($displayBarcode)
                                     <span class="inline-flex items-center px-2 py-0.5 rounded font-mono text-[11px] font-semibold bg-gray-100 text-gray-800 border border-gray-200">
-                                        {{ $recon->barcode }}
+                                        {{ $displayBarcode }}
                                     </span>
                                 @else
                                     <span class="text-gray-400 italic">{{ __('No barcode') }}</span>
@@ -243,7 +244,7 @@
                             <td class="px-4 py-3">
                                 <div class="font-bold text-gray-900">{{ $recon->item_name }}</div>
                                 @if($recon->notes)
-                                    <div class="text-[11px] text-gray-500 mt-0.5 truncate max-w-xs" title="{{ $recon->notes }}">
+                                    <div class="text-[11px] text-gray-500 mt-0.5 whitespace-normal break-words leading-relaxed" title="{{ $recon->notes }}">
                                         {{ $recon->notes }}
                                     </div>
                                 @endif
@@ -285,7 +286,7 @@
                                         @endif
                                         @if($recon->targetPurchase)
                                             <div class="text-[11px] text-purple-700 font-medium flex items-center gap-1 mt-0.5">
-                                                <span>PO: {{ $recon->targetPurchase->po_reference }}</span>
+                                                <span>PO: {{ $recon->targetPurchase->invoice_number }}</span>
                                                 <span class="text-[9px] px-1 py-0.2 rounded bg-purple-100 text-purple-800 font-bold uppercase">{{ $recon->targetPurchase->status }}</span>
                                             </div>
                                         @endif
@@ -300,7 +301,7 @@
                                         @endif
                                         @if($recon->reconciledPurchase)
                                             <div class="text-[11px] text-indigo-700 font-medium">
-                                                From PO: {{ $recon->reconciledPurchase->po_reference }}
+                                                From PO: {{ $recon->reconciledPurchase->invoice_number }}
                                             </div>
                                         @endif
                                         @if($recon->reconciled_at)

@@ -44,7 +44,17 @@ class ProductController extends Controller
                 });
             })
             ->when($companyId > 0, fn ($builder) => $builder->where('company_id', $companyId))
-            ->when($supplierId > 0 && ! $companyId, fn ($builder) => $builder->whereIn('company_id', $supplierCompanyIds))
+            ->when($supplierId > 0 && ! $companyId, function ($builder) use ($supplierCompanyIds, $queryLower) {
+                $builder->where(function ($sub) use ($supplierCompanyIds, $queryLower) {
+                    $sub->whereIn('company_id', $supplierCompanyIds)
+                        ->orWhereNull('company_id');
+
+                    if ($queryLower !== '') {
+                        $sub->orWhereRaw('LOWER(product_code) = ?', [$queryLower])
+                            ->orWhereRaw('LOWER(sku) = ?', [$queryLower]);
+                    }
+                });
+            })
             ->when($query !== '', function ($q) use ($queryLower) {
                 $terms = preg_split('/[\s\-–—]+/u', $queryLower, -1, PREG_SPLIT_NO_EMPTY);
                 if (empty($terms)) {

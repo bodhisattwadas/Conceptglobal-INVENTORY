@@ -362,26 +362,6 @@
                                                     <span>{{ __('Fetch') }}</span>
                                                 </button>
                                             </div>
-
-                                            <div class="flex items-center gap-1.5">
-                                                <div class="w-1/2">
-                                                    <input
-                                                        type="text"
-                                                        x-model="item.product_code"
-                                                        @input="if(item.matched_product_id && item.product_code !== item._fetched_code) { item.matched_product_id = null; } persistCart()"
-                                                        placeholder="{{ __('Barcode / SKU') }}"
-                                                        class="focus:ring-amber-500 focus:border-amber-500 block w-full text-[11px] font-mono border-gray-300 rounded-md py-1 px-2"
-                                                    >
-                                                </div>
-                                                <div class="w-1/2 flex items-center gap-1">
-                                                    <span class="inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
-                                                        {{ __('To Recon') }}
-                                                    </span>
-                                                    <span x-show="item.matched_product_id" class="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200">
-                                                        {{ __('Linked') }}
-                                                    </span>
-                                                </div>
-                                            </div>
                                         </div>
 
                                         <div x-show="item.type !== 'manual' && (item.sku || item.product_code || item.type === 'service')" class="mt-1 flex items-center gap-2">

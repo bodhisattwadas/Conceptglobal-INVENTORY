@@ -655,6 +655,155 @@ class InventoryReconciliationTest extends TestCase
         $this->assertEquals('pending', $recon->status);
     }
 
+    public function test_submit_create_in_modal_redirects_to_po_and_keeps_reconciliation_pending(): void
+    {
+        $sale = Sale::create([
+            'invoice_number' => 'INV-CREATE-PO-01',
+            'created_by' => $this->salesUser->id,
+            'sale_date' => now(),
+            'status' => SaleStatus::COMPLETED,
+            'payment_method' => PaymentMethod::CASH,
+            'subtotal' => 250,
+            'total' => 250,
+        ]);
+
+        $saleItem = $sale->items()->create([
+            'custom_name' => 'Unlisted Conditioner 250ml',
+            'barcode' => '890777888999',
+            'is_manual' => true,
+            'quantity' => 2,
+            'cost_price' => 0,
+            'unit_price' => 125,
+            'final_price' => 125,
+            'subtotal' => 250,
+        ]);
+
+        $recon = InventoryReconciliation::create([
+            'reconciliation_number' => 'REC-CONDITIONER-01',
+            'sale_id' => $sale->id,
+            'sale_item_id' => $saleItem->id,
+            'item_name' => 'Unlisted Conditioner 250ml',
+            'barcode' => '890777888999',
+            'quantity' => 2,
+            'unit_price' => 125,
+            'discount' => 0,
+            'subtotal' => 250,
+            'status' => 'pending',
+            'created_by' => $this->salesUser->id,
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(InventoryReconciliationModal::class)
+            ->dispatch('open-reconciliation-modal', id: $recon->id, tab: 'create')
+            ->set('create_company_id', $this->company->id)
+            ->set('create_category_id', $this->category->id)
+            ->set('create_unit_id', $this->unit->id)
+            ->set('create_selling_price', 125.00)
+            ->set('create_mrp', 125.00)
+            ->set('create_purchase_price', 75.00)
+            ->call('submitCreate')
+            ->assertRedirect(route('purchases.create', ['recon_ids' => $recon->id]));
+
+        $product = Product::where('product_code', '890777888999')->first();
+        $this->assertNotNull($product);
+        $this->assertEquals(0, $product->quantity);
+
+        $recon->refresh();
+        $this->assertEquals('pending', $recon->status);
+        $this->assertEquals($product->id, $recon->matched_product_id);
+    }
+
+    public function test_create_purchase_order_now_redirects_when_product_matched(): void
+    {
+        $product = Product::factory()->create([
+            'company_id' => $this->company->id,
+            'category_id' => $this->category->id,
+            'unit_id' => $this->unit->id,
+            'name' => 'Existing Matched Product',
+        ]);
+
+        $sale = Sale::create([
+            'invoice_number' => 'INV-PO-NOW-01',
+            'created_by' => $this->salesUser->id,
+            'sale_date' => now(),
+            'status' => SaleStatus::COMPLETED,
+            'payment_method' => PaymentMethod::CASH,
+            'subtotal' => 100,
+            'total' => 100,
+        ]);
+
+        $saleItem1 = $sale->items()->create([
+            'product_id' => $product->id,
+            'is_manual' => false,
+            'quantity' => 1,
+            'cost_price' => 0,
+            'unit_price' => 100,
+            'final_price' => 100,
+            'subtotal' => 100,
+        ]);
+
+        $recon = InventoryReconciliation::create([
+            'reconciliation_number' => 'REC-PONOW-01',
+            'sale_id' => $sale->id,
+            'sale_item_id' => $saleItem1->id,
+            'matched_product_id' => $product->id,
+            'item_name' => 'Existing Matched Product',
+            'quantity' => 1,
+            'unit_price' => 100,
+            'subtotal' => 100,
+            'status' => 'pending',
+            'created_by' => $this->salesUser->id,
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(InventoryReconciliationModal::class)
+            ->dispatch('open-reconciliation-modal', id: $recon->id, tab: 'po')
+            ->call('createPurchaseOrderNow')
+            ->assertRedirect(route('purchases.create', ['recon_ids' => $recon->id]));
+    }
+
+    public function test_create_purchase_order_now_switches_to_create_tab_when_unmatched(): void
+    {
+        $sale = Sale::create([
+            'invoice_number' => 'INV-PO-NOW-02',
+            'created_by' => $this->salesUser->id,
+            'sale_date' => now(),
+            'status' => SaleStatus::COMPLETED,
+            'payment_method' => PaymentMethod::CASH,
+            'subtotal' => 100,
+            'total' => 100,
+        ]);
+
+        $saleItem2 = $sale->items()->create([
+            'is_manual' => true,
+            'quantity' => 1,
+            'cost_price' => 0,
+            'unit_price' => 100,
+            'final_price' => 100,
+            'subtotal' => 100,
+        ]);
+
+        $recon = InventoryReconciliation::create([
+            'reconciliation_number' => 'REC-PONOW-02',
+            'sale_id' => $sale->id,
+            'sale_item_id' => $saleItem2->id,
+            'matched_product_id' => null,
+            'item_name' => 'Unmatched Product',
+            'quantity' => 1,
+            'unit_price' => 100,
+            'subtotal' => 100,
+            'status' => 'pending',
+            'created_by' => $this->salesUser->id,
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(InventoryReconciliationModal::class)
+            ->dispatch('open-reconciliation-modal', id: $recon->id, tab: 'po')
+            ->call('createPurchaseOrderNow')
+            ->assertSet('activeTab', 'create')
+            ->assertDispatched('toast');
+    }
+
     public function test_receiving_po_automatically_settles_linked_pending_reconciliation(): void
     {
         $supplier = Supplier::create([
@@ -946,5 +1095,103 @@ class InventoryReconciliationTest extends TestCase
         // Sale item cost price updated to 180.00
         $saleItem->refresh();
         $this->assertEquals(180.00, (float) $saleItem->cost_price);
+    }
+
+    public function test_admin_can_quick_link_purchase_order_directly_from_list(): void
+    {
+        $supplier = Supplier::create([
+            'name' => 'Quick Supplier',
+            'contact_person' => 'QS',
+            'email' => 'qs@test.com',
+            'phone' => '9998887776',
+        ]);
+        $supplier->companies()->attach($this->company->id);
+
+        $product = Product::factory()->create([
+            'company_id' => $this->company->id,
+            'category_id' => $this->category->id,
+            'unit_id' => $this->unit->id,
+            'name' => 'Serum 50ml',
+            'sku' => 'SKU-SERUM-50',
+            'product_code' => '890888999111',
+            'quantity' => 0,
+        ]);
+
+        $purchase = Purchase::create([
+            'supplier_id' => $supplier->id,
+            'company_id' => $this->company->id,
+            'invoice_number' => 'PO-QUICK-001',
+            'po_reference' => 'PO-QUICK-001',
+            'status' => PurchaseStatus::ORDERED->value,
+            'location' => PurchaseLocation::SHOP->value,
+            'purchase_date' => now(),
+            'created_by' => $this->admin->id,
+        ]);
+
+        $purchaseItem = $purchase->items()->create([
+            'product_id' => $product->id,
+            'quantity' => 5,
+            'unit_price' => 200.00,
+            'selling_price' => 400.00,
+            'mrp' => 400.00,
+            'discount_percent' => 0,
+            'subtotal' => 1000.00,
+        ]);
+
+        app(PurchaseService::class)->markAsReceived($purchase);
+
+        $sale = Sale::create([
+            'invoice_number' => 'INV-QUICK-SERUM',
+            'created_by' => $this->salesUser->id,
+            'sale_date' => now(),
+            'status' => SaleStatus::COMPLETED,
+            'payment_method' => PaymentMethod::CASH,
+            'subtotal' => 400,
+            'total' => 400,
+        ]);
+
+        $saleItem = $sale->items()->create([
+            'custom_name' => 'Serum 50ml',
+            'barcode' => '890888999111',
+            'is_manual' => true,
+            'quantity' => 1,
+            'cost_price' => 0,
+            'unit_price' => 400,
+            'final_price' => 400,
+            'subtotal' => 400,
+        ]);
+
+        $recon = InventoryReconciliation::create([
+            'reconciliation_number' => 'REC-SERUM-01',
+            'sale_id' => $sale->id,
+            'sale_item_id' => $saleItem->id,
+            'matched_product_id' => $product->id,
+            'item_name' => 'Serum 50ml',
+            'barcode' => '890888999111',
+            'quantity' => 1,
+            'unit_price' => 400,
+            'discount' => 0,
+            'subtotal' => 400,
+            'status' => 'pending',
+            'created_by' => $this->salesUser->id,
+        ]);
+
+        // Test calling quickLinkPurchase directly (even simulating reconciliation model property being reset/rehydrated)
+        $component = Livewire::actingAs($this->admin)
+            ->test(InventoryReconciliationModal::class)
+            ->dispatch('open-reconciliation-modal', id: $recon->id, tab: 'po')
+            ->set('reconciliation', null) // Simulate dehydrated Eloquent model
+            ->call('quickLinkPurchase', $purchase->id);
+
+        $component->assertDispatched('reconciliation-updated');
+        $component->assertSet('isOpen', false);
+
+        $recon->refresh();
+        $this->assertEquals('reconciled', $recon->status);
+        $this->assertEquals($purchase->id, $recon->reconciled_purchase_id);
+        $this->assertEquals($purchaseItem->id, $recon->reconciled_purchase_item_id);
+
+        $product->refresh();
+        $this->assertEquals(4, $product->quantity); // 5 - 1 = 4
     }
 }

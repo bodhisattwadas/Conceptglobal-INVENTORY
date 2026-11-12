@@ -67,6 +67,16 @@ class StorePurchaseRequest extends FormRequest
             }
         }
 
+        $supplierId = $this->input('supplier_id');
+        if ($supplierId && $companyId) {
+            DB::table('supplier_companies')->insertOrIgnore([
+                'supplier_id' => (int) $supplierId,
+                'company_id' => (int) $companyId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
         $location = strtolower(trim((string) $this->input('location', '')));
         if (! in_array($location, [PurchaseLocation::SHOP->value, PurchaseLocation::PARLOUR->value], true)) {
             $location = PurchaseLocation::SHOP->value;

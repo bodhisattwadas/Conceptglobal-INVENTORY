@@ -344,8 +344,24 @@ class InventoryReconciliationService
 
             $reconciliation->update([
                 'matched_product_id' => $product->id,
+                'barcode' => $productCode ?: $reconciliation->barcode,
                 'cost_price' => $product->purchase_price ?: $reconciliation->cost_price,
             ]);
+
+            if ($reconciliation->saleItem) {
+                $reconciliation->saleItem->update([
+                    'product_id' => $product->id,
+                    'barcode' => $productCode ?: $reconciliation->saleItem->barcode,
+                    'cost_price' => $product->purchase_price ?: $reconciliation->saleItem->cost_price,
+                ]);
+            }
+
+            if (! empty($productCode)) {
+                InventoryReconciliation::where('status', 'pending')
+                    ->whereNull('matched_product_id')
+                    ->where('barcode', $productCode)
+                    ->update(['matched_product_id' => $product->id]);
+            }
 
             return $product;
         });

@@ -6,8 +6,11 @@ use App\Enums\PurchaseStatus;
 use App\Livewire\Purchases\PurchaseTable;
 use App\Models\Category;
 use App\Models\Company;
+use App\Models\InventoryReconciliation;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
@@ -872,5 +875,228 @@ class PurchaseWorkflowTest extends TestCase
         $response->assertOk();
         $response->assertSee('title="View Details"', false);
         $response->assertSee('title="Edit Purchase Order"', false);
+    }
+
+    public function test_ajax_suppliers_search_filters_by_brand_company_id(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $companyA = Company::create([
+            'company_code' => 'BRD-A',
+            'company_name' => 'Brand Alpha',
+            'short_name' => 'BA',
+        ]);
+
+        $companyB = Company::create([
+            'company_code' => 'BRD-B',
+            'company_name' => 'Brand Beta',
+            'short_name' => 'BB',
+        ]);
+
+        $supplierA = Supplier::create([
+            'name' => 'Alpha Supplier',
+            'contact_person' => 'Alpha Contact',
+            'email' => 'alpha@supplier.com',
+            'phone' => '9876543210',
+        ]);
+        $supplierA->companies()->attach($companyA->id);
+
+        $supplierB = Supplier::create([
+            'name' => 'Beta Supplier',
+            'contact_person' => 'Beta Contact',
+            'email' => 'beta@supplier.com',
+            'phone' => '9876543211',
+        ]);
+        $supplierB->companies()->attach($companyB->id);
+
+        $response = $this->actingAs($user)->postJson(route('ajax.suppliers.search'), [
+            'company_id' => $companyA->id,
+        ]);
+
+        $response->assertOk();
+        $data = $response->json();
+        $supplierIds = collect($data)->pluck('value')->all();
+
+        $this->assertContains($supplierA->id, $supplierIds);
+        $this->assertNotContains($supplierB->id, $supplierIds);
+    }
+
+    public function test_purchase_create_auto_selects_supplier_when_single_supplier_supplies_reconciled_brand(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $category = Category::create([
+            'name' => 'Lip Care',
+            'slug' => 'lip-care',
+        ]);
+
+        $unit = Unit::create([
+            'name' => 'Piece',
+            'symbol' => 'pc',
+        ]);
+
+        $company = Company::create([
+            'company_code' => 'BRD-C',
+            'company_name' => 'Colorbar',
+            'short_name' => 'CB',
+        ]);
+
+        $supplier = Supplier::create([
+            'name' => 'Exclusive Colorbar Distributor',
+            'contact_person' => 'Colorbar Contact',
+            'email' => 'cb@distributor.com',
+            'phone' => '9876543212',
+        ]);
+        $supplier->companies()->attach($company->id);
+
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'company_id' => $company->id,
+            'name' => 'Colorbar Lipstick',
+            'sku' => 'CB-LIP-01',
+            'mrp' => 500,
+            'purchase_price' => 350,
+        ]);
+
+        $sale = Sale::create([
+            'invoice_number' => 'INV-TEST-001',
+            'created_by' => $user->id,
+            'sale_date' => now(),
+            'status' => 'completed',
+            'payment_method' => 'cash',
+            'subtotal' => 1000,
+            'total_discount' => 0,
+            'total' => 1000,
+            'cash_received' => 1000,
+            'change' => 0,
+        ]);
+
+        $saleItem = SaleItem::create([
+            'sale_id' => $sale->id,
+            'item_name' => 'Colorbar Lipstick',
+            'quantity' => 2,
+            'cost_price' => 350.00,
+            'unit_price' => 500.00,
+            'subtotal' => 1000.00,
+            'final_price' => 500.00,
+        ]);
+
+        $recon = InventoryReconciliation::create([
+            'reconciliation_number' => 'REC.20261112.0001',
+            'sale_id' => $sale->id,
+            'sale_item_id' => $saleItem->id,
+            'barcode' => 'CB-LIP-01',
+            'item_name' => 'Colorbar Lipstick',
+            'quantity' => 2,
+            'unit_price' => 500,
+            'cost_price' => 350,
+            'subtotal' => 1000,
+            'matched_product_id' => $product->id,
+            'status' => 'pending',
+            'source' => 'pos',
+            'location' => 'shop',
+            'created_by' => $user->id,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('purchases.create', ['recon_ids' => $recon->id]));
+
+        $response->assertOk();
+        $response->assertViewHas('initialCompanyId', $company->id);
+        $response->assertViewHas('initialSupplierId', $supplier->id);
+        $response->assertSee($supplier->name);
+    }
+
+    public function test_purchase_create_does_not_auto_select_if_multiple_suppliers_supply_brand(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $category = Category::create([
+            'name' => 'General',
+            'slug' => 'general',
+        ]);
+
+        $unit = Unit::create([
+            'name' => 'Box',
+            'symbol' => 'box',
+        ]);
+
+        $company = Company::create([
+            'company_code' => 'BRD-D',
+            'company_name' => 'Multi Brand',
+            'short_name' => 'MB',
+        ]);
+
+        $supplier1 = Supplier::create([
+            'name' => 'Vendor One',
+            'contact_person' => 'Vendor One Contact',
+            'email' => 'v1@vendor.com',
+            'phone' => '9876543213',
+        ]);
+        $supplier1->companies()->attach($company->id);
+
+        $supplier2 = Supplier::create([
+            'name' => 'Vendor Two',
+            'contact_person' => 'Vendor Two Contact',
+            'email' => 'v2@vendor.com',
+            'phone' => '9876543214',
+        ]);
+        $supplier2->companies()->attach($company->id);
+
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'company_id' => $company->id,
+            'name' => 'Multi Product',
+            'sku' => 'MB-PRD-01',
+            'mrp' => 200,
+            'purchase_price' => 150,
+        ]);
+
+        $sale = Sale::create([
+            'invoice_number' => 'INV-TEST-002',
+            'created_by' => $user->id,
+            'sale_date' => now(),
+            'status' => 'completed',
+            'payment_method' => 'cash',
+            'subtotal' => 200,
+            'total_discount' => 0,
+            'total' => 200,
+            'cash_received' => 200,
+            'change' => 0,
+        ]);
+
+        $saleItem = SaleItem::create([
+            'sale_id' => $sale->id,
+            'item_name' => 'Multi Product',
+            'quantity' => 1,
+            'cost_price' => 150.00,
+            'unit_price' => 200.00,
+            'subtotal' => 200.00,
+            'final_price' => 200.00,
+        ]);
+
+        $recon = InventoryReconciliation::create([
+            'reconciliation_number' => 'REC.20261112.0002',
+            'sale_id' => $sale->id,
+            'sale_item_id' => $saleItem->id,
+            'barcode' => 'MB-PRD-01',
+            'item_name' => 'Multi Product',
+            'quantity' => 1,
+            'unit_price' => 200,
+            'cost_price' => 150,
+            'subtotal' => 200,
+            'matched_product_id' => $product->id,
+            'status' => 'pending',
+            'source' => 'pos',
+            'location' => 'shop',
+            'created_by' => $user->id,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('purchases.create', ['recon_ids' => $recon->id]));
+
+        $response->assertOk();
+        $response->assertViewHas('initialCompanyId', $company->id);
+        $response->assertViewHas('initialSupplierId', null);
     }
 }

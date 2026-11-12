@@ -32,6 +32,11 @@
                             @endif
                         @elseif(isset($purchase) && $purchase->supplier)
                             <option value="{{ $purchase->supplier_id }}" selected>{{ $purchase->supplier->name }}</option>
+                        @elseif(!empty($initialSupplierId))
+                            @php($initSupplier = \App\Models\Supplier::find($initialSupplierId))
+                            @if($initSupplier)
+                                <option value="{{ $initSupplier->id }}" selected>{{ $initSupplier->name }}</option>
+                            @endif
                         @endif
                     </select>
                 </div>
@@ -259,6 +264,7 @@
             defaultDiscountPercent: 0,
             items: [],
             supplier_id: initialData.supplier_id || '',
+            company_id: initialData.company_id || '',
             purchase_date: initialData.purchase_date || '{{ old('purchase_date', $purchase->purchase_date ? \Carbon\Carbon::parse($purchase->purchase_date)->format('Y-m-d') : date('Y-m-d')) }}',
             due_date: initialData.due_date || '{{ old('due_date', $purchase->due_date ? \Carbon\Carbon::parse($purchase->due_date)->format('Y-m-d') : '') }}',
             location: initialData.location || '{{ old('location', $purchase->location?->value ?? $purchase->location ?? 'shop') }}',
@@ -390,7 +396,7 @@
 
             get headerCompanyId() {
                 const selected = this.items.find(item => item.product_id && item.company_id);
-                return selected ? selected.company_id : '';
+                return selected ? selected.company_id : (this.company_id || '');
             },
 
             get minDueDate() {
@@ -407,19 +413,68 @@
                 else setTimeout(() => this.waitForTomSelect(callback), 50);
             },
 
+            refreshSupplierSelectCache() {
+                if (this.supplierSelect) {
+                    if (typeof this.supplierSelect.clearCache === 'function') {
+                        this.supplierSelect.clearCache();
+                    }
+                    this.supplierSelect.loadedSearches = {};
+                }
+            },
+
             initSupplierSelect(el) {
-                this.initRemoteSelect(el, '{{ route("ajax.suppliers.search") }}', value => {
-                    if (this.supplier_id == value) return;
-                    this.supplier_id = value;
-                    this.items.forEach(item => this.destroyRowSelects(item));
-                    this.items = [this.blankItem()];
-                    this.$nextTick(() => {
-                        this.items.forEach(item => {
-                            const pSelect = document.getElementById(`product_search_${item.key}`)?.tomselect;
-                            if (pSelect) this.reloadProductSelect(pSelect, item);
-                        });
+                const self = this;
+                this.waitForTomSelect(() => {
+                    const ts = new TomSelect(el, {
+                        placeholder: 'Select Supplier / Vendor...',
+                        preload: 'focus',
+                        valueField: 'value',
+                        labelField: 'text',
+                        searchField: 'text',
+                        onDropdownOpen: () => {
+                            if (typeof ts.clearCache === 'function') {
+                                ts.clearCache();
+                            }
+                            ts.loadedSearches = {};
+                        },
+                        onChange: (value) => {
+                            if (self.supplier_id == value) return;
+                            self.supplier_id = value;
+
+                            const hasReconItems = self.items.some(item => item.product_id && item.company_id);
+                            if (!hasReconItems) {
+                                self.items.forEach(item => self.destroyRowSelects(item));
+                                self.items = [self.blankItem()];
+                            }
+                            self.$nextTick(() => {
+                                self.items.forEach(item => {
+                                    const pSelect = document.getElementById(`product_search_${item.key}`)?.tomselect;
+                                    if (pSelect) self.reloadProductSelect(pSelect, item);
+                                });
+                            });
+                        },
+                        load(query, callback) {
+                            const companyId = self.headerCompanyId || self.company_id || '';
+                            fetch('{{ route("ajax.suppliers.search") }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                },
+                                body: JSON.stringify({
+                                    q: query,
+                                    company_id: companyId
+                                })
+                            }).then(r => r.json()).then(callback).catch(() => callback([]));
+                        }
                     });
-                }, 'Select Supplier / Vendor...');
+
+                    self.supplierSelect = ts;
+
+                    if (self.supplier_id) {
+                        ts.setValue(self.supplier_id, true);
+                    }
+                });
             },
 
             fetchOptions(url, data, callback) {
@@ -585,6 +640,7 @@
                     this.items.push(newItem);
                     this.focusRowSelect(newItem);
                 }
+                this.refreshSupplierSelectCache();
                 this.syncAllProductDropdowns();
             },
 
@@ -613,6 +669,7 @@
                 item.mrp = 0;
                 item.unit_price = 0;
                 item.subtotal = 0;
+                this.refreshSupplierSelectCache();
                 this.syncAllProductDropdowns(item);
             },
 
@@ -634,6 +691,7 @@
                 item.unit_price = unitPrice;
                 item.subtotal = this.money((parseInt(item.quantity) || 0) * unitPrice);
 
+                this.refreshSupplierSelectCache();
                 this.syncAllProductDropdowns(item);
             },
 
