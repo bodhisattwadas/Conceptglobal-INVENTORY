@@ -344,7 +344,7 @@
                                                 <input
                                                     type="text"
                                                     x-model="item.name"
-                                                    @input="persistCart()"
+                                                    @input="if(item.matched_product_id && item.name !== item._fetched_name) { item.matched_product_id = null; } persistCart()"
                                                     :id="`manual_name_${item.key}`"
                                                     placeholder="{{ __('Product name (required)...') }}"
                                                     class="focus:ring-amber-500 focus:border-amber-500 block w-full text-xs font-semibold border-amber-300 rounded-md py-1.5 px-2 bg-amber-50/20"
@@ -368,7 +368,7 @@
                                                     <input
                                                         type="text"
                                                         x-model="item.product_code"
-                                                        @input="persistCart()"
+                                                        @input="if(item.matched_product_id && item.product_code !== item._fetched_code) { item.matched_product_id = null; } persistCart()"
                                                         placeholder="{{ __('Barcode / SKU') }}"
                                                         class="focus:ring-amber-500 focus:border-amber-500 block w-full text-[11px] font-mono border-gray-300 rounded-md py-1 px-2"
                                                     >
@@ -1575,6 +1575,13 @@
                         if (this.fetchSearchQuery.trim().length >= 2) {
                             this.searchMasterProducts();
                         }
+                        this.$nextTick(() => {
+                            const input = document.getElementById('fetch_master_search_input');
+                            if (input) {
+                                input.focus();
+                                input.select();
+                            }
+                        });
                     },
 
                     searchMasterProducts() {
@@ -1609,6 +1616,8 @@
                         if (!this.fetchModalTargetItem) return;
                         this.fetchModalTargetItem.name = product.name || product.text || '';
                         this.fetchModalTargetItem.product_code = product.product_code || product.sku || '';
+                        this.fetchModalTargetItem._fetched_name = this.fetchModalTargetItem.name;
+                        this.fetchModalTargetItem._fetched_code = this.fetchModalTargetItem.product_code;
                         this.fetchModalTargetItem.price = parseFloat(product.selling_price || product.mrp || product.price || 0) || 0;
                         this.fetchModalTargetItem.unit = product.unit?.symbol || product.unit?.name || 'Pcs';
                         this.fetchModalTargetItem.matched_product_id = product.id || product.value;
@@ -1846,8 +1855,31 @@
 
                             const match = list.find(p => ((p.product_code && p.product_code.toLowerCase() === qLower) || (p.code && p.code.toLowerCase() === qLower) || (p.sku && p.sku.toLowerCase() === qLower))) ||
                                           list.find(p => ((p.product_code && p.product_code.toLowerCase().startsWith(qLower)) || (p.code && p.code.toLowerCase().startsWith(qLower)) || (p.sku && p.sku.toLowerCase().startsWith(qLower)))) ||
-                                          list.find(p => (p.text || p.name || '').toLowerCase() === qLower) ||
-                                          list[0];
+                                          list.find(p => (p.text || p.name || '').toLowerCase() === qLower);
+
+                            if (!match) {
+                                if (!isService) {
+                                    this.destroyRowSelect(item);
+                                    item.type = 'manual';
+                                    item.is_manual = true;
+                                    item.id = 'manual_' + item.key;
+                                    item.product_code = query;
+                                    item.name = '';
+                                    item.price = 0;
+                                    item.quantity = 1;
+                                    item.unit = 'Pcs';
+                                    item.max_stock = 999999;
+                                    this.persistCart();
+                                    this.$nextTick(() => {
+                                        const input = document.getElementById(`manual_name_${item.key}`);
+                                        if (input) input.focus();
+                                    });
+                                    this.$dispatch('toast', { message: `Barcode "${query}" not found in master. Added as manual item for sale & reconciliation.`, type: 'info' });
+                                    return;
+                                }
+                                this.$dispatch('toast', { message: `No available service found matching "${query}"`, type: 'warning' });
+                                return;
+                            }
 
                             // Check if matched item is already in another cart row of same type
                             const existingRow = this.cart.find(row => 
@@ -3355,6 +3387,7 @@
                 <div class="relative">
                     <input
                         type="text"
+                        id="fetch_master_search_input"
                         x-model="fetchSearchQuery"
                         @input.debounce.300ms="searchMasterProducts()"
                         @keydown.enter.prevent="searchMasterProducts()"

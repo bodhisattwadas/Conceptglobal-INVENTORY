@@ -107,7 +107,7 @@ class InventoryReconciliationService
     ): InventoryReconciliation {
         return DB::transaction(function () use ($reconciliation, $productData, $initialStock, $deductSoldStock, $notes, $userId) {
             $sku = ! empty($productData['sku']) ? $productData['sku'] : Product::generateSku();
-            $productCode = ! empty($productData['product_code']) ? $productData['product_code'] : ($reconciliation->barcode ?: null);
+            $productCode = ! empty($productData['product_code']) ? $productData['product_code'] : (! empty($productData['barcode']) ? $productData['barcode'] : ($reconciliation->barcode ?: null));
 
             $soldQty = $reconciliation->quantity;
             $netStock = $initialStock;
@@ -317,7 +317,7 @@ class InventoryReconciliationService
     ): Product {
         return DB::transaction(function () use ($reconciliation, $productData) {
             $sku = ! empty($productData['sku']) ? $productData['sku'] : Product::generateSku();
-            $productCode = ! empty($productData['product_code']) ? $productData['product_code'] : ($reconciliation->barcode ?: null);
+            $productCode = ! empty($productData['product_code']) ? $productData['product_code'] : (! empty($productData['barcode']) ? $productData['barcode'] : ($reconciliation->barcode ?: null));
 
             $product = Product::create([
                 'name' => $productData['name'] ?? $reconciliation->item_name,
