@@ -56,12 +56,20 @@ class ProductController extends Controller
                         foreach ($terms as $term) {
                             $allTerms->where(function ($termQuery) use ($term) {
                                 $termQuery->whereRaw('LOWER(name) LIKE ?', ["%{$term}%"])
-                                    ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$term}%"])
-                                    ->orWhereRaw('LOWER(product_code) LIKE ?', ["%{$term}%"])
                                     ->orWhereHas('company', function ($companyQuery) use ($term) {
                                         $companyQuery->whereRaw('LOWER(company_name) LIKE ?', ["%{$term}%"])
                                             ->orWhereRaw('LOWER(short_name) LIKE ?', ["%{$term}%"]);
                                     });
+
+                                if (is_numeric($term) && strlen($term) <= 2) {
+                                    // Short 1-2 digit number: do not match random digits inside internal SKU date (e.g. P.261112...)
+                                    $termQuery->orWhereRaw('LOWER(sku) = ?', [$term])
+                                        ->orWhereRaw('LOWER(product_code) = ?', [$term])
+                                        ->orWhereRaw('LOWER(product_code) LIKE ?', ["{$term}%"]);
+                                } else {
+                                    $termQuery->orWhereRaw('LOWER(sku) LIKE ?', ["%{$term}%"])
+                                        ->orWhereRaw('LOWER(product_code) LIKE ?', ["%{$term}%"]);
+                                }
                             });
                         }
                     })

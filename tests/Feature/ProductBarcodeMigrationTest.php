@@ -376,4 +376,42 @@ class ProductBarcodeMigrationTest extends TestCase
         $this->assertEquals('8906036215017', $original->product_code);
         $this->assertEquals('SKU-ORIG-100', $original->sku);
     }
+
+    public function test_product_search_does_not_mismatch_hyphenated_query_against_unrelated_skus(): void
+    {
+        // Product 1: test-1 product recon with SKU P.261112.0JAG and barcode 858585
+        $product1 = Product::create([
+            'category_id' => $this->category->id,
+            'unit_id' => $this->unit->id,
+            'company_id' => $this->company->id,
+            'sku' => 'P.261112.0JAG',
+            'product_code' => '858585',
+            'name' => 'test-1 product recon',
+            'mrp' => 199,
+            'purchase_price' => 100,
+            'selling_price' => 199,
+            'quantity' => 1,
+            'min_stock' => 0,
+            'is_active' => true,
+        ]);
+
+        InventoryStock::create([
+            'product_id' => $product1->id,
+            'location' => 'shop',
+            'quantity' => 1,
+        ]);
+
+        // Search for 'test-2 product recon'
+        $response = $this->actingAs($this->user)
+            ->postJson(route('ajax.products.search'), [
+                'q' => 'test-2 product recon',
+                'all_stock' => 1,
+            ]);
+
+        $response->assertOk();
+        $results = $response->json();
+
+        // Must NOT match product 1 (test-1 product recon)
+        $this->assertEmpty($results, 'Searching for test-2 should not match test-1 product recon simply because the SKU contains digit 2.');
+    }
 }

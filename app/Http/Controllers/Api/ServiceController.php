@@ -17,7 +17,7 @@ class ServiceController extends Controller
         $services = Service::query()
             ->where('is_active', true)
             ->when($query !== '', function ($q) use ($queryLower) {
-                $terms = preg_split('/[\s\-–—]+/u', $queryLower, -1, PREG_SPLIT_NO_EMPTY);
+                $terms = preg_split('/\s+/u', $queryLower, -1, PREG_SPLIT_NO_EMPTY);
                 if (empty($terms)) {
                     $terms = [$queryLower];
                 }
