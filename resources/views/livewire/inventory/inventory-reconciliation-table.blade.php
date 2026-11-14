@@ -1,4 +1,37 @@
-<div class="space-y-4">
+<div
+    x-data="{
+        tooltipText: '',
+        tooltipVisible: false,
+        tooltipX: 0,
+        tooltipY: 0,
+        tooltipPlacement: 'bottom',
+        showTooltip(e, text) {
+            if (!text) return;
+            this.tooltipText = text;
+            this.tooltipVisible = true;
+            const rect = e.currentTarget.getBoundingClientRect();
+            let left = rect.left;
+            const maxW = Math.min(380, window.innerWidth - 32);
+            if (left + maxW > window.innerWidth - 16) {
+                left = window.innerWidth - maxW - 16;
+            }
+            if (left < 16) left = 16;
+
+            if (rect.bottom + 140 > window.innerHeight && rect.top > 140) {
+                this.tooltipY = rect.top - 6;
+                this.tooltipPlacement = 'top';
+            } else {
+                this.tooltipY = rect.bottom + 6;
+                this.tooltipPlacement = 'bottom';
+            }
+            this.tooltipX = left;
+        },
+        hideTooltip() {
+            this.tooltipVisible = false;
+        }
+    }"
+    class="space-y-4"
+>
     <!-- Top Filter Header: Tabs & Quick Actions -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <!-- Status Tabs -->
@@ -34,26 +67,6 @@
                 <span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-extrabold {{ $statusFilter === 'all' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-200 text-gray-700' }}">
                     {{ $counts['all'] }}
                 </span>
-            </button>
-        </div>
-
-        <!-- Bulk Auto-Reconcile Button -->
-        <div class="flex items-center gap-2">
-            <button
-                type="button"
-                wire:click="autoReconcileAllMatched"
-                wire:loading.attr="disabled"
-                class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors disabled:opacity-50"
-                title="{{ __('Attempt to automatically match and reconcile all pending items having a matching barcode or name in product master') }}"
-            >
-                <svg wire:loading.remove wire:target="autoReconcileAllMatched" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
-                </svg>
-                <svg wire:loading wire:target="autoReconcileAllMatched" class="h-4 w-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>{{ __('Auto-Reconcile Matched') }}</span>
             </button>
         </div>
     </div>
@@ -110,285 +123,346 @@
         </div>
     </div>
 
-    <!-- Bulk Selection Toolbar -->
-    @if(count($selectedIds) > 0)
-        <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-indigo-900 shadow-xs">
-            <div class="flex items-center gap-2.5">
-                <span class="font-bold bg-indigo-600 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs shadow-xs">
-                    {{ count($selectedIds) }}
-                </span>
-                <span class="font-semibold text-indigo-950">
-                    {{ count($selectedIds) }} {{ __('pending item(s) selected') }}
-                </span>
-                <span class="text-indigo-500">•</span>
-                <span class="text-indigo-700">
-                    {{ __('Generate a Purchase Order to order these items from a vendor and auto-reconcile once received.') }}
-                </span>
-            </div>
-            <div class="flex items-center gap-2 shrink-0">
-                <button
-                    type="button"
-                    wire:click="createPurchaseOrderForSelected"
-                    class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-sm transition-colors text-xs"
-                >
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    <span>{{ __('Create PO for Selected') }}</span>
-                </button>
-                <button
-                    type="button"
-                    wire:click="$set('selectedIds', [])"
-                    class="text-xs text-indigo-700 hover:text-indigo-950 underline font-medium px-2 py-1"
-                >
-                    {{ __('Clear selection') }}
-                </button>
-            </div>
-        </div>
-    @endif
-
-    <!-- Data Table -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <!-- Data Table (Compact Accounting Ledger Layout) -->
+    <div class="bg-white rounded-xl shadow-xs border border-gray-200 overflow-hidden">
         <div class="overflow-x-auto min-h-[300px]">
-            <table class="w-full divide-y divide-gray-200 text-left text-xs">
-                <thead class="bg-gray-50 text-gray-500 font-semibold uppercase tracking-wider">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-gray-100/80 text-gray-700 font-semibold text-[11px] uppercase tracking-wider border-b border-gray-200 select-none">
                     <tr>
-                        <th scope="col" class="w-10 px-3 py-3 text-center">
-                            <input
-                                type="checkbox"
-                                wire:model.live="selectAll"
-                                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                title="{{ __('Select all pending') }}"
-                            >
-                        </th>
-                        <th scope="col" class="px-4 py-3 cursor-pointer hover:text-gray-700" wire:click="sortBy('created_at')">
+                        <th scope="col" class="px-3 py-2 cursor-pointer hover:text-gray-900 transition-colors whitespace-nowrap" wire:click="sortBy('created_at')">
                             <div class="flex items-center gap-1">
-                                <span>{{ __('Date / Ref') }}</span>
+                                <span>{{ __('Date') }}</span>
                                 @if($sortField === 'created_at')
-                                    <span>{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                                    <span class="text-indigo-600 font-bold">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                                @else
+                                    <span class="text-gray-400 font-normal">↕</span>
                                 @endif
                             </div>
                         </th>
-                        <th scope="col" class="px-4 py-3">{{ __('Sale Invoice') }}</th>
-                        <th scope="col" class="px-4 py-3">{{ __('Barcode / SKU') }}</th>
-                        <th scope="col" class="px-4 py-3 cursor-pointer hover:text-gray-700" wire:click="sortBy('item_name')">
+                        <th scope="col" class="px-3 py-2 whitespace-nowrap">{{ __('Sale Invoice / Ref') }}</th>
+                        <th scope="col" class="px-3 py-2 whitespace-nowrap">{{ __('Barcode / SKU') }}</th>
+                        <th scope="col" class="px-3 py-2 cursor-pointer hover:text-gray-900 transition-colors whitespace-nowrap" wire:click="sortBy('item_name')">
                             <div class="flex items-center gap-1">
                                 <span>{{ __('Sold Item Name') }}</span>
                                 @if($sortField === 'item_name')
-                                    <span>{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                                    <span class="text-indigo-600 font-bold">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                                @else
+                                    <span class="text-gray-400 font-normal">↕</span>
                                 @endif
                             </div>
                         </th>
-                        <th scope="col" class="px-4 py-3 text-center">{{ __('Qty') }}</th>
-                        <th scope="col" class="px-4 py-3 text-right">{{ __('Price / MRP') }}</th>
-                        <th scope="col" class="px-4 py-3 text-right">{{ __('Subtotal') }}</th>
-                        <th scope="col" class="px-4 py-3">{{ __('Reconciliation Status / Master Link') }}</th>
-                        <th scope="col" class="px-4 py-3">{{ __('Cashier') }}</th>
-                        <th scope="col" class="px-4 py-3 text-center">{{ __('Actions') }}</th>
+                        <th scope="col" class="px-3 py-2 text-center whitespace-nowrap">{{ __('Qty') }}</th>
+                        <th scope="col" class="px-3 py-2 text-right whitespace-nowrap">{{ __('Price / MRP') }}</th>
+                        <th scope="col" class="px-3 py-2 text-right cursor-pointer hover:text-gray-900 transition-colors whitespace-nowrap" wire:click="sortBy('subtotal')">
+                            <div class="flex items-center justify-end gap-1">
+                                <span>{{ __('Subtotal') }}</span>
+                                @if($sortField === 'subtotal')
+                                    <span class="text-indigo-600 font-bold">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                                @else
+                                    <span class="text-gray-400 font-normal">↕</span>
+                                @endif
+                            </div>
+                        </th>
+                        <th scope="col" class="px-3 py-2 whitespace-nowrap">{{ __('Reconciliation Status / Master Link') }}</th>
+                        <th scope="col" class="px-3 py-2 whitespace-nowrap">{{ __('Cashier') }}</th>
+                        <th scope="col" class="px-3 py-2 text-center whitespace-nowrap">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100 bg-white">
+                <tbody class="divide-y divide-gray-100 bg-white font-normal text-gray-800">
                     @forelse($reconciliations as $recon)
-                        <tr class="hover:bg-indigo-50/30 transition-colors {{ $recon->isPending() ? 'bg-amber-50/20' : '' }}">
-                            <!-- Checkbox -->
-                            <td class="px-3 py-3 text-center whitespace-nowrap">
-                                @if($recon->isPending())
-                                    <input
-                                        type="checkbox"
-                                        wire:model.live="selectedIds"
-                                        value="{{ $recon->id }}"
-                                        class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                    >
-                                @else
-                                    <span class="text-gray-300">-</span>
-                                @endif
+                        <tr class="hover:bg-blue-50/40 transition-colors h-9 {{ $recon->isPending() ? 'bg-amber-50/15' : 'odd:bg-white even:bg-gray-50/25' }}">
+                            <!-- Date -->
+                            @php
+                                $dateTooltip = '<div class="font-bold text-white text-xs">' . e($recon->created_at->format('d M Y, h:i A')) . '</div>'
+                                    . '<div class="text-[11px] text-gray-300 mt-0.5">Recorded on POS sale</div>';
+                            @endphp
+                            <td
+                                class="px-3 py-1.5 whitespace-nowrap text-xs cursor-default text-gray-800 font-medium"
+                                @mouseenter="showTooltip($event, {{ json_encode($dateTooltip) }})"
+                                @mouseleave="hideTooltip()"
+                                title="{{ $recon->created_at->format('d M Y, h:i A') }}"
+                            >
+                                {{ $recon->created_at->format('m/d/Y') }}
                             </td>
 
-                            <!-- Date / Ref -->
-                            <td class="px-4 py-3 whitespace-nowrap">
-                                <div class="font-mono font-bold text-gray-900">{{ $recon->reconciliation_number }}</div>
-                                <div class="text-[11px] text-gray-500">{{ $recon->created_at->format('d M Y, h:i A') }}</div>
-                            </td>
-
-                            <!-- Sale Invoice -->
-                            <td class="px-4 py-3 whitespace-nowrap">
-                                @if($recon->sale)
-                                    <a
-                                        href="{{ route('sales.show', $recon->sale) }}"
-                                        target="_blank"
-                                        class="font-mono font-bold text-indigo-600 hover:text-indigo-900 hover:underline flex items-center gap-1"
+                            <!-- Sale Invoice & Reconciliation Ref -->
+                            @php
+                                $invoiceTooltip = '<div class="font-bold text-indigo-300 text-xs">Sale Invoice: ' . e($recon->sale?->invoice_number ?: '-') . '</div>';
+                                if ($recon->sale) {
+                                    $invoiceTooltip .= '<div class="text-[11px] text-gray-300 mt-0.5">Date: ' . e($recon->sale->sale_date?->format('d M Y') ?: '-') . ' | Status: ' . e(ucfirst($recon->sale->status?->value ?? $recon->sale->status)) . '</div>';
+                                }
+                                $invoiceTooltip .= '<div class="text-[11px] text-gray-200 mt-1 pt-1 border-t border-gray-700 font-mono">Ref: ' . e($recon->reconciliation_number) . '</div>';
+                                $invoiceTooltip .= '<div class="text-[10px] text-gray-400">Created: ' . e($recon->created_at->format('d M Y, h:i A')) . '</div>';
+                            @endphp
+                            <td
+                                class="px-3 py-1.5 whitespace-nowrap text-xs"
+                                @mouseenter="showTooltip($event, {{ json_encode($invoiceTooltip) }})"
+                                @mouseleave="hideTooltip()"
+                            >
+                                <div>
+                                    @if($recon->sale)
+                                        <a
+                                            href="{{ route('sales.show', $recon->sale) }}"
+                                            target="_blank"
+                                            class="font-mono font-semibold text-indigo-600 hover:text-indigo-900 hover:underline inline-flex items-center gap-0.5"
+                                            title="{{ __('View Sale Invoice ') }}{{ $recon->sale->invoice_number }}"
+                                        >
+                                            <span>{{ $recon->sale->invoice_number }}</span>
+                                            <svg class="h-2.5 w-2.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                            </svg>
+                                        </a>
+                                    @else
+                                        <span class="text-gray-400 font-mono">-</span>
+                                    @endif
+                                </div>
+                                <div class="mt-0.5">
+                                    <span
+                                        class="inline-block font-mono text-[10px] text-gray-700 bg-gray-100 px-1.5 py-0.2 rounded border border-gray-200 shadow-2xs"
+                                        title="{{ $recon->reconciliation_number }} - {{ $recon->created_at->format('d M Y, h:i A') }}"
                                     >
-                                        <span>{{ $recon->sale->invoice_number }}</span>
-                                        <svg class="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                        </svg>
-                                    </a>
-                                @else
-                                    <span class="text-gray-400">-</span>
-                                @endif
+                                        {{ $recon->reconciliation_number }}
+                                    </span>
+                                </div>
+                            </td>
                             </td>
 
                             <!-- Barcode / SKU -->
-                            <td class="px-4 py-3 whitespace-nowrap">
-                                @php($displayBarcode = $recon->barcode ?: ($recon->matchedProduct?->product_code ?: $recon->matchedProduct?->sku))
+                            @php
+                                $displayBarcode = $recon->barcode ?: ($recon->matchedProduct?->product_code ?: $recon->matchedProduct?->sku);
+                                $barcodeTooltip = '<div class="font-mono font-bold text-white text-xs">' . e($displayBarcode ?: 'No Barcode') . '</div>';
+                                if ($recon->matchedProduct) {
+                                    $barcodeTooltip .= '<div class="text-[11px] text-gray-300 mt-0.5">Catalog SKU: ' . e($recon->matchedProduct->sku) . ' | Code: ' . e($recon->matchedProduct->product_code ?: '-') . '</div>';
+                                }
+                            @endphp
+                            <td
+                                class="px-3 py-1.5 whitespace-nowrap font-mono text-xs cursor-default max-w-[130px] truncate"
+                                @mouseenter="showTooltip($event, {{ json_encode($barcodeTooltip) }})"
+                                @mouseleave="hideTooltip()"
+                                title="{{ $displayBarcode ?: __('No barcode') }}"
+                            >
                                 @if($displayBarcode)
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded font-mono text-[11px] font-semibold bg-gray-100 text-gray-800 border border-gray-200">
-                                        {{ $displayBarcode }}
-                                    </span>
+                                    <span class="text-gray-800">{{ $displayBarcode }}</span>
                                 @else
-                                    <span class="text-gray-400 italic">{{ __('No barcode') }}</span>
+                                    <span class="text-gray-400 italic text-[11px]">{{ __('No barcode') }}</span>
                                 @endif
                             </td>
 
-                            <!-- Item Name -->
-                            <td class="px-4 py-3">
-                                <div class="font-bold text-gray-900">{{ $recon->item_name }}</div>
-                                @if($recon->notes)
-                                    <div class="text-[11px] text-gray-500 mt-0.5 whitespace-normal break-words leading-relaxed" title="{{ $recon->notes }}">
-                                        {{ $recon->notes }}
-                                    </div>
-                                @endif
-                            </td>
-
-                            <!-- Qty -->
-                            <td class="px-4 py-3 text-center whitespace-nowrap font-bold text-gray-900">
-                                {{ $recon->quantity }}
-                            </td>
-
-                            <!-- Unit Price -->
-                            <td class="px-4 py-3 text-right whitespace-nowrap font-semibold text-gray-700">
-                                {{ format_money($recon->unit_price) }}
-                                @if($recon->discount > 0)
-                                    <div class="text-[10px] text-red-600">-{{ format_money($recon->discount) }}</div>
-                                @endif
-                            </td>
-
-                            <!-- Subtotal -->
-                            <td class="px-4 py-3 text-right whitespace-nowrap font-bold text-indigo-700">
-                                {{ format_money($recon->subtotal) }}
-                            </td>
-
-                            <!-- Reconciliation Status & Product Link -->
-                            <td class="px-4 py-3">
-                                <div class="space-y-1">
-                                    @if($recon->isPending())
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                                            ● {{ __('Pending Action') }}
-                                        </span>
-                                        @if($recon->matchedProduct)
-                                            <div class="text-[11px] text-blue-700 font-medium">
-                                                Matched: {{ $recon->matchedProduct->name }} ({{ $recon->matchedProduct->sku }})
-                                            </div>
-                                        @else
-                                            <div class="text-[10px] text-amber-600 font-medium">
-                                                {{ __('Not in Master Catalog') }}
-                                            </div>
-                                        @endif
-                                        @if($recon->targetPurchase)
-                                            <div class="text-[11px] text-purple-700 font-medium flex items-center gap-1 mt-0.5">
-                                                <span>PO: {{ $recon->targetPurchase->invoice_number }}</span>
-                                                <span class="text-[9px] px-1 py-0.2 rounded bg-purple-100 text-purple-800 font-bold uppercase">{{ $recon->targetPurchase->status }}</span>
-                                            </div>
-                                        @endif
-                                    @elseif($recon->isReconciled())
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                            ✓ {{ __('Reconciled') }}
-                                        </span>
-                                        @if($recon->reconciledProduct)
-                                            <div class="text-[11px] text-gray-700 font-medium">
-                                                Product: {{ $recon->reconciledProduct->name }} ({{ $recon->reconciledProduct->sku }})
-                                            </div>
-                                        @endif
-                                        @if($recon->reconciledPurchase)
-                                            <div class="text-[11px] text-indigo-700 font-medium">
-                                                From PO: {{ $recon->reconciledPurchase->invoice_number }}
-                                            </div>
-                                        @endif
-                                        @if($recon->reconciled_at)
-                                            <div class="text-[10px] text-gray-400">
-                                                {{ $recon->reconciled_at->format('d M, h:i A') }} {{ $recon->reconciler ? 'by ' . $recon->reconciler->name : '' }}
-                                            </div>
-                                        @endif
-                                    @else
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-700">
-                                            {{ ucfirst($recon->status) }}
-                                        </span>
+                            <!-- Sold Item Name -->
+                            @php
+                                $itemTooltip = '<div class="font-bold text-white text-xs mb-1">' . e($recon->item_name) . '</div>';
+                                if ($recon->notes) {
+                                    $itemTooltip .= '<div class="text-[11px] text-gray-300 font-normal leading-relaxed pt-1.5 border-t border-gray-700/80">' . nl2br(e($recon->notes)) . '</div>';
+                                }
+                            @endphp
+                            <td
+                                class="px-3 py-1.5 text-xs max-w-[220px] cursor-default"
+                                @mouseenter="showTooltip($event, {{ json_encode($itemTooltip) }})"
+                                @mouseleave="hideTooltip()"
+                                title="{{ $recon->item_name }}{{ $recon->notes ? ' &#10;&#10;' . $recon->notes : '' }}"
+                            >
+                                <div class="flex items-center gap-1.5 truncate">
+                                    <span class="font-semibold text-gray-900 truncate">{{ $recon->item_name }}</span>
+                                    @if($recon->notes)
+                                        <svg class="h-3 w-3 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                        </svg>
                                     @endif
                                 </div>
                             </td>
 
+                            <!-- Qty -->
+                            <td class="px-3 py-1.5 text-center whitespace-nowrap font-semibold text-gray-900 text-xs">
+                                {{ $recon->quantity }}
+                            </td>
+
+                            <!-- Price / MRP -->
+                            @php
+                                $priceTooltip = '<div class="text-xs font-semibold text-white">Price: ' . e(format_money($recon->unit_price)) . '</div>';
+                                if ($recon->discount > 0) {
+                                    $priceTooltip .= '<div class="text-[11px] text-red-300 mt-0.5">Discount: -' . e(format_money($recon->discount)) . '</div>';
+                                }
+                            @endphp
+                            <td
+                                class="px-3 py-1.5 text-right whitespace-nowrap text-gray-700 text-xs cursor-default"
+                                @mouseenter="showTooltip($event, {{ json_encode($priceTooltip) }})"
+                                @mouseleave="hideTooltip()"
+                                title="Price: {{ format_money($recon->unit_price) }}{{ $recon->discount > 0 ? ' (Discount: -' . format_money($recon->discount) . ')' : '' }}"
+                            >
+                                <span>{{ format_money($recon->unit_price) }}</span>
+                                @if($recon->discount > 0)
+                                    <span class="text-[10px] text-red-600 font-medium ml-0.5">(-{{ format_money($recon->discount) }})</span>
+                                @endif
+                            </td>
+
+                            <!-- Subtotal -->
+                            <td class="px-3 py-1.5 text-right whitespace-nowrap font-bold text-indigo-700 text-xs">
+                                {{ format_money($recon->subtotal) }}
+                            </td>
+
+                            <!-- Reconciliation Status / Master Link -->
+                            <td class="px-3 py-1.5 text-xs whitespace-nowrap">
+                                @if($recon->isPending())
+                                    <!-- Top: PO Number -->
+                                    <div>
+                                        @if($recon->targetPurchase)
+                                            <a
+                                                href="{{ route('purchases.show', $recon->targetPurchase) }}"
+                                                target="_blank"
+                                                class="font-mono text-xs font-bold text-purple-700 hover:text-purple-900 hover:underline inline-flex items-center gap-0.5"
+                                                title="{{ __('View Linked Purchase Order ') }}{{ $recon->targetPurchase->invoice_number }}"
+                                            >
+                                                <span>{{ $recon->targetPurchase->invoice_number }}</span>
+                                                <svg class="h-2.5 w-2.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                </svg>
+                                            </a>
+                                        @else
+                                            <span class="text-xs text-gray-400 font-mono">-</span>
+                                        @endif
+                                    </div>
+                                    <!-- Below: Badge with Product Details On Hover -->
+                                    @php
+                                        $pendingBadgeTooltip = '<div class="font-bold text-white text-xs mb-1">Pending Action</div>';
+                                        if ($recon->matchedProduct) {
+                                            $pendingBadgeTooltip .= '<div class="text-[11px] text-blue-300"><span class="text-gray-400">Matched Product:</span> ' . e($recon->matchedProduct->name) . ' <span class="font-mono text-gray-400">(' . e($recon->matchedProduct->sku) . ')</span></div>';
+                                        } else {
+                                            $pendingBadgeTooltip .= '<div class="text-[11px] text-amber-300 font-medium">Not found in Master Catalog</div>';
+                                        }
+                                    @endphp
+                                    <div class="mt-0.5">
+                                        <span
+                                            class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shrink-0 cursor-default"
+                                            @mouseenter="showTooltip($event, {{ json_encode($pendingBadgeTooltip) }})"
+                                            @mouseleave="hideTooltip()"
+                                            title="{{ $recon->matchedProduct ? 'Matched: ' . $recon->matchedProduct->name . ' (' . $recon->matchedProduct->sku . ')' : 'Not in Master Catalog' }}"
+                                        >
+                                            ● {{ __('Pending Action') }}
+                                        </span>
+                                    </div>
+                                @elseif($recon->isReconciled())
+                                    <!-- Top: PO Number -->
+                                    <div>
+                                        @if($recon->reconciledPurchase)
+                                            <a
+                                                href="{{ route('purchases.show', $recon->reconciledPurchase) }}"
+                                                target="_blank"
+                                                class="font-mono text-xs font-bold text-indigo-600 hover:text-indigo-900 hover:underline inline-flex items-center gap-0.5"
+                                                title="{{ __('View Purchase Order ') }}{{ $recon->reconciledPurchase->invoice_number }}"
+                                            >
+                                                <span>{{ $recon->reconciledPurchase->invoice_number }}</span>
+                                                <svg class="h-2.5 w-2.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                </svg>
+                                            </a>
+                                        @else
+                                            <span class="text-xs text-gray-400 font-mono">-</span>
+                                        @endif
+                                    </div>
+                                    <!-- Below: Badge with Product Details On Hover -->
+                                    @php
+                                        $reconciledBadgeTooltip = '<div class="font-bold text-emerald-400 text-xs mb-1">✓ Reconciled</div>';
+                                        if ($recon->reconciledProduct) {
+                                            $reconciledBadgeTooltip .= '<div class="text-[11px] text-gray-200"><span class="text-gray-400">Product:</span> ' . e($recon->reconciledProduct->name) . ' <span class="font-mono text-gray-400">(' . e($recon->reconciledProduct->sku) . ')</span></div>';
+                                        } elseif ($recon->item_name) {
+                                            $reconciledBadgeTooltip .= '<div class="text-[11px] text-gray-200"><span class="text-gray-400">Item:</span> ' . e($recon->item_name) . '</div>';
+                                        }
+                                        if ($recon->reconciler) {
+                                            $reconciledBadgeTooltip .= '<div class="text-[10px] text-gray-400 mt-1">Reconciled by: <span class="text-gray-200 font-medium">' . e($recon->reconciler->name) . '</span></div>';
+                                        }
+                                        if ($recon->reconciled_at) {
+                                            $reconciledBadgeTooltip .= '<div class="text-[10px] text-gray-400">' . e($recon->reconciled_at->format('d M Y, h:i A')) . '</div>';
+                                        }
+                                    @endphp
+                                    <div class="mt-0.5">
+                                        <span
+                                            class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0 cursor-default"
+                                            @mouseenter="showTooltip($event, {{ json_encode($reconciledBadgeTooltip) }})"
+                                            @mouseleave="hideTooltip()"
+                                            title="Product: {{ $recon->reconciledProduct?->name ?: $recon->item_name }}"
+                                        >
+                                            ✓ {{ __('Reconciled') }}
+                                        </span>
+                                    </div>
+                                @else
+                                    <div class="mt-0.5">
+                                        <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-gray-100 text-gray-700 shrink-0">
+                                            {{ ucfirst($recon->status) }}
+                                        </span>
+                                    </div>
+                                @endif
+                            </td>
+
                             <!-- Cashier -->
-                            <td class="px-4 py-3 whitespace-nowrap text-gray-600">
+                            <td
+                                class="px-3 py-1.5 whitespace-nowrap text-gray-600 text-xs truncate max-w-[100px] cursor-default"
+                                title="Cashier: {{ $recon->creator?->name ?: '-' }}"
+                            >
                                 {{ $recon->creator?->name ?: '-' }}
                             </td>
 
                             <!-- Actions -->
-                            <td class="px-4 py-3 whitespace-nowrap text-center">
-                                <div class="inline-flex items-center gap-1.5">
+                            <td class="px-3 py-1 text-center whitespace-nowrap">
+                                <div class="inline-flex items-center gap-1">
                                     @if($recon->isPending())
                                         @if($recon->matched_product_id)
-                                            <!-- PO Shortcut Button -->
                                             <a
                                                 href="{{ route('purchases.create', ['recon_ids' => $recon->id]) }}"
-                                                class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition-colors shadow-2xs"
+                                                class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition-colors"
                                                 title="{{ __('Create Purchase Order for this item') }}"
                                             >
-                                                <svg class="h-3.5 w-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                <svg class="h-3 w-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                                                 </svg>
-                                                <span>{{ __('+ PO') }}</span>
+                                                <span>{{ __('+PO') }}</span>
                                             </a>
                                         @else
-                                            <!-- Create in Master Shortcut -->
                                             <button
                                                 type="button"
                                                 wire:click="openReconcileModal({{ $recon->id }}, 'create')"
-                                                class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-colors shadow-2xs"
+                                                class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-colors"
                                                 title="{{ __('Create this item in Master Catalog and draft PO') }}"
                                             >
-                                                <svg class="h-3.5 w-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                <svg class="h-3 w-3 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                                                 </svg>
-                                                <span>{{ __('+ Master') }}</span>
+                                                <span>{{ __('+Master') }}</span>
                                             </button>
                                         @endif
 
-                                        <!-- Reconcile Button -->
                                         <button
                                             type="button"
                                             wire:click="openReconcileModal({{ $recon->id }}, 'po')"
-                                            class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
+                                            class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-2xs"
                                             title="{{ __('Open reconciliation options') }}"
                                         >
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                             </svg>
                                             <span>{{ __('Reconcile') }}</span>
                                         </button>
 
-                                        <!-- Quick Auto Button if barcode present -->
                                         @if($recon->barcode || $recon->matched_product_id)
                                             <button
                                                 type="button"
                                                 wire:click="autoReconcileSingle({{ $recon->id }})"
-                                                class="inline-flex items-center justify-center p-1.5 rounded-md text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                                                class="inline-flex items-center justify-center p-1 rounded text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                                                 title="{{ __('Quick auto-reconcile with barcode match') }}"
                                             >
-                                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                                                 </svg>
                                             </button>
                                         @endif
                                     @endif
 
-                                    <!-- Edit Button (Always available for ALL edit options) -->
                                     <button
                                         type="button"
                                         wire:click="openEditModal({{ $recon->id }})"
-                                        class="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 transition-colors"
+                                        class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[11px] font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 transition-colors"
                                         title="{{ __('Edit details of this reconciliation entry') }}"
                                     >
-                                        <svg class="h-3.5 w-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <svg class="h-3 w-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                                         </svg>
                                         <span>{{ __('Edit') }}</span>
@@ -398,7 +472,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="11" class="px-6 py-12 text-center text-gray-500">
+                            <td colspan="10" class="px-6 py-12 text-center text-gray-500">
                                 <div class="max-w-sm mx-auto space-y-2">
                                     <svg class="h-10 w-10 text-gray-300 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -421,9 +495,25 @@
 
         <!-- Pagination -->
         @if($reconciliations->hasPages())
-            <div class="px-4 py-3 border-t border-gray-200 bg-gray-50 sm:px-6">
+            <div class="px-4 py-2 border-t border-gray-200 bg-gray-50 sm:px-6">
                 {{ $reconciliations->links() }}
             </div>
         @endif
+    </div>
+
+    <!-- Floating Full-Text Tooltip -->
+    <div
+        x-show="tooltipVisible"
+        x-cloak
+        :style="`top: ${tooltipY}px; left: ${tooltipX}px; transform: ${tooltipPlacement === 'top' ? 'translateY(-100%)' : 'none'};`"
+        class="fixed z-50 max-w-sm sm:max-w-md p-2.5 bg-gray-900/95 backdrop-blur-xs text-white text-xs rounded-lg shadow-xl pointer-events-none whitespace-normal break-words border border-gray-700 leading-relaxed transition-opacity"
+        x-transition:enter="transition ease-out duration-100"
+        x-transition:enter-start="opacity-0 scale-95"
+        x-transition:enter-end="opacity-100 scale-100"
+        x-transition:leave="transition ease-in duration-75"
+        x-transition:leave-start="opacity-100 scale-100"
+        x-transition:leave-end="opacity-0 scale-95"
+    >
+        <div x-html="tooltipText"></div>
     </div>
 </div>

@@ -20,11 +20,13 @@ class Setting extends Model
      */
     public static function get(string $key, ?string $default = null): ?string
     {
-        return Cache::rememberForever("settings.{$key}", function () use ($key, $default) {
+        $value = Cache::rememberForever("settings.{$key}", function () use ($key) {
             $setting = self::find($key);
 
-            return $setting ? $setting->value : $default;
+            return $setting ? $setting->value : null;
         });
+
+        return $value ?? $default;
     }
 
     /**
@@ -36,6 +38,16 @@ class Setting extends Model
             ['key' => $key],
             ['value' => $value]
         );
+
+        Cache::forget("settings.{$key}");
+    }
+
+    /**
+     * Forget / remove a setting by key.
+     */
+    public static function forget(string $key): void
+    {
+        self::where('key', $key)->delete();
 
         Cache::forget("settings.{$key}");
     }

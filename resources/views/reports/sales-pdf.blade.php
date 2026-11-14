@@ -187,38 +187,52 @@
     </div>
 
     <!-- KPI Summary Row -->
-    <div class="section-title">Key Performance Indicators (KPIs)</div>
-    <table class="kpi-table">
+    <div class="section-title">Key Performance Indicators (KPIs) & Financial Summary</div>
+    <table class="kpi-table" style="margin-bottom: 4px;">
         <tr>
-            <td class="kpi-box">
-                <div class="kpi-label">Total Sales</div>
-                <div class="kpi-value" style="color: #0284c7;">Rs. {{ number_format($kpis['net_sales'], 2) }}</div>
-                <div class="kpi-sub">Collected</div>
-            </td>
-            <td class="kpi-box" style="background-color: #ecfdf5;">
-                <div class="kpi-label" style="color: #065f46;">Gross Profit</div>
-                <div class="kpi-value" style="color: #047857;">Rs. {{ number_format($kpis['gross_profit'], 2) }}</div>
-                <div class="kpi-sub" style="color: #047857;">{{ $kpis['margin'] }}% (COGS: Rs. {{ number_format($kpis['cogs'], 2) }})</div>
-            </td>
-            <td class="kpi-box">
+            <td class="kpi-box" style="width: 25%;">
                 <div class="kpi-label">Gross Sales</div>
                 <div class="kpi-value">Rs. {{ number_format($kpis['gross_sales'], 2) }}</div>
-                <div class="kpi-sub">Pre-discounts</div>
+                <div class="kpi-sub">Pre-discounts retail total</div>
             </td>
-            <td class="kpi-box">
+            <td class="kpi-box" style="width: 25%;">
                 <div class="kpi-label">Discounts</div>
                 <div class="kpi-value" style="color: #d97706;">Rs. {{ number_format($kpis['total_discounts'], 2) }}</div>
-                <div class="kpi-sub">Item + Coupons</div>
+                <div class="kpi-sub">Item + Coupons + Bill</div>
             </td>
-            <td class="kpi-box">
-                <div class="kpi-label">Orders</div>
-                <div class="kpi-value">{{ number_format($kpis['total_orders']) }}</div>
-                <div class="kpi-sub">Completed</div>
+            <td class="kpi-box" style="width: 25%;">
+                <div class="kpi-label">Total Sales (Cash Inflow)</div>
+                <div class="kpi-value" style="color: #0284c7;">Rs. {{ number_format($kpis['net_sales'], 2) }}</div>
+                <div class="kpi-sub">Total cash received</div>
             </td>
-            <td class="kpi-box">
-                <div class="kpi-label">Avg Order Value</div>
-                <div class="kpi-value">Rs. {{ number_format($kpis['average_order_value'], 2) }}</div>
-                <div class="kpi-sub">Per Invoice</div>
+            <td class="kpi-box" style="width: 25%;">
+                <div class="kpi-label">Orders & Avg Ticket</div>
+                <div class="kpi-value">{{ number_format($kpis['total_orders']) }} orders</div>
+                <div class="kpi-sub">Avg: Rs. {{ number_format($kpis['average_order_value'], 2) }}</div>
+            </td>
+        </tr>
+    </table>
+    <table class="kpi-table">
+        <tr>
+            <td class="kpi-box" style="width: 25%;">
+                <div class="kpi-label">COGS (PO Cost of Goods)</div>
+                <div class="kpi-value" style="color: #dc2626;">Rs. {{ number_format($kpis['cogs'], 2) }}</div>
+                <div class="kpi-sub">FIFO PO vendor buy cost</div>
+            </td>
+            <td class="kpi-box" style="width: 25%; background-color: #ecfdf5;">
+                <div class="kpi-label" style="color: #065f46;">Gross Profit</div>
+                <div class="kpi-value" style="color: #047857;">Rs. {{ number_format($kpis['gross_profit'], 2) }}</div>
+                <div class="kpi-sub" style="color: #047857;">{{ $kpis['margin'] }}% gross margin</div>
+            </td>
+            <td class="kpi-box" style="width: 25%; background-color: #fff7ed;">
+                <div class="kpi-label" style="color: #9a3412;">Other Expenses (Manual)</div>
+                <div class="kpi-value" style="color: #ea580c;">Rs. {{ number_format($kpis['other_expenses'] ?? 0, 2) }}</div>
+                <div class="kpi-sub" style="color: #9a3412;">System recorded expenses</div>
+            </td>
+            <td class="kpi-box" style="width: 25%; {{ ($kpis['net_profit'] ?? 0) >= 0 ? 'background-color: #eef2ff;' : 'background-color: #fef2f2;' }}">
+                <div class="kpi-label" style="{{ ($kpis['net_profit'] ?? 0) >= 0 ? 'color: #3730a3;' : 'color: #991b1b;' }}">Net Profit</div>
+                <div class="kpi-value" style="{{ ($kpis['net_profit'] ?? 0) >= 0 ? 'color: #4f46e5;' : 'color: #dc2626;' }}">Rs. {{ number_format($kpis['net_profit'] ?? 0, 2) }}</div>
+                <div class="kpi-sub" style="{{ ($kpis['net_profit'] ?? 0) >= 0 ? 'color: #4f46e5;' : 'color: #dc2626;' }}">{{ $kpis['net_profit_margin'] ?? 0 }}% net margin</div>
             </td>
         </tr>
     </table>
@@ -381,6 +395,130 @@
                     @endforeach
                 </tbody>
             </table>
+
+            @if($section === 'full')
+                <!-- Top 5 Customers by Sales -->
+                <div class="section-title">Top 5 Customers by Sales & Transactions</div>
+                <table class="data-table">
+                    <colgroup>
+                        <col style="width: 8%;">
+                        <col style="width: 32%;">
+                        <col style="width: 20%;">
+                        <col style="width: 15%;">
+                        <col style="width: 12%;">
+                        <col style="width: 13%;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th class="text-center">Rank</th>
+                            <th>Customer Name</th>
+                            <th>Phone</th>
+                            <th class="text-right">Sales Number</th>
+                            <th class="text-center">Transactions</th>
+                            <th class="text-right">Avg Order</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($topCustomers as $idx => $c)
+                            <tr>
+                                <td class="text-center font-bold">#{{ $idx + 1 }}</td>
+                                <td class="font-bold">{{ $c['name'] }}</td>
+                                <td>{{ $c['phone'] }}</td>
+                                <td class="text-right font-bold">Rs. {{ number_format($c['sales_amount'], 2) }}</td>
+                                <td class="text-center font-bold">{{ $c['transactions_count'] }}</td>
+                                <td class="text-right">Rs. {{ number_format($c['average_ticket'], 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="text-center">No customer data available</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+
+                <!-- Top 10 Products -->
+                <div class="section-title">Top 10 Products by Sales</div>
+                <table class="data-table">
+                    <colgroup>
+                        <col style="width: 6%;">
+                        <col style="width: 34%;">
+                        <col style="width: 16%;">
+                        <col style="width: 14%;">
+                        <col style="width: 8%;">
+                        <col style="width: 11%;">
+                        <col style="width: 11%;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th class="text-center">Rank</th>
+                            <th>Product Name</th>
+                            <th>Code / SKU</th>
+                            <th>Brand</th>
+                            <th class="text-center">Qty Sold</th>
+                            <th class="text-right">Net Sales</th>
+                            <th class="text-right font-bold text-green">Gross Profit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($topProducts as $idx => $p)
+                            <tr>
+                                <td class="text-center font-bold">#{{ $idx + 1 }}</td>
+                                <td class="font-bold">{{ $p['name'] }}</td>
+                                <td class="font-mono">{{ $p['code'] }}</td>
+                                <td>{{ $p['brand'] }}</td>
+                                <td class="text-center font-bold">{{ $p['quantity'] }}</td>
+                                <td class="text-right font-bold">Rs. {{ number_format($p['net_sales'], 2) }}</td>
+                                <td class="text-right font-bold text-green">Rs. {{ number_format($p['gross_profit'], 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center">No product data available</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+
+                <!-- Total Outflow by Expense Category -->
+                <div class="section-title">Total Outflow by Expense Category (Manual Operational Expenses)</div>
+                <table class="data-table">
+                    <colgroup>
+                        <col style="width: 45%;">
+                        <col style="width: 20%;">
+                        <col style="width: 20%;">
+                        <col style="width: 15%;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th>Expense Category</th>
+                            <th class="text-center">Entries Count</th>
+                            <th class="text-right">Total Outflow (Rs.)</th>
+                            <th class="text-right">% Share of Outflow</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($expenses['by_category'] ?? [] as $exp)
+                            <tr>
+                                <td class="font-bold">{{ $exp['category_name'] }}</td>
+                                <td class="text-center">{{ $exp['count'] }}</td>
+                                <td class="text-right font-bold text-red">Rs. {{ number_format($exp['total_amount'], 2) }}</td>
+                                <td class="text-right font-bold">{{ $exp['percentage'] }}%</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="4" class="text-center">No manual expense records found in this period</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-total">
+                            <td>Total Outflow (Manual Expenses)</td>
+                            <td class="text-center">{{ $expenses['count'] ?? 0 }}</td>
+                            <td class="text-right font-bold text-red">Rs. {{ number_format($expenses['total'] ?? 0, 2) }}</td>
+                            <td class="text-right">100.0%</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            @endif
 
             @if($section === 'brands')
                 <!-- Sales by Item by Brand Breakdown Table (Included in Brand Section PDF) -->

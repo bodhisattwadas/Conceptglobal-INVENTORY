@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\FinanceCategoryType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
+use App\Models\FinanceTransaction;
 use App\Models\PurchaseItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -60,9 +62,36 @@ class SalesReportService
         $this->attachCogsAndProfitToSales($sales);
 
         $kpis = $this->calculateKpis($sales);
+        $expensesData = $this->calculateExpenses($startDate, $endDate);
+
+        $otherExpenses = $expensesData['total'];
+        $netProfit = round($kpis['gross_profit'] - $otherExpenses, 2);
+        $netProfitMargin = $kpis['net_sales'] > 0
+            ? round(($netProfit / $kpis['net_sales']) * 100, 1)
+            : 0.0;
+
+        $kpis['other_expenses'] = $otherExpenses;
+        $kpis['net_profit'] = $netProfit;
+        $kpis['net_profit_margin'] = $netProfitMargin;
+        $kpis['cash_inflow'] = $kpis['net_sales'];
+        $kpis['cash_outflow'] = $otherExpenses;
+        $kpis['net_cash_flow'] = round($kpis['net_sales'] - $otherExpenses, 2);
+
         $paymentMethods = $this->calculatePaymentMethodBreakdown($sales, $kpis['net_sales']);
         $dailyBreakdown = $this->calculateDailyBreakdown($sales);
         $brandBreakdown = $this->calculateBrandBreakdown($sales, $kpis['net_sales']);
+
+        $topBrands = $brandBreakdown->filter(fn ($b) => empty($b['is_service']) && $b['key'] !== 'brand_manual')
+            ->sortByDesc('net_sales')
+            ->take(5)
+            ->values();
+        if ($topBrands->isEmpty()) {
+            $topBrands = $brandBreakdown->sortByDesc('net_sales')->take(5)->values();
+        }
+
+        $customerBreakdown = $this->calculateCustomerBreakdown($sales);
+        $topCustomers = $customerBreakdown->take(5)->values();
+        $topProducts = $this->calculateTopProducts($sales, 10);
         $itemBreakdown = $this->calculateItemBreakdown($sales, $kpis['net_sales']);
 
         return [
@@ -70,7 +99,12 @@ class SalesReportService
             'payment_methods' => $paymentMethods,
             'daily_breakdown' => $dailyBreakdown,
             'brand_breakdown' => $brandBreakdown,
+            'top_brands' => $topBrands,
+            'customer_breakdown' => $customerBreakdown,
+            'top_customers' => $topCustomers,
+            'top_products' => $topProducts,
             'item_breakdown' => $itemBreakdown,
+            'expenses' => $expensesData,
             'sales' => $sales,
         ];
     }
@@ -694,6 +728,155 @@ class SalesReportService
     }
 
     /**
+     * Calculate manual expense entries recorded in the system grouped by category.
+     *
+     * @return array{
+     *     total: float,
+     *     count: int,
+     *     by_category: Collection<int, array{
+     *         category_id: int|null,
+     *         category_name: string,
+     *         count: int,
+     *         total_amount: float,
+     *         percentage: float,
+     *         transactions: Collection
+     *     }>,
+     *     transactions: Collection
+     * }
+     */
+    public function calculateExpenses(Carbon $startDate, Carbon $endDate): array
+    {
+        $transactions = FinanceTransaction::query()
+            ->with(['category', 'creator'])
+            ->whereHas('category', fn ($q) => $q->where('type', FinanceCategoryType::Expense->value))
+            ->where(function ($q) use ($startDate, $endDate) {
+                $q->whereDate('transaction_date', '>=', $startDate->format('Y-m-d'))
+                    ->whereDate('transaction_date', '<=', $endDate->format('Y-m-d'));
+            })
+            ->orderBy('transaction_date', 'desc')
+            ->get();
+
+        $totalExpense = (float) $transactions->sum('amount');
+
+        $byCategory = $transactions->groupBy('finance_category_id')->map(function ($group) use ($totalExpense) {
+            $cat = $group->first()->category;
+            $catTotal = (float) $group->sum('amount');
+            $percentage = $totalExpense > 0 ? round(($catTotal / $totalExpense) * 100, 1) : 0.0;
+
+            return [
+                'category_id' => $cat?->id,
+                'category_name' => $cat?->name ?? 'Uncategorized',
+                'count' => $group->count(),
+                'total_amount' => round($catTotal, 2),
+                'percentage' => $percentage,
+                'transactions' => $group,
+            ];
+        })->sortByDesc('total_amount')->values();
+
+        return [
+            'total' => round($totalExpense, 2),
+            'count' => $transactions->count(),
+            'by_category' => $byCategory,
+            'transactions' => $transactions,
+        ];
+    }
+
+    /**
+     * Calculate sales and transaction count per customer.
+     *
+     * @return Collection<int, array{
+     *     customer_id: int|null,
+     *     name: string,
+     *     phone: string,
+     *     sales_amount: float,
+     *     transactions_count: int,
+     *     items_count: int,
+     *     average_ticket: float,
+     *     last_purchase: string
+     * }>
+     */
+    public function calculateCustomerBreakdown(Collection $sales): Collection
+    {
+        return $sales->groupBy(function ($sale) {
+            return $sale->customer_id ? 'cust_'.$sale->customer_id : 'walk_in_'.($sale->customer_name ?: 'guest');
+        })->map(function ($custSales) {
+            $first = $custSales->first();
+            $customer = $first->customer;
+            $name = $customer ? $customer->name : ($first->customer_name ?: 'Walk-in Customer');
+            $phone = $customer ? $customer->phone : ($first->customer_phone ?: '-');
+            $totalSales = (float) $custSales->sum('total');
+            $txCount = $custSales->count();
+            $itemsCount = (int) $custSales->sum(fn ($s) => $s->items->sum('quantity'));
+
+            return [
+                'customer_id' => $customer?->id,
+                'name' => $name,
+                'phone' => $phone,
+                'sales_amount' => round($totalSales, 2),
+                'transactions_count' => $txCount,
+                'items_count' => $itemsCount,
+                'average_ticket' => $txCount > 0 ? round($totalSales / $txCount, 2) : 0.0,
+                'last_purchase' => $custSales->max('sale_date')?->format('d M Y') ?? '-',
+            ];
+        })->sortByDesc('sales_amount')->values();
+    }
+
+    /**
+     * Calculate top physical products ranked by net sales.
+     *
+     * @return Collection<int, array{
+     *     product_id: int,
+     *     name: string,
+     *     code: string,
+     *     brand: string,
+     *     quantity: int,
+     *     gross_sales: float,
+     *     total_discounts: float,
+     *     net_sales: float,
+     *     cogs: float,
+     *     gross_profit: float,
+     *     margin: float,
+     *     invoices_count: int
+     * }>
+     */
+    public function calculateTopProducts(Collection $sales, int $limit = 10): Collection
+    {
+        $productsOnly = $sales->flatMap(fn ($s) => $s->items)->filter(fn ($i) => $i->isProduct());
+
+        return $productsOnly->groupBy('product_id')->map(function ($items, $productId) {
+            $first = $items->first();
+            $product = $first->product;
+            $qty = (int) $items->sum('quantity');
+            $gross = (float) $items->sum(fn ($i) => (float) $i->unit_price * (int) $i->quantity);
+            $discount = (float) $items->sum(fn ($i) => (float) $i->discount * (int) $i->quantity);
+            $net = (float) $items->sum('subtotal');
+            $cogs = (float) $items->sum(fn ($i) => (float) ($i->po_cost_total ?? 0.0));
+            $profit = (float) ($net - $cogs);
+            $margin = $net > 0 ? round(($profit / $net) * 100, 1) : 0.0;
+            if (abs($margin) < 0.05) {
+                $margin = 0.0;
+            }
+            $brand = $product?->company?->short_name ?: $product?->company?->company_name ?: 'Unbranded';
+            $invoicesCount = $items->pluck('sale_id')->unique()->count();
+
+            return [
+                'product_id' => (int) $productId,
+                'name' => $first->item_name,
+                'code' => $product?->product_code ?? $product?->sku ?? '-',
+                'brand' => $brand,
+                'quantity' => $qty,
+                'gross_sales' => round($gross, 2),
+                'total_discounts' => round($discount, 2),
+                'net_sales' => round($net, 2),
+                'cogs' => round($cogs, 2),
+                'gross_profit' => round($profit, 2),
+                'margin' => $margin,
+                'invoices_count' => $invoicesCount,
+            ];
+        })->sortByDesc('net_sales')->values()->take($limit);
+    }
+
+    /**
      * Generate streamed CSV file of all sales in the date range.
      */
     public function exportCsv(Carbon $startDate, Carbon $endDate): StreamedResponse
@@ -820,6 +1003,8 @@ class SalesReportService
                 $this->writeDailySheet($writer, $data['daily_breakdown'], true);
                 $this->writeBrandsSheet($writer, $data['brand_breakdown'], true);
                 $this->writeBrandItemsSheet($writer, $data['brand_breakdown'], true);
+                $this->writeTopCustomersSheet($writer, $data['top_customers'], true);
+                $this->writeExpensesSheet($writer, $data['expenses'], true);
                 $this->writeInvoicesSheet($writer, $data['sales'], true);
                 $this->writeInvoiceItemsSheet($writer, $data['sales'], true);
                 break;
@@ -848,10 +1033,16 @@ class SalesReportService
         $writer->addRow(Row::fromValues(['Total Completed Orders', $kpis['total_orders']]));
         $writer->addRow(Row::fromValues(['Gross Retail Sales (MRP)', (float) $kpis['gross_sales']]));
         $writer->addRow(Row::fromValues(['Total Discounts Given', (float) ($kpis['total_discounts'] ?? 0.0)]));
-        $writer->addRow(Row::fromValues(['Net Sales / Cash Received', (float) ($kpis['net_sales'] ?? 0.0)]));
+        $writer->addRow(Row::fromValues(['Net Sales / Total Cash Inflow', (float) ($kpis['net_sales'] ?? 0.0)]));
         $writer->addRow(Row::fromValues(['Merchandise PO Net Cost (COGS)', (float) ($kpis['cogs'] ?? $kpis['total_cogs'] ?? 0.0)]));
-        $writer->addRow(Row::fromValues(['Gross Profit', (float) ($kpis['gross_profit'] ?? 0.0)]));
+        $writer->addRow(Row::fromValues(['Gross Profit (Net Sales - COGS)', (float) ($kpis['gross_profit'] ?? 0.0)]));
         $writer->addRow(Row::fromValues(['Gross Margin (%)', ($kpis['margin'] ?? 0.0).'%']));
+        $writer->addRow(Row::fromValues(['Other Operational Expenses (Manual)', (float) ($kpis['other_expenses'] ?? 0.0)]));
+        $writer->addRow(Row::fromValues(['Net Profit (Gross Profit - Other Expenses)', (float) ($kpis['net_profit'] ?? 0.0)]));
+        $writer->addRow(Row::fromValues(['Net Profit Margin (%)', ($kpis['net_profit_margin'] ?? 0.0).'%']));
+        $writer->addRow(Row::fromValues(['Total Cash Inflow (Total Sales)', (float) ($kpis['cash_inflow'] ?? 0.0)]));
+        $writer->addRow(Row::fromValues(['Total Cash Outflow (Expenses)', (float) ($kpis['cash_outflow'] ?? 0.0)]));
+        $writer->addRow(Row::fromValues(['Net Cash Flow', (float) ($kpis['net_cash_flow'] ?? 0.0)]));
         $writer->addRow(Row::fromValues([]));
 
         $writer->addRow(Row::fromValues(['PAYMENT METHOD', 'ORDERS COUNT', 'COLLECTED AMOUNT (INR)', 'SHARE (%)']));
@@ -1346,6 +1537,73 @@ class SalesReportService
                     (float) $inv['cogs'],
                     (float) $inv['gross_profit'],
                     $inv['margin'].'%',
+                ]));
+            }
+        }
+    }
+
+    protected function writeTopCustomersSheet(Writer $writer, Collection $topCustomers, bool $isAdditionalSheet = false): void
+    {
+        if ($isAdditionalSheet) {
+            $sheet = $writer->addNewSheetAndMakeItCurrent();
+            $sheet->setName('Top Customers');
+        } else {
+            $writer->getCurrentSheet()->setName('Top Customers');
+        }
+
+        $writer->addRow(Row::fromValues(['TOP 5 CUSTOMERS BY SALES']));
+        $writer->addRow(Row::fromValues([]));
+        $writer->addRow(Row::fromValues(['RANK', 'CUSTOMER NAME', 'PHONE', 'SALES NUMBER (INR)', 'TRANSACTIONS COUNT', 'ITEMS COUNT', 'AVG ORDER VALUE (INR)', 'LAST PURCHASE']));
+
+        foreach ($topCustomers as $idx => $cust) {
+            $writer->addRow(Row::fromValues([
+                $idx + 1,
+                $cust['name'],
+                $cust['phone'],
+                (float) $cust['sales_amount'],
+                $cust['transactions_count'],
+                $cust['items_count'],
+                (float) $cust['average_ticket'],
+                $cust['last_purchase'],
+            ]));
+        }
+    }
+
+    protected function writeExpensesSheet(Writer $writer, array $expenses, bool $isAdditionalSheet = false): void
+    {
+        if ($isAdditionalSheet) {
+            $sheet = $writer->addNewSheetAndMakeItCurrent();
+            $sheet->setName('Expense Outflows');
+        } else {
+            $writer->getCurrentSheet()->setName('Expense Outflows');
+        }
+
+        $writer->addRow(Row::fromValues(['TOTAL OUTFLOW BY EXPENSE CATEGORY']));
+        $writer->addRow(Row::fromValues(['Total Manual Expenses:', (float) $expenses['total']]));
+        $writer->addRow(Row::fromValues([]));
+        $writer->addRow(Row::fromValues(['CATEGORY', 'ENTRIES COUNT', 'TOTAL OUTFLOW (INR)', 'SHARE (%)']));
+
+        foreach ($expenses['by_category'] as $cat) {
+            $writer->addRow(Row::fromValues([
+                $cat['category_name'],
+                $cat['count'],
+                (float) $cat['total_amount'],
+                $cat['percentage'].'%',
+            ]));
+        }
+
+        if (! empty($expenses['transactions']) && $expenses['transactions']->isNotEmpty()) {
+            $writer->addRow(Row::fromValues([]));
+            $writer->addRow(Row::fromValues(['INDIVIDUAL EXPENSE TRANSACTIONS']));
+            $writer->addRow(Row::fromValues(['DATE', 'CODE', 'CATEGORY', 'DESCRIPTION', 'RECORDED BY', 'AMOUNT (INR)']));
+            foreach ($expenses['transactions'] as $tx) {
+                $writer->addRow(Row::fromValues([
+                    $tx->transaction_date ? $tx->transaction_date->format('d M Y') : '-',
+                    $tx->code ?? '-',
+                    $tx->category?->name ?? 'Uncategorized',
+                    $tx->description ?? '-',
+                    $tx->creator?->name ?? 'System',
+                    (float) $tx->amount,
                 ]));
             }
         }

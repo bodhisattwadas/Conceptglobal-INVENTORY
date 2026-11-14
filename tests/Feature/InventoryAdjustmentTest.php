@@ -10,6 +10,7 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\InventoryAdjustment;
+use App\Models\InventoryMovement;
 use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -19,6 +20,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Services\InventoryAdjustmentService;
 use App\Services\SaleService;
+use App\Services\SalesReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -617,5 +619,152 @@ class InventoryAdjustmentTest extends TestCase
             ->assertSee('BATCH-BC-01')
             ->set('target_product_id', $product->id)
             ->assertSet('target_mrp', 899.0);
+    }
+
+    public function test_stock_reallocation_defaults_target_location_to_store_shop(): void
+    {
+        $productX = Product::factory()->create(['name' => 'Source Prod', 'quantity' => 10]);
+        InventoryStock::create(['product_id' => $productX->id, 'quantity' => 10]);
+
+        $productY = Product::factory()->create(['name' => 'Target Prod', 'quantity' => 0]);
+        InventoryStock::create(['product_id' => $productY->id, 'quantity' => 0]);
+
+        $purchase = Purchase::create([
+            'invoice_number' => 'PO-LOC-DEF-01',
+            'supplier_id' => $this->supplier->id,
+            'company_id' => $this->brand->id,
+            'location' => 'shop',
+            'purchase_date' => now()->toDateString(),
+            'total' => 1000,
+            'created_by' => $this->user->id,
+        ]);
+
+        $batch = PurchaseItem::create([
+            'purchase_id' => $purchase->id,
+            'product_id' => $productX->id,
+            'location' => 'shop',
+            'quantity' => 10,
+            'received_quantity' => 10,
+            'unit_price' => 100,
+            'selling_price' => 200,
+            'batch_number' => 'BATCH-LOC-DEF-1',
+            'subtotal' => 1000,
+        ]);
+
+        $this->actingAs($this->user);
+
+        Livewire::test(StockAdjustmentModal::class)
+            ->dispatch('open-adjustment-modal', productId: $productX->id, batchId: $batch->id)
+            ->assertSet('isOpen', true)
+            ->assertSet('adjustmentType', 'reallocation')
+            ->assertSet('target_location', 'shop')
+            ->assertSee('Store / Front Shop')
+            ->set('target_product_id', $productY->id)
+            ->set('quantity', 3)
+            ->call('submitAdjustment')
+            ->assertHasNoErrors()
+            ->assertSet('isOpen', false);
+
+        $targetBatch = PurchaseItem::where('product_id', $productY->id)->first();
+        $this->assertNotNull($targetBatch);
+        $this->assertEquals('shop', $targetBatch->location->value);
+    }
+
+    public function test_found_surplus_picks_and_allows_manual_cost_input_and_records_cogs_in_fifo_batch(): void
+    {
+        $product = Product::factory()->create([
+            'company_id' => $this->brand->id,
+            'name' => 'Found Hair Serum',
+            'quantity' => 0,
+            'purchase_price' => 120.00,
+            'mrp' => 300.00,
+            'selling_price' => 300.00,
+        ]);
+        InventoryStock::create(['product_id' => $product->id, 'quantity' => 0]);
+
+        $purchase = Purchase::create([
+            'invoice_number' => 'PO-FOUND-01',
+            'supplier_id' => $this->supplier->id,
+            'company_id' => $this->brand->id,
+            'location' => 'shop',
+            'purchase_date' => now()->toDateString(),
+            'total' => 1200,
+            'created_by' => $this->user->id,
+        ]);
+
+        $this->actingAs($this->user);
+
+        // 1. Open modal and switch to Found / Surplus mode
+        Livewire::test(StockAdjustmentModal::class)
+            ->dispatch('open-adjustment-modal', productId: $product->id)
+            ->assertSet('isOpen', true)
+            ->call('setAdjustmentType', 'quantity_increase')
+            ->assertSet('adjustmentType', 'quantity_increase')
+            ->assertSet('target_location', 'shop')
+            ->assertSet('unit_cost', 120.00) // Auto-picked from product catalog purchase_price
+            ->assertSee('Unit Cost / COGS (₹)')
+            ->assertSee('Found / Surplus Stock Valuation &amp; Location', false)
+            // 2. User manually overrides the cost to 145.50
+            ->set('unit_cost', 145.50)
+            ->set('quantity', 5)
+            ->call('submitAdjustment')
+            ->assertHasNoErrors()
+            ->assertSet('isOpen', false)
+            ->assertDispatched('toast');
+
+        // Check product and stock quantity
+        $product->refresh();
+        $this->assertEquals(5, $product->quantity);
+
+        // Check created FIFO batch has the manual unit cost
+        $batch = PurchaseItem::where('product_id', $product->id)->latest('id')->first();
+        $this->assertNotNull($batch);
+        $this->assertEquals(5, $batch->received_quantity);
+        $this->assertEquals(145.50, (float) $batch->unit_price);
+        $this->assertEquals('shop', $batch->location->value);
+
+        // Check adjustment record has the manual unit cost
+        $adjustment = InventoryAdjustment::where('source_product_id', $product->id)->latest('id')->first();
+        $this->assertNotNull($adjustment);
+        $this->assertEquals('quantity_increase', $adjustment->type);
+        $this->assertEquals(5, $adjustment->quantity);
+        $this->assertEquals(145.50, (float) $adjustment->unit_cost);
+
+        // 3. Verify POS sale deductions calculate COGS using this exact unit cost
+        $customer = Customer::factory()->create();
+        $saleService = app(SaleService::class);
+        $sale = $saleService->createSale(new SaleData(
+            sale_date: now(),
+            payment_method: PaymentMethod::CASH,
+            created_by: $this->user->id,
+            items: [
+                new SaleItemData(
+                    product_id: $product->id,
+                    quantity: 2,
+                    unit_price: 300,
+                    discount: 0,
+                ),
+            ],
+            customer_id: $customer->id,
+            cash_received: 600,
+            change: 0,
+        ));
+
+        $this->assertNotNull($sale);
+
+        // Check inventory movement for sale links to this batch
+        $deductionMovement = InventoryMovement::where('product_id', $product->id)
+            ->whereNotNull('purchase_item_id')
+            ->where('quantity', '<', 0)
+            ->first();
+        $this->assertNotNull($deductionMovement);
+        $this->assertEquals($batch->id, $deductionMovement->purchase_item_id);
+        $this->assertEquals(-2, $deductionMovement->quantity);
+        $this->assertEquals(145.50, (float) $deductionMovement->purchaseItem->unit_price);
+
+        // Verify Sales Report COGS reflects 2 units * 145.50 = 291.00
+        $reportService = app(SalesReportService::class);
+        $report = $reportService->getReportData(now()->startOfDay(), now()->endOfDay());
+        $this->assertEquals(291.00, (float) ($report['kpis']['cogs'] ?? 0));
     }
 }

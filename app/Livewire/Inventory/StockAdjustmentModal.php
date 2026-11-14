@@ -20,7 +20,7 @@ class StockAdjustmentModal extends Component
     public string $adjustmentType = 'reallocation';
 
     // Target Location ('shop' or 'parlour')
-    public string $target_location = 'parlour';
+    public string $target_location = 'shop';
 
     // Source Product & Batch
     public ?int $source_product_id = null;
@@ -37,6 +37,9 @@ class StockAdjustmentModal extends Component
     public ?int $target_product_id = null;
 
     public ?float $target_mrp = null;
+
+    // Unit Cost / COGS (for Found / Surplus)
+    public ?float $unit_cost = null;
 
     // Quick Add Product state
     public bool $showQuickProduct = false;
@@ -66,6 +69,8 @@ class StockAdjustmentModal extends Component
         $this->reason = 'misallocation_split';
         $this->target_product_id = null;
         $this->target_mrp = null;
+        $this->target_location = 'shop';
+        $this->unit_cost = null;
 
         if ($productId) {
             $this->source_product_id = $productId;
@@ -74,9 +79,16 @@ class StockAdjustmentModal extends Component
             if ($batchId) {
                 $this->source_purchase_item_id = $batchId;
                 $batch = $this->getSelectedBatch();
-                if ($batch) {
+                if ($batch && $this->adjustmentType === 'location_transfer') {
                     $this->target_location = $batch->isParlour() ? 'shop' : 'parlour';
+                } else {
+                    $this->target_location = 'shop';
                 }
+                if ($batch) {
+                    $this->unit_cost = (float) $batch->unit_price;
+                }
+            } else {
+                $this->pickCostForFoundSurplus();
             }
         } else {
             $this->source_product_id = null;
@@ -84,6 +96,79 @@ class StockAdjustmentModal extends Component
         }
 
         $this->quantity = 1;
+    }
+
+    public function setAdjustmentType(string $type): void
+    {
+        $this->adjustmentType = $type;
+        $this->syncTargetLocationForMode();
+    }
+
+    public function updatedAdjustmentType(): void
+    {
+        $this->syncTargetLocationForMode();
+    }
+
+    private function syncTargetLocationForMode(): void
+    {
+        if ($this->adjustmentType === 'reallocation' || $this->adjustmentType === 'quantity_increase') {
+            $this->target_location = 'shop';
+        } elseif ($this->adjustmentType === 'location_transfer') {
+            $batch = $this->getSelectedBatch();
+            if ($batch) {
+                $this->target_location = $batch->isParlour() ? 'shop' : 'parlour';
+            } else {
+                $this->target_location = 'shop';
+            }
+        }
+
+        if ($this->adjustmentType === 'quantity_increase') {
+            $this->pickCostForFoundSurplus();
+            $this->reason = 'found_correction';
+        } elseif ($this->adjustmentType === 'quantity_decrease') {
+            $this->reason = 'damaged';
+        } elseif ($this->adjustmentType === 'location_transfer') {
+            $this->reason = 'transfer_to_shop';
+        } elseif ($this->adjustmentType === 'reallocation') {
+            $this->reason = 'misallocation_split';
+        }
+
+        if ($this->source_product_id) {
+            $this->loadSourceBatches();
+        }
+    }
+
+    public function pickCostForFoundSurplus(): void
+    {
+        $batch = $this->getSelectedBatch();
+        if ($batch && (float) $batch->unit_price > 0) {
+            $this->unit_cost = (float) $batch->unit_price;
+
+            return;
+        }
+
+        if ($this->source_product_id) {
+            $product = Product::find($this->source_product_id);
+            if ($product && (float) $product->purchase_price > 0) {
+                $this->unit_cost = (float) $product->purchase_price;
+
+                return;
+            }
+
+            $latestItem = PurchaseItem::where('product_id', $this->source_product_id)
+                ->where('unit_price', '>', 0)
+                ->latest('id')
+                ->first();
+            if ($latestItem) {
+                $this->unit_cost = (float) $latestItem->unit_price;
+
+                return;
+            }
+        }
+
+        if ($this->unit_cost === null) {
+            $this->unit_cost = 0.0;
+        }
     }
 
     public function closeModal(): void
@@ -96,16 +181,28 @@ class StockAdjustmentModal extends Component
     {
         $this->source_purchase_item_id = null;
         $this->loadSourceBatches();
+        if ($this->adjustmentType === 'quantity_increase') {
+            $this->pickCostForFoundSurplus();
+        }
     }
 
     public function updatedSourcePurchaseItemId(): void
     {
         $batch = $this->getSelectedBatch();
         if ($batch) {
-            if ($this->quantity > (int) $batch->received_quantity) {
+            if ($this->adjustmentType !== 'quantity_increase' && $this->quantity > (int) $batch->received_quantity) {
                 $this->quantity = max(1, (int) $batch->received_quantity);
             }
-            $this->target_location = $batch->isParlour() ? 'shop' : 'parlour';
+            if ($this->adjustmentType === 'location_transfer') {
+                $this->target_location = $batch->isParlour() ? 'shop' : 'parlour';
+            } else {
+                $this->target_location = 'shop';
+            }
+            if ($this->adjustmentType === 'quantity_increase' || (float) $batch->unit_price > 0) {
+                $this->unit_cost = (float) $batch->unit_price;
+            }
+        } elseif ($this->adjustmentType === 'quantity_increase') {
+            $this->pickCostForFoundSurplus();
         }
     }
 
@@ -192,6 +289,7 @@ class StockAdjustmentModal extends Component
                 'source_product_id' => ['required', 'exists:products,id'],
                 'source_purchase_item_id' => ['required', 'exists:purchase_items,id'],
                 'target_product_id' => ['required', 'exists:products,id', 'different:source_product_id'],
+                'target_location' => ['required', 'in:shop,parlour'],
                 'quantity' => ['required', 'integer', 'min:1'],
                 'target_mrp' => ['nullable', 'numeric', 'min:0'],
                 'reason' => ['required', 'string', 'max:100'],
@@ -257,7 +355,7 @@ class StockAdjustmentModal extends Component
                     'notes' => $this->notes,
                 ], Auth::id() ?? 1);
 
-                $targetLabel = $this->target_location === 'parlour' ? 'Parlour' : 'Shop';
+                $targetLabel = $this->target_location === 'parlour' ? 'Parlour' : 'Store';
                 $this->dispatch('toast', [
                     'type' => 'success',
                     'message' => "Stock moved to {$targetLabel} successfully (#{$adjustment->adjustment_number}).",
@@ -271,27 +369,50 @@ class StockAdjustmentModal extends Component
             }
         } else {
             // General quantity adjustment (decrease / increase)
-            $this->validate([
+            $rules = [
                 'source_product_id' => ['required', 'exists:products,id'],
                 'source_purchase_item_id' => ['nullable', 'exists:purchase_items,id'],
                 'quantity' => ['required', 'integer', 'min:1'],
                 'reason' => ['required', 'string', 'max:100'],
                 'notes' => ['nullable', 'string', 'max:1000'],
-            ]);
+            ];
+
+            if ($this->adjustmentType === 'quantity_increase') {
+                $rules['unit_cost'] = ['required', 'numeric', 'min:0'];
+                $rules['target_location'] = ['required', 'in:shop,parlour'];
+            }
+
+            $this->validate($rules);
+
+            if ($this->adjustmentType === 'quantity_decrease') {
+                $batch = $this->getSelectedBatch();
+                if ($batch && (int) $batch->received_quantity < $this->quantity) {
+                    $maxAvailable = (int) $batch->received_quantity;
+                    $this->addError('quantity', "The requested quantity exceeds available batch quantity ({$maxAvailable}).");
+
+                    return;
+                }
+            }
 
             try {
                 $adjustment = $service->adjustQuantity([
                     'product_id' => $this->source_product_id,
                     'purchase_item_id' => $this->source_purchase_item_id,
+                    'target_location' => $this->target_location,
+                    'unit_cost' => $this->unit_cost,
                     'type' => $this->adjustmentType,
                     'quantity' => $this->quantity,
                     'reason' => $this->reason,
                     'notes' => $this->notes,
                 ], Auth::id() ?? 1);
 
+                $msg = $this->adjustmentType === 'quantity_increase'
+                    ? "Found/Surplus stock added successfully (#{$adjustment->adjustment_number})."
+                    : "Stock adjustment completed successfully (#{$adjustment->adjustment_number}).";
+
                 $this->dispatch('toast', [
                     'type' => 'success',
-                    'message' => "Stock adjustment completed successfully (#{$adjustment->adjustment_number}).",
+                    'message' => $msg,
                 ]);
 
                 $this->isOpen = false;
@@ -318,14 +439,18 @@ class StockAdjustmentModal extends Component
             return;
         }
 
-        $batches = PurchaseItem::query()
+        $query = PurchaseItem::query()
             ->where('product_id', $this->source_product_id)
-            ->where('received_quantity', '>', 0)
             ->with('purchase.supplier')
-            ->orderBy('id', 'desc')
-            ->get();
+            ->orderBy('id', 'desc');
 
-        if ($batches->count() === 1 && ! $this->source_purchase_item_id) {
+        if ($this->adjustmentType !== 'quantity_increase') {
+            $query->where('received_quantity', '>', 0);
+        }
+
+        $batches = $query->get();
+
+        if ($batches->count() === 1 && ! $this->source_purchase_item_id && $this->adjustmentType !== 'quantity_increase') {
             $this->source_purchase_item_id = $batches->first()->id;
         }
     }

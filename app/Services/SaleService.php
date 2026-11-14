@@ -30,7 +30,9 @@ class SaleService
     public function __construct(
         protected FinanceTransactionService $financeService,
         protected InventoryService $inventoryService,
-        protected DiscountCouponService $couponService
+        protected DiscountCouponService $couponService,
+        protected CashLedgerService $cashLedgerService,
+        protected BankLedgerService $bankLedgerService
     ) {}
 
     /**
@@ -319,6 +321,8 @@ class SaleService
 
                 if ($sale->status === SaleStatus::COMPLETED) {
                     $this->financeService->recordIncomeFromSale($sale);
+                    $this->cashLedgerService->recordCashSale($sale);
+                    $this->bankLedgerService->recordSaleTransaction($sale);
                 }
 
                 $this->clearDashboardStats();
@@ -761,12 +765,17 @@ class SaleService
                 ]);
 
                 // 9. Finance Synchronization
+                $sale->load(['items.product', 'items.service', 'customer']);
                 if ($sale->status === SaleStatus::COMPLETED) {
                     $this->financeService->recordIncomeFromSale($sale);
+                    $this->cashLedgerService->recordCashSale($sale);
+                    $this->bankLedgerService->recordSaleTransaction($sale);
+                } else {
+                    $this->cashLedgerService->voidSaleTransaction($sale);
+                    $this->bankLedgerService->voidSaleTransaction($sale);
                 }
 
                 // 10. Audit Log
-                $sale->load(['items.product', 'items.service', 'customer']);
                 $newState = [
                     'customer_id' => $sale->customer_id,
                     'customer_name' => $sale->customer?->name,
@@ -871,6 +880,8 @@ class SaleService
 
                 // Void Finance
                 $this->financeService->voidTransaction($sale);
+                $this->cashLedgerService->voidSaleTransaction($sale);
+                $this->bankLedgerService->voidSaleTransaction($sale);
 
                 $this->clearDashboardStats();
 
@@ -911,6 +922,8 @@ class SaleService
 
             // Sync Finance
             $this->financeService->recordIncomeFromSale($sale);
+            $this->cashLedgerService->recordCashSale($sale);
+            $this->bankLedgerService->recordSaleTransaction($sale);
 
             $this->clearDashboardStats();
 
@@ -1082,6 +1095,8 @@ class SaleService
 
             // 2. Void and permanently delete Finance Transactions
             $this->financeService->voidTransaction($sale);
+            $this->cashLedgerService->voidSaleTransaction($sale);
+            $this->bankLedgerService->voidSaleTransaction($sale);
             FinanceTransaction::query()
                 ->where('reference_type', Sale::class)
                 ->where('reference_id', $sale->id)
@@ -1130,6 +1145,9 @@ class SaleService
                 ->update([
                     'transaction_date' => $parsedDate,
                 ]);
+
+            $this->cashLedgerService->updateSaleDate($sale, $parsedDate);
+            $this->bankLedgerService->updateSaleDate($sale, $parsedDate);
 
             $this->clearDashboardStats();
 
@@ -1181,6 +1199,11 @@ class SaleService
 
             if ($sale->status === SaleStatus::COMPLETED) {
                 $this->financeService->recordIncomeFromSale($sale);
+                $this->cashLedgerService->recordCashSale($sale);
+                $this->bankLedgerService->recordSaleTransaction($sale);
+            } else {
+                $this->cashLedgerService->voidSaleTransaction($sale);
+                $this->bankLedgerService->voidSaleTransaction($sale);
             }
 
             AuditLog::create([
@@ -1330,6 +1353,8 @@ class SaleService
             // Synchronize finance record for original sale
             if ($originalSale->status === SaleStatus::COMPLETED) {
                 $this->financeService->recordIncomeFromSale($originalSale);
+                $this->cashLedgerService->recordCashSale($originalSale);
+                $this->bankLedgerService->recordSaleTransaction($originalSale);
             }
         }
     }

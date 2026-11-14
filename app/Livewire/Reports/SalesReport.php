@@ -484,6 +484,10 @@ class SalesReport extends Component
             'brandOptions' => $data['brand_breakdown']->pluck('name')->unique()->values(),
             'sales' => $paginatedSales,
             'allSales' => $data['sales'],
+            'topBrands' => $data['top_brands'],
+            'topCustomers' => $data['top_customers'],
+            'topProducts' => $data['top_products'],
+            'expenses' => $data['expenses'],
             'startDate' => $this->startDate,
             'endDate' => $this->endDate,
         ]);

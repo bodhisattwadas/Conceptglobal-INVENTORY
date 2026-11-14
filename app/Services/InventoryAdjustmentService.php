@@ -7,6 +7,7 @@ use App\Models\InventoryAdjustment;
 use App\Models\InventoryMovement;
 use App\Models\InventoryStock;
 use App\Models\Product;
+use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -338,6 +339,13 @@ class InventoryAdjustmentService
             $quantity = abs((int) ($data['quantity'] ?? 0));
             $reason = trim($data['reason'] ?? 'count_correction');
             $notes = trim($data['notes'] ?? '');
+            $unitCost = isset($data['unit_cost']) && $data['unit_cost'] !== '' && $data['unit_cost'] !== null
+                ? (float) $data['unit_cost']
+                : null;
+            $targetLocationRaw = $data['target_location'] ?? null;
+            $targetLocation = $targetLocationRaw
+                ? (is_string($targetLocationRaw) ? PurchaseLocation::tryFrom($targetLocationRaw) : $targetLocationRaw)
+                : PurchaseLocation::SHOP;
 
             if ($quantity <= 0) {
                 throw new InvalidArgumentException('Quantity must be greater than zero.');
@@ -374,27 +382,67 @@ class InventoryAdjustmentService
                 $stock->refresh();
                 $movementType = 'adjustment_decrease';
                 $movementQty = -$quantity;
+                $finalUnitCost = $batch?->unit_price ?? $product->purchase_price ?? 0;
             } else {
+                $effectiveUnitCost = $unitCost !== null
+                    ? $unitCost
+                    : ($batch?->unit_price ?? $product->purchase_price ?? 0);
+
                 $product->increment('quantity', $quantity);
                 $stock->increment('quantity', $quantity);
+
                 if ($batch) {
                     $batch->increment('received_quantity', $quantity);
+                    if ($unitCost !== null && ((float) $batch->unit_price <= 0 || (int) $batch->received_quantity === $quantity)) {
+                        $batch->unit_price = $unitCost;
+                        $batch->save();
+                    }
+                    $batch->refresh();
+                } else {
+                    // Try to find previous batch for this product or fallback to system purchase to create FIFO batch
+                    $previousBatch = PurchaseItem::where('product_id', $productId)->latest('id')->first();
+                    $purchaseId = $previousBatch?->purchase_id ?: Purchase::latest('id')->value('id');
+
+                    if ($purchaseId) {
+                        $batchNumber = $this->generateUniqueBatchNumber($previousBatch?->batch_number ?: 'FOUND');
+                        $batch = PurchaseItem::create([
+                            'purchase_id' => $purchaseId,
+                            'product_id' => $productId,
+                            'location' => $targetLocation?->value ?? 'shop',
+                            'quantity' => $quantity,
+                            'received_quantity' => $quantity,
+                            'unit_price' => $effectiveUnitCost,
+                            'selling_price' => $product->mrp ?: ($product->selling_price ?: $previousBatch?->selling_price),
+                            'batch_number' => $batchNumber,
+                            'manufacturing_date' => $previousBatch?->manufacturing_date,
+                            'expiry_date' => $previousBatch?->expiry_date,
+                            'subtotal' => round($quantity * (float) $effectiveUnitCost, 2),
+                        ]);
+                    }
+                }
+
+                if ((float) $product->purchase_price <= 0 && $effectiveUnitCost > 0) {
+                    $product->purchase_price = $effectiveUnitCost;
+                    $product->save();
                 }
 
                 $stock->refresh();
                 $movementType = 'adjustment_increase';
                 $movementQty = $quantity;
+                $finalUnitCost = $effectiveUnitCost;
             }
 
+            $costNote = $finalUnitCost > 0 ? 'Unit cost: ₹'.number_format($finalUnitCost, 2) : '';
             InventoryMovement::create([
                 'product_id' => $productId,
                 'purchase_id' => $batch?->purchase_id,
                 'purchase_item_id' => $batch?->id,
+                'location' => $batch?->location?->value ?? ($targetLocation?->value ?? 'shop'),
                 'type' => $movementType,
                 'quantity' => $movementQty,
                 'balance_after' => $stock->quantity,
                 'reference' => $adjustmentNumber,
-                'notes' => "Stock adjustment ({$type}). Reason: {$reason}.".($notes ? " Notes: {$notes}" : ''),
+                'notes' => "Stock adjustment ({$type}). Reason: {$reason}.".($costNote ? " {$costNote}." : '').($notes ? " Notes: {$notes}" : ''),
             ]);
 
             return InventoryAdjustment::create([
@@ -402,8 +450,10 @@ class InventoryAdjustmentService
                 'type' => $type,
                 'source_product_id' => $productId,
                 'source_purchase_item_id' => $batch?->id,
+                'source_location' => $batch?->location?->value ?? ($targetLocation?->value ?? 'shop'),
+                'target_location' => $batch?->location?->value ?? ($targetLocation?->value ?? 'shop'),
                 'quantity' => $quantity,
-                'unit_cost' => $batch?->unit_price ?? $product->purchase_price ?? 0,
+                'unit_cost' => $finalUnitCost,
                 'reason' => $reason,
                 'notes' => $notes,
                 'created_by' => $userId,

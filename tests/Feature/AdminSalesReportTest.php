@@ -2,11 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Enums\FinanceCategoryType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Livewire\Reports\SalesReport;
 use App\Models\Category;
 use App\Models\Company;
+use App\Models\Customer;
+use App\Models\FinanceCategory;
+use App\Models\FinanceTransaction;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -717,5 +721,159 @@ class AdminSalesReportTest extends TestCase
             ->call('sortByItem', 'quantity');
 
         $this->assertEquals('quantity', $comp->get('itemSortField'));
+    }
+
+    public function test_sales_report_includes_financial_pnl_top_brands_top_customers_top_products_and_expense_outflows(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $now = Carbon::now();
+
+        $category = Category::create(['name' => 'Hair Treatments', 'slug' => 'hair-treatments']);
+        $unit = Unit::create(['name' => 'Bottle', 'symbol' => 'btl']);
+        $brand = Company::create([
+            'company_code' => 'COMP-MOROC-01',
+            'company_name' => 'Moroccanoil Professional',
+            'short_name' => 'Moroccanoil',
+        ]);
+
+        $product = Product::factory()->create([
+            'company_id' => $brand->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'name' => 'Moroccanoil Treatment 100ml',
+            'sku' => 'SKU-MOROC-100',
+            'product_code' => '7290011521011',
+            'purchase_price' => 1200.00,
+            'selling_price' => 2000.00,
+            'mrp' => 2000.00,
+        ]);
+
+        $customer = Customer::create([
+            'name' => 'Siddharth Roy',
+            'phone' => '+91 98888 77777',
+            'email' => 'siddharth@example.com',
+        ]);
+
+        // Create completed sale
+        $sale = Sale::create([
+            'invoice_number' => 'INV-PNL-001',
+            'customer_id' => $customer->id,
+            'created_by' => $admin->id,
+            'sale_date' => $now,
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 4000.00,
+            'global_discount' => 400.00,
+            'coupon_discount' => 0.00,
+            'round_off' => 0.00,
+            'total_discount' => 400.00,
+            'total' => 3600.00,
+            'cash_received' => 3600.00,
+            'change' => 0.00,
+            'payment_method' => PaymentMethod::UPI,
+        ]);
+
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'product_id' => $product->id,
+            'custom_name' => $product->name,
+            'quantity' => 2,
+            'unit_price' => 2000.00,
+            'discount' => 200.00,
+            'final_price' => 1800.00,
+            'cost_price' => 1200.00,
+            'subtotal' => 3600.00,
+        ]);
+
+        // Create manual system expense entries
+        $rentCategory = FinanceCategory::create([
+            'name' => 'Salon Rent',
+            'slug' => 'salon-rent',
+            'type' => FinanceCategoryType::Expense,
+        ]);
+
+        $utilityCategory = FinanceCategory::create([
+            'name' => 'Electricity Bill',
+            'slug' => 'electricity-bill',
+            'type' => FinanceCategoryType::Expense,
+        ]);
+
+        FinanceTransaction::create([
+            'code' => 'EXP-2026-001',
+            'transaction_date' => $now->toDateString(),
+            'finance_category_id' => $rentCategory->id,
+            'amount' => 500.00,
+            'description' => 'Monthly floor rent payment',
+            'created_by' => $admin->id,
+        ]);
+
+        FinanceTransaction::create([
+            'code' => 'EXP-2026-002',
+            'transaction_date' => $now->toDateString(),
+            'finance_category_id' => $utilityCategory->id,
+            'amount' => 300.00,
+            'description' => 'Power utility bill',
+            'created_by' => $admin->id,
+        ]);
+
+        // Test Livewire SalesReport component
+        Livewire::actingAs($admin)
+            ->test(SalesReport::class)
+            ->set('dateFilter', 'today')
+            ->assertViewHas('kpis', function ($kpis) {
+                // Gross Sales = 4000
+                // Discounts = 400
+                // Net Sales (Cash Inflow) = 3600
+                // COGS = 2 * 1200 = 2400
+                // Gross Profit = 3600 - 2400 = 1200
+                // Other Expenses = 500 + 300 = 800
+                // Net Profit = 1200 - 800 = 400
+                return $kpis['gross_sales'] == 4000.00
+                    && $kpis['total_discounts'] == 400.00
+                    && $kpis['net_sales'] == 3600.00
+                    && $kpis['cash_inflow'] == 3600.00
+                    && $kpis['cogs'] == 2400.00
+                    && $kpis['gross_profit'] == 1200.00
+                    && $kpis['other_expenses'] == 800.00
+                    && $kpis['net_profit'] == 400.00
+                    && $kpis['cash_outflow'] == 800.00
+                    && $kpis['net_cash_flow'] == 2800.00;
+            })
+            ->assertViewHas('topBrands', function ($brands) {
+                return $brands->count() >= 1
+                    && $brands->first()['name'] === 'Moroccanoil'
+                    && $brands->first()['net_sales'] == 3600.00;
+            })
+            ->assertViewHas('topCustomers', function ($customers) {
+                return $customers->count() >= 1
+                    && $customers->first()['name'] === 'Siddharth Roy'
+                    && $customers->first()['sales_amount'] == 3600.00
+                    && $customers->first()['transactions_count'] === 1;
+            })
+            ->assertViewHas('topProducts', function ($products) {
+                return $products->count() >= 1
+                    && $products->first()['name'] === 'Moroccanoil Treatment 100ml'
+                    && $products->first()['quantity'] === 2
+                    && $products->first()['net_sales'] == 3600.00;
+            })
+            ->assertViewHas('expenses', function ($exp) {
+                return $exp['total'] == 800.00
+                    && $exp['by_category']->count() === 2
+                    && $exp['by_category']->firstWhere('category_name', 'Salon Rent')['total_amount'] == 500.00
+                    && $exp['by_category']->firstWhere('category_name', 'Electricity Bill')['total_amount'] == 300.00;
+            })
+            ->assertSee('Gross Sales')
+            ->assertSee('COGS')
+            ->assertSee('Gross Profit')
+            ->assertSee('Other Expenses')
+            ->assertSee('Net Profit')
+            ->assertSee('Top 5 Brands by Sales')
+            ->assertSee('Moroccanoil')
+            ->assertSee('Top 5 Customers with Sales')
+            ->assertSee('Siddharth Roy')
+            ->assertSee('Top 10 Products by Sales')
+            ->assertSee('Moroccanoil Treatment 100ml')
+            ->assertSee('Total Outflow by Expense Category')
+            ->assertSee('Salon Rent')
+            ->assertSee('Electricity Bill');
     }
 }

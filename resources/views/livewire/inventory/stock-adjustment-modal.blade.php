@@ -32,7 +32,7 @@
                                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                     <button
                                         type="button"
-                                        wire:click="$set('adjustmentType', 'reallocation')"
+                                        wire:click="setAdjustmentType('reallocation')"
                                         class="flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-all {{ $adjustmentType === 'reallocation' ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-2 ring-blue-500/30 font-semibold' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}"
                                     >
                                         <svg class="h-5 w-5 mb-1 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -43,19 +43,19 @@
 
                                     <button
                                         type="button"
-                                        wire:click="$set('adjustmentType', 'location_transfer')"
+                                        wire:click="setAdjustmentType('location_transfer')"
                                         class="flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-all {{ $adjustmentType === 'location_transfer' ? 'border-purple-600 bg-purple-50/70 text-purple-900 ring-2 ring-purple-500/30 font-semibold' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}"
                                     >
                                         <svg class="h-5 w-5 mb-1 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
                                         </svg>
                                         <span class="text-xs">{{ __('Move Location') }}</span>
-                                        <span class="text-[10px] text-gray-500 font-normal">{{ __('Shop ⇄ Parlour') }}</span>
+                                        <span class="text-[10px] text-gray-500 font-normal">{{ __('Store ⇄ Parlour') }}</span>
                                     </button>
 
                                     <button
                                         type="button"
-                                        wire:click="$set('adjustmentType', 'quantity_decrease')"
+                                        wire:click="setAdjustmentType('quantity_decrease')"
                                         class="flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-all {{ $adjustmentType === 'quantity_decrease' ? 'border-red-600 bg-red-50/70 text-red-900 ring-2 ring-red-500/30 font-semibold' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}"
                                     >
                                         <svg class="h-5 w-5 mb-1 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -66,7 +66,7 @@
 
                                     <button
                                         type="button"
-                                        wire:click="$set('adjustmentType', 'quantity_increase')"
+                                        wire:click="setAdjustmentType('quantity_increase')"
                                         class="flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-all {{ $adjustmentType === 'quantity_increase' ? 'border-emerald-600 bg-emerald-50/70 text-emerald-900 ring-2 ring-emerald-500/30 font-semibold' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}"
                                     >
                                         <svg class="h-5 w-5 mb-1 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -109,10 +109,10 @@
                                             wire:model.live="source_purchase_item_id"
                                             class="block w-full rounded-md border-gray-300 py-1.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
                                         >
-                                            <option value="">{{ __('-- Select Batch --') }}</option>
+                                            <option value="">{{ $adjustmentType === 'quantity_increase' ? __('-- Select Batch / Create New Found Batch --') : __('-- Select Batch --') }}</option>
                                             @foreach($sourceBatches as $b)
                                                 <option value="{{ $b->id }}">
-                                                    [{{ $b->isParlour() ? 'Parlour' : 'Shop' }}] Batch: {{ $b->batch_number ?: 'N/A' }} | Available: {{ $b->received_quantity }} units @ ₹{{ number_format($b->unit_price, 2) }}
+                                                    [{{ $b->isParlour() ? 'Parlour' : 'Shop' }}] Batch: {{ $b->batch_number ?: 'N/A' }} | Cost: ₹{{ number_format($b->unit_price, 2) }} | Available: {{ $b->received_quantity }}
                                                     @if($b->purchase) (PO: {{ $b->purchase->invoice_number }}) @endif
                                                 </option>
                                             @endforeach
@@ -297,6 +297,35 @@
                                             </div>
                                         @endif
                                     @endif
+
+                                    <!-- Destination Location for Reallocated Stock -->
+                                    <div class="pt-2 border-t border-emerald-200/60">
+                                        <label class="block text-xs font-medium text-gray-700 mb-1.5">{{ __('Destination Location') }} <span class="text-red-500">*</span></label>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all {{ $target_location === 'shop' ? 'border-blue-600 bg-blue-50/70 text-blue-950 ring-2 ring-blue-500/30 font-semibold' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}">
+                                                <input type="radio" wire:model.live="target_location" value="shop" class="text-blue-600 focus:ring-blue-500">
+                                                <div class="flex flex-col text-left">
+                                                    <span class="text-sm font-bold flex items-center gap-1.5">
+                                                        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                                                        {{ __('Store / Front Shop') }}
+                                                    </span>
+                                                    <span class="text-[11px] text-gray-500">{{ __('Customer-facing retail counter (Default)') }}</span>
+                                                </div>
+                                            </label>
+
+                                            <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all {{ $target_location === 'parlour' ? 'border-purple-600 bg-purple-50/70 text-purple-950 ring-2 ring-purple-500/30 font-semibold' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}">
+                                                <input type="radio" wire:model.live="target_location" value="parlour" class="text-purple-600 focus:ring-purple-500">
+                                                <div class="flex flex-col text-left">
+                                                    <span class="text-sm font-bold flex items-center gap-1.5">
+                                                        <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                                                        {{ __('Back Parlour') }}
+                                                    </span>
+                                                    <span class="text-[11px] text-gray-500">{{ __('Back salon / service area') }}</span>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        @error('target_location') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                                    </div>
                                 </div>
                             @endif
 
@@ -305,7 +334,7 @@
                                 <div class="rounded-lg border border-purple-200 bg-purple-50/30 p-4 space-y-3">
                                     <h4 class="text-xs font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
                                         <span class="inline-block h-2 w-2 rounded-full bg-purple-500"></span>
-                                        {{ __('Move Stock Between Shop & Parlour') }}
+                                        {{ __('Move Stock Between Store / Shop & Parlour') }}
                                     </h4>
 
                                     <div>
@@ -316,7 +345,7 @@
                                                 <div class="flex flex-col text-left">
                                                     <span class="text-sm font-bold flex items-center gap-1.5">
                                                         <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                                                        {{ __('Front Shop') }}
+                                                        {{ __('Store / Front Shop') }}
                                                     </span>
                                                     <span class="text-[11px] text-gray-500">{{ __('Customer-facing retail counter') }}</span>
                                                 </div>
@@ -337,8 +366,84 @@
                                     </div>
                                     <p class="text-[11px] text-purple-800/80">
                                         <x-heroicon-s-information-circle class="w-4 h-4 inline-block mr-0.5 text-purple-600" />
-                                        {{ __('Total stock of this product will remain the same. The location tag will update and show badges for Shop / Parlour.') }}
+                                        {{ __('Total stock of this product will remain the same. The location tag will update and show badges for Store / Parlour.') }}
                                     </p>
+                                </div>
+                            @endif
+
+                            <!-- Found / Surplus Cost & Location Section (Only in Found / Surplus Mode) -->
+                            @if($adjustmentType === 'quantity_increase')
+                                <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <h4 class="text-xs font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+                                            <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+                                            {{ __('Found / Surplus Stock Valuation & Location') }}
+                                        </h4>
+                                        <span class="text-[11px] text-emerald-700 font-medium bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200">
+                                            {{ __('FIFO & COGS') }}
+                                        </span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <label class="block text-xs font-medium text-gray-700">
+                                                    {{ __('Unit Cost / COGS (₹)') }} <span class="text-red-500">*</span>
+                                                </label>
+                                                @if($source_product_id)
+                                                    <button
+                                                        type="button"
+                                                        wire:click="pickCostForFoundSurplus"
+                                                        class="text-[10px] text-blue-600 hover:text-blue-800 font-medium"
+                                                        title="{{ __('Reset to default purchase cost from batch or product catalog') }}"
+                                                    >
+                                                        {{ __('↺ Auto-Pick Cost') }}
+                                                    </button>
+                                                @endif
+                                            </div>
+                                            <div class="relative rounded-md shadow-sm">
+                                                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                                    <span class="text-gray-500 sm:text-sm font-medium">₹</span>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    wire:model="unit_cost"
+                                                    class="block w-full rounded-md border-gray-300 pl-7 pr-3 py-1.5 text-sm font-mono focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                                    placeholder="0.00"
+                                                >
+                                            </div>
+                                            <p class="text-[11px] text-gray-500 mt-0.5">
+                                                {{ __('Cost value per unit for FIFO batches and profit/COGS calculations on POS sales.') }}
+                                            </p>
+                                            @error('unit_cost') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">
+                                                {{ __('Destination Location') }} <span class="text-red-500">*</span>
+                                            </label>
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <label class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all {{ $target_location === 'shop' ? 'border-blue-600 bg-blue-50/70 text-blue-950 ring-2 ring-blue-500/30 font-semibold' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}">
+                                                    <input type="radio" wire:model.live="target_location" value="shop" class="text-blue-600 focus:ring-blue-500">
+                                                    <div class="flex flex-col text-left">
+                                                        <span class="text-xs font-bold">{{ __('Store (Front)') }}</span>
+                                                        <span class="text-[10px] text-gray-500">{{ __('Retail counter') }}</span>
+                                                    </div>
+                                                </label>
+
+                                                <label class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all {{ $target_location === 'parlour' ? 'border-purple-600 bg-purple-50/70 text-purple-950 ring-2 ring-purple-500/30 font-semibold' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}">
+                                                    <input type="radio" wire:model.live="target_location" value="parlour" class="text-purple-600 focus:ring-purple-500">
+                                                    <div class="flex flex-col text-left">
+                                                        <span class="text-xs font-bold">{{ __('Parlour (Back)') }}</span>
+                                                        <span class="text-[10px] text-gray-500">{{ __('Internal use') }}</span>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                            @error('target_location') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                                        </div>
+                                    </div>
                                 </div>
                             @endif
 
@@ -347,7 +452,7 @@
                                 <div>
                                     <div class="flex items-center justify-between mb-1">
                                         <label class="block text-xs font-medium text-gray-700">{{ __('Quantity to Adjust') }} <span class="text-red-500">*</span></label>
-                                        @if($selectedBatch)
+                                        @if($selectedBatch && $adjustmentType !== 'quantity_increase')
                                             <button
                                                 type="button"
                                                 wire:click="$set('quantity', {{ $selectedBatch->received_quantity }})"
@@ -360,7 +465,7 @@
                                     <input
                                         type="number"
                                         min="1"
-                                        @if($selectedBatch) max="{{ $selectedBatch->received_quantity }}" @endif
+                                        @if($selectedBatch && $adjustmentType !== 'quantity_increase') max="{{ $selectedBatch->received_quantity }}" @endif
                                         wire:model="quantity"
                                         class="block w-full rounded-md border-gray-300 py-1.5 px-3 text-sm text-center font-bold focus:border-blue-500 focus:ring-blue-500 shadow-sm"
                                     >
@@ -375,7 +480,7 @@
                                     >
                                         @if($adjustmentType === 'location_transfer')
                                             <option value="transfer_to_parlour">{{ __('Transfer to Back Parlour for Services') }}</option>
-                                            <option value="transfer_to_shop">{{ __('Transfer to Front Shop for Retail') }}</option>
+                                            <option value="transfer_to_shop">{{ __('Transfer to Store / Front Shop for Retail') }}</option>
                                             <option value="rebalance">{{ __('Stock Rebalance between Front & Back') }}</option>
                                             <option value="other">{{ __('Other Location Movement') }}</option>
                                         @elseif($adjustmentType === 'reallocation')
@@ -427,6 +532,8 @@
                                         {{ __('Confirm Reallocation') }}
                                     @elseif($adjustmentType === 'location_transfer')
                                         {{ __('Confirm & Move Location') }}
+                                    @elseif($adjustmentType === 'quantity_increase')
+                                        {{ __('Confirm Found / Surplus') }}
                                     @else
                                         {{ __('Confirm Adjustment') }}
                                     @endif

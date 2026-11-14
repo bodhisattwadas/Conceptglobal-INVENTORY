@@ -147,7 +147,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // =========================================================================
     // Finance
     // =========================================================================
-    Route::prefix('finance')->name('finance.')->middleware('role:admin')->group(function () {
+    Route::prefix('finance')->name('finance.')->middleware('role:admin,manager')->group(function () {
+        Route::view('cash-ledger', 'finance.cash-ledger.index')->name('cash-ledger.index');
+        Route::view('bank-ledger', 'finance.bank-ledger.index')->name('bank-ledger.index');
+        Route::view('reconciliation', 'finance.reconciliation.index')->name('reconciliation.index');
         Route::view('categories', 'finance-categories.index')->name('categories.index');
         Route::view('transactions', 'finance-transactions.index')->name('transactions.index');
         Route::get('transactions/print/{printId}', [FinanceReportController::class, 'print'])->name('transactions.print');
@@ -164,10 +167,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // =========================================================================
     // Reports
     // =========================================================================
-    Route::prefix('reports')->name('reports.')->middleware('role:admin')->group(function () {
-        Route::get('sales', [ReportController::class, 'sales'])->name('sales');
-        Route::get('sales/pdf', [ReportController::class, 'salesPdf'])->name('sales.pdf');
-        Route::get('sales/xls', [ReportController::class, 'salesXls'])->name('sales.xls');
+    Route::prefix('reports')->name('reports.')->group(function () {
+        Route::middleware('role:admin')->group(function () {
+            Route::get('sales', [ReportController::class, 'sales'])->name('sales');
+            Route::get('sales/pdf', [ReportController::class, 'salesPdf'])->name('sales.pdf');
+            Route::get('sales/xls', [ReportController::class, 'salesXls'])->name('sales.xls');
+        });
+        Route::middleware('role:admin,manager')->group(function () {
+            Route::get('adjustments', [ReportController::class, 'adjustments'])->name('adjustments');
+            Route::get('adjustments/pdf', [ReportController::class, 'adjustmentsPdf'])->name('adjustments.pdf');
+            Route::get('adjustments/csv', [ReportController::class, 'adjustmentsCsv'])->name('adjustments.csv');
+        });
     });
 
     // =========================================================================
