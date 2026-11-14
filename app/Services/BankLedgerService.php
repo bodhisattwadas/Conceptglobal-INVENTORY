@@ -13,6 +13,9 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class BankLedgerService
 {
@@ -37,9 +40,20 @@ class BankLedgerService
             'credit',
         ], true);
 
+        $isSplit = in_array($method, [
+            PaymentMethod::SPLIT->value,
+            'split',
+        ], true);
+
         $isCompleted = $sale->status === SaleStatus::COMPLETED || $sale->status === 'completed';
 
-        if (! $isBankMethod || ! $isCompleted) {
+        if ($isSplit) {
+            if (! $isCompleted || (float) $sale->bank_amount <= 0) {
+                $this->voidSaleTransaction($sale);
+
+                return null;
+            }
+        } elseif (! $isBankMethod || ! $isCompleted) {
             $this->voidSaleTransaction($sale);
 
             return null;
@@ -55,8 +69,15 @@ class BankLedgerService
             PaymentMethod::UPI->value, 'upi' => BankTransactionType::UpiSale,
             PaymentMethod::CARD->value, 'card', 'credit' => BankTransactionType::CardSale,
             PaymentMethod::TRANSFER->value, 'transfer' => BankTransactionType::TransferSale,
+            PaymentMethod::SPLIT->value, 'split' => BankTransactionType::UpiSale,
             default => BankTransactionType::BankSale,
         };
+
+        $description = $isSplit
+            ? 'UPI Portion (Split) - Inv: '.$sale->invoice_number
+            : $transactionType->label().' - Inv: '.$sale->invoice_number;
+
+        $amount = $isSplit ? (float) $sale->bank_amount : (float) $sale->total;
 
         return BankTransaction::updateOrCreate(
             [
@@ -68,10 +89,10 @@ class BankLedgerService
                 'transaction_type' => $transactionType,
                 'reference_number' => $sale->invoice_number,
                 'name' => $customerName,
-                'description' => $transactionType->label().' - Inv: '.$sale->invoice_number,
+                'description' => $description,
                 'account_name' => $accountName,
                 'split_account' => 'Product Sales',
-                'amount' => $sale->total,
+                'amount' => $amount,
                 'created_by' => $sale->created_by ?? Auth::id() ?? 1,
             ]
         );
@@ -321,6 +342,8 @@ class BankLedgerService
         ?string $search = null,
         ?string $type = null
     ): array {
+        $this->ensureSalesSynced();
+
         $beginningBalance = $this->getBeginningBalance($startDate);
 
         $query = BankTransaction::query()->with(['category', 'creator']);
@@ -379,21 +402,184 @@ class BankLedgerService
     }
 
     /**
+     * Ensure any unsynced completed bank/UPI/card sales are backfilled into the ledger.
+     */
+    public function ensureSalesSynced(): int
+    {
+        $existingSaleIds = BankTransaction::query()
+            ->where('reference_type', Sale::class)
+            ->pluck('reference_id');
+
+        $missingSales = Sale::query()
+            ->where('status', SaleStatus::COMPLETED)
+            ->where(function ($q) {
+                $q->whereIn('payment_method', [
+                    PaymentMethod::UPI,
+                    PaymentMethod::CARD,
+                    PaymentMethod::TRANSFER,
+                    'upi',
+                    'card',
+                    'transfer',
+                    'credit',
+                ])->orWhere(function ($sq) {
+                    $sq->where(function ($pq) {
+                        $pq->where('payment_method', PaymentMethod::SPLIT)
+                            ->orWhere('payment_method', 'split');
+                    })->where('bank_amount', '>', 0);
+                });
+            })
+            ->whereNotIn('id', $existingSaleIds)
+            ->get();
+
+        $synced = 0;
+        foreach ($missingSales as $sale) {
+            $this->recordSaleTransaction($sale);
+            $synced++;
+        }
+
+        return $synced;
+    }
+
+    /**
+     * Export bank ledger data to an Excel XLSX workbook.
+     */
+    public function exportXls(
+        ?string $startDate = null,
+        ?string $endDate = null,
+        ?string $search = null,
+        ?string $type = null
+    ): BinaryFileResponse {
+        $ledgerData = $this->getLedgerEntries($startDate, $endDate, $search, $type);
+        $accountName = Setting::get('bank_account_name', '1200 Bank Account');
+
+        $writer = new Writer;
+        $tempPath = tempnam(sys_get_temp_dir(), 'bank_ledger_').'.xlsx';
+        $writer->openToFile($tempPath);
+
+        $periodLabel = 'All Time';
+        if ($startDate && $endDate) {
+            $periodLabel = Carbon::parse($startDate)->format('d M Y').' to '.Carbon::parse($endDate)->format('d M Y');
+        } elseif ($startDate) {
+            $periodLabel = 'From '.Carbon::parse($startDate)->format('d M Y');
+        } elseif ($endDate) {
+            $periodLabel = 'Up to '.Carbon::parse($endDate)->format('d M Y');
+        }
+
+        $filename = 'bank-ledger-'.($startDate ?: 'all').'-to-'.($endDate ?: 'time').'.xlsx';
+
+        // Title and Metadata Block
+        $writer->addRow(Row::fromValues(['BANK REGISTER - 1200 BANK ACCOUNT']));
+        $writer->addRow(Row::fromValues(['Account Name:', $accountName]));
+        $writer->addRow(Row::fromValues(['Period:', $periodLabel]));
+        $writer->addRow(Row::fromValues(['Generated At:', now()->format('d M Y, h:i A')]));
+        $writer->addRow(Row::fromValues([]));
+
+        // KPI Summary Block
+        $writer->addRow(Row::fromValues([
+            'Beginning Balance',
+            'Total Bank Inflows',
+            'Total Bank Outflows',
+            'Net Ending Balance',
+        ]));
+        $writer->addRow(Row::fromValues([
+            (float) $ledgerData['beginning_balance'],
+            (float) $ledgerData['total_inflows'],
+            (float) $ledgerData['total_outflows'],
+            (float) $ledgerData['ending_balance'],
+        ]));
+        $writer->addRow(Row::fromValues([]));
+
+        // Table Header
+        $writer->addRow(Row::fromValues([
+            'Date',
+            'Transaction Type',
+            'Num / Ref #',
+            'Name / Entity',
+            'Description / Memo',
+            'Account Name',
+            'Item Split Account',
+            'Inflow (INR)',
+            'Outflow (INR)',
+            'Running Balance (INR)',
+        ]));
+
+        // Beginning Balance Row
+        $writer->addRow(Row::fromValues([
+            $startDate ? Carbon::parse($startDate)->format('d/m/Y') : '-',
+            'Beginning Balance',
+            '-',
+            'Beginning Balance',
+            'Opening baseline bank balance',
+            $accountName,
+            '-',
+            0.00,
+            0.00,
+            (float) $ledgerData['beginning_balance'],
+        ]));
+
+        /** @var BankTransaction $txn */
+        foreach ($ledgerData['entries'] as $txn) {
+            $inflow = $txn->transaction_type->isInflow() ? (float) $txn->amount : 0.00;
+            $outflow = $txn->transaction_type->isOutflow() ? (float) $txn->amount : 0.00;
+
+            $writer->addRow(Row::fromValues([
+                $txn->transaction_date ? Carbon::parse($txn->transaction_date)->format('d/m/Y') : '-',
+                $txn->transaction_type->label(),
+                $txn->reference_number ?: '-',
+                $txn->name ?: '-',
+                $txn->description ?: '-',
+                $txn->account_name,
+                $txn->split_account ?: ($txn->category?->name ?: '-'),
+                $inflow,
+                $outflow,
+                (float) $txn->running_balance,
+            ]));
+        }
+
+        // Summary Totals Row
+        $writer->addRow(Row::fromValues([
+            'TOTALS',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            (float) $ledgerData['total_inflows'],
+            (float) $ledgerData['total_outflows'],
+            (float) $ledgerData['ending_balance'],
+        ]));
+
+        $writer->close();
+
+        return response()->download($tempPath, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
      * Backfill existing completed UPI, Card, Transfer, and credit sales into the bank ledger.
      */
     public function syncHistoricalBankSales(): int
     {
         $sales = Sale::query()
             ->where('status', SaleStatus::COMPLETED)
-            ->whereIn('payment_method', [
-                PaymentMethod::UPI,
-                PaymentMethod::CARD,
-                PaymentMethod::TRANSFER,
-                'upi',
-                'card',
-                'transfer',
-                'credit',
-            ])
+            ->where(function ($q) {
+                $q->whereIn('payment_method', [
+                    PaymentMethod::UPI,
+                    PaymentMethod::CARD,
+                    PaymentMethod::TRANSFER,
+                    'upi',
+                    'card',
+                    'transfer',
+                    'credit',
+                ])->orWhere(function ($sq) {
+                    $sq->where(function ($pq) {
+                        $pq->where('payment_method', PaymentMethod::SPLIT)
+                            ->orWhere('payment_method', 'split');
+                    })->where('bank_amount', '>', 0);
+                });
+            })
             ->get();
 
         $synced = 0;

@@ -33,6 +33,8 @@ class Sale extends Model
         'notes',
         'discount_coupon_id',
         'coupon_code',
+        'cash_amount',
+        'bank_amount',
     ];
 
     protected $casts = [
@@ -48,7 +50,40 @@ class Sale extends Model
         'total' => 'decimal:2',
         'cash_received' => 'decimal:2',
         'change' => 'decimal:2',
+        'cash_amount' => 'decimal:2',
+        'bank_amount' => 'decimal:2',
     ];
+
+    public function isSplit(): bool
+    {
+        $method = $this->payment_method instanceof PaymentMethod
+            ? $this->payment_method
+            : PaymentMethod::tryFrom((string) $this->payment_method);
+
+        return $method === PaymentMethod::SPLIT;
+    }
+
+    public function getCashAmount(): float
+    {
+        if ($this->isSplit()) {
+            return (float) ($this->cash_amount ?? 0);
+        }
+
+        $isCash = $this->payment_method === PaymentMethod::CASH || $this->payment_method === 'cash';
+
+        return $isCash ? (float) ($this->total ?? 0) : 0.0;
+    }
+
+    public function getBankAmount(): float
+    {
+        if ($this->isSplit()) {
+            return (float) ($this->bank_amount ?? 0);
+        }
+
+        $isCash = $this->payment_method === PaymentMethod::CASH || $this->payment_method === 'cash';
+
+        return ! $isCash ? (float) ($this->total ?? 0) : 0.0;
+    }
 
     public function items(): HasMany
     {

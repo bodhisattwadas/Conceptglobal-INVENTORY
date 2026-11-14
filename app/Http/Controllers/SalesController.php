@@ -275,17 +275,24 @@ class SalesController extends Controller
         $validated = $request->validate([
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
             'cash_received' => ['nullable', 'numeric', 'min:0'],
+            'cash_amount' => ['nullable', 'numeric', 'min:0'],
+            'bank_amount' => ['nullable', 'numeric', 'min:0'],
             'payment_ref' => ['nullable', 'string', 'max:100'],
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
         try {
+            $cashAmount = isset($validated['cash_amount']) && $validated['cash_amount'] !== '' ? (float) $validated['cash_amount'] : null;
+            $bankAmount = isset($validated['bank_amount']) && $validated['bank_amount'] !== '' ? (float) $validated['bank_amount'] : null;
+
             $saleService->updatePaymentMethod(
                 $sale,
                 $validated['payment_method'],
                 isset($validated['cash_received']) && $validated['cash_received'] !== '' ? (float) $validated['cash_received'] : null,
                 $validated['reason'] ?? null,
-                $validated['payment_ref'] ?? null
+                $validated['payment_ref'] ?? null,
+                $cashAmount,
+                $bankAmount
             );
 
             if ($request->wantsJson()) {

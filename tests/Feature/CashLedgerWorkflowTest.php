@@ -856,6 +856,64 @@ class CashLedgerWorkflowTest extends TestCase
             ->assertSee('-');
     }
 
+    public function test_cash_ledger_auto_syncs_missing_completed_sales_on_retrieval(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        // Directly insert a completed cash sale bypassing service to simulate missing sync
+        $sale = Sale::create([
+            'invoice_number' => 'INV-AUTOSYNC-001',
+            'created_by' => $admin->id,
+            'sale_date' => now(),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 750.00,
+            'global_discount' => 0,
+            'total_discount' => 0,
+            'total' => 750.00,
+            'cash_received' => 750.00,
+            'change' => 0,
+            'payment_method' => PaymentMethod::CASH,
+        ]);
+
+        $this->assertDatabaseMissing('cash_transactions', [
+            'reference_id' => $sale->id,
+        ]);
+
+        // When getLedgerEntries is called, it auto-syncs
+        $entries = $this->cashLedgerService->getLedgerEntries();
+
+        $this->assertDatabaseHas('cash_transactions', [
+            'reference_id' => $sale->id,
+            'amount' => 750.00,
+        ]);
+        $this->assertEquals(750.00, $entries['total_inflows']);
+    }
+
+    public function test_cash_ledger_export_xls_generates_valid_download_response(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $this->cashLedgerService->recordCashInvestment([
+            'amount' => 5000.00,
+            'description' => 'Initial Capital',
+        ], $admin->id);
+
+        $response = $this->cashLedgerService->exportXls();
+
+        $this->assertTrue($response->headers->contains('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
+        $this->assertFileExists($response->getFile()->getPathname());
+    }
+
+    public function test_livewire_cash_ledger_table_export_excel_action(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        Livewire::actingAs($admin)
+            ->test(CashLedgerTable::class)
+            ->call('exportExcel')
+            ->assertFileDownloaded();
+    }
+
     private function createPendingSale(User $user, float $total, ?Customer $customer = null, PaymentMethod $method = PaymentMethod::CASH): Sale
     {
         return Sale::create([

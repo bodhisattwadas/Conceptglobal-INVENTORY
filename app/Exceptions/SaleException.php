@@ -82,4 +82,11 @@ class SaleException extends Exception
 
         return new self('Payment is insufficient. Please collect the full amount.');
     }
+
+    public static function invalidPayment(string $reason = 'Payment amounts are invalid or unbalanced.'): self
+    {
+        Log::warning("Invalid payment: {$reason}");
+
+        return new self($reason);
+    }
 }

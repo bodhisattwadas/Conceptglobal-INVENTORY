@@ -66,6 +66,10 @@ class SaleService
                     $appliedCoupon = $couponQuery->lockForUpdate()->first();
                 }
 
+                $isSplit = $data->payment_method === PaymentMethod::SPLIT;
+                $cashAmount = $isSplit ? (float) $data->cash_amount : 0.00;
+                $bankAmount = $isSplit ? (float) $data->bank_amount : 0.00;
+
                 $sale = Sale::create([
                     'invoice_number' => $this->generateInvoiceNumber(),
                     'customer_id' => $data->customer_id,
@@ -74,7 +78,11 @@ class SaleService
                     'status' => $data->status,
                     'payment_method' => $data->payment_method,
                     'notes' => $data->notes,
-                    'cash_received' => $data->payment_method === PaymentMethod::CASH ? $data->cash_received : 0,
+                    'cash_amount' => $cashAmount,
+                    'bank_amount' => $bankAmount,
+                    'cash_received' => $data->payment_method === PaymentMethod::CASH
+                        ? $data->cash_received
+                        : ($isSplit ? ($data->cash_received > 0 ? $data->cash_received : $cashAmount) : 0),
                     'change' => 0,
                     'subtotal' => 0,
                     'global_discount' => $data->global_discount,
@@ -263,10 +271,17 @@ class SaleService
                 }
 
                 $returnDiscount = round(max(0, (float) ($data->return_discount ?? 0)), 2);
+                $rawBillDiscount = abs((float) $data->bill_discount);
+                $rawGlobalDiscount = abs((float) $data->global_discount);
+                $billDiscount = (float) ($rawBillDiscount > 0 ? $rawBillDiscount : (empty($appliedCoupon) ? $rawGlobalDiscount : 0));
 
                 if ($data->round_off !== null) {
                     $roundOff = round($data->round_off, 2);
-                    $globalDiscount = round($couponDiscount - $roundOff, 2);
+                    if (abs($roundOff) < 0.001 && $billDiscount > 0) {
+                        $globalDiscount = round($couponDiscount + $billDiscount, 2);
+                    } else {
+                        $globalDiscount = round($couponDiscount - $roundOff, 2);
+                    }
 
                     if (($globalDiscount + $returnDiscount) > $totalSubtotal) {
                         // Allow return discount to cap total at 0
@@ -275,9 +290,6 @@ class SaleService
                         $total = max(0, round($totalSubtotal - $globalDiscount - $returnDiscount, 2));
                     }
                 } else {
-                    $rawBillDiscount = abs((float) $data->bill_discount);
-                    $rawGlobalDiscount = abs((float) $data->global_discount);
-                    $billDiscount = (float) ($rawBillDiscount > 0 ? $rawBillDiscount : (empty($appliedCoupon) ? $rawGlobalDiscount : 0));
                     $globalDiscount = round($couponDiscount + $billDiscount, 2);
                     $roundOff = round(-$billDiscount, 2);
 
@@ -288,16 +300,30 @@ class SaleService
                     }
                 }
 
+                if ($isSplit) {
+                    if (abs(($cashAmount + $bankAmount) - $total) > 0.01 || ($cashAmount + $bankAmount) <= 0) {
+                        throw SaleException::invalidPayment('The total split payment amounts (₹'.round($cashAmount + $bankAmount, 2).") must equal the sale total (₹{$total}) and be greater than zero.");
+                    }
+                }
+
                 if ($data->status === SaleStatus::COMPLETED) {
                     if ($data->payment_method === PaymentMethod::CASH && $data->cash_received < $total) {
                         throw SaleException::insufficientPayment($total, $data->cash_received);
                     }
+                    if ($isSplit && $data->cash_received > 0 && $data->cash_received < $cashAmount) {
+                        throw SaleException::insufficientPayment($cashAmount, $data->cash_received);
+                    }
                 }
                 $change = 0;
 
-                // Calculate change if payment method is cash
-                if ($data->payment_method === PaymentMethod::CASH && $sale->cash_received >= $total) {
-                    $change = round($sale->cash_received - $total, 2);
+                // Calculate change if payment method is cash or split
+                if ($data->payment_method === PaymentMethod::CASH && $data->cash_received >= $total) {
+                    $change = round($data->cash_received - $total, 2);
+                } elseif ($isSplit) {
+                    $cashReceived = (float) ($data->cash_received > 0 ? $data->cash_received : $cashAmount);
+                    if ($cashReceived >= $cashAmount) {
+                        $change = round($cashReceived - $cashAmount, 2);
+                    }
                 }
 
                 $sale->update([
@@ -308,7 +334,11 @@ class SaleService
                     'round_off' => $roundOff,
                     'return_discount' => $returnDiscount,
                     'total' => $total,
-                    'cash_received' => $data->payment_method === PaymentMethod::CASH ? $data->cash_received : $total,
+                    'cash_amount' => $isSplit ? $cashAmount : 0.00,
+                    'bank_amount' => $isSplit ? $bankAmount : 0.00,
+                    'cash_received' => $data->payment_method === PaymentMethod::CASH
+                        ? $data->cash_received
+                        : ($isSplit ? ($data->cash_received > 0 ? $data->cash_received : $cashAmount) : $total),
                     'change' => $change,
                     'discount_coupon_id' => $appliedCoupon?->id,
                     'coupon_code' => $appliedCoupon?->code ?? $data->coupon_code,
@@ -364,6 +394,8 @@ class SaleService
                     'round_off' => (float) $sale->round_off,
                     'total_discount' => (float) $sale->total_discount,
                     'total' => (float) $sale->total,
+                    'cash_amount' => (float) ($sale->cash_amount ?? 0),
+                    'bank_amount' => (float) ($sale->bank_amount ?? 0),
                     'cash_received' => (float) $sale->cash_received,
                     'change' => (float) $sale->change,
                     'notes' => $sale->notes,
@@ -696,9 +728,17 @@ class SaleService
                 }
 
                 // 6. Round off & totals
+                $rawBillDiscount = abs((float) $data->bill_discount);
+                $rawGlobalDiscount = abs((float) $data->global_discount);
+                $billDiscount = (float) ($rawBillDiscount > 0 ? $rawBillDiscount : (empty($appliedCoupon) ? $rawGlobalDiscount : 0));
+
                 if ($data->round_off !== null) {
                     $roundOff = round($data->round_off, 2);
-                    $globalDiscount = round($couponDiscount - $roundOff, 2);
+                    if (abs($roundOff) < 0.001 && $billDiscount > 0) {
+                        $globalDiscount = round($couponDiscount + $billDiscount, 2);
+                    } else {
+                        $globalDiscount = round($couponDiscount - $roundOff, 2);
+                    }
 
                     if ($globalDiscount > $totalSubtotal) {
                         throw SaleException::invalidDiscount('Discount ('.format_money($globalDiscount).') cannot exceed subtotal ('.format_money($totalSubtotal).').');
@@ -706,9 +746,6 @@ class SaleService
 
                     $total = max(0, round($totalSubtotal - $globalDiscount, 2));
                 } else {
-                    $rawBillDiscount = abs((float) $data->bill_discount);
-                    $rawGlobalDiscount = abs((float) $data->global_discount);
-                    $billDiscount = (float) ($rawBillDiscount > 0 ? $rawBillDiscount : (empty($appliedCoupon) ? $rawGlobalDiscount : 0));
                     $globalDiscount = round($couponDiscount + $billDiscount, 2);
                     $roundOff = round(-$billDiscount, 2);
 
@@ -721,7 +758,19 @@ class SaleService
 
                 // 7. Payment method & cash tender
                 $paymentMethod = $data->payment_method;
-                $cashReceived = $paymentMethod === PaymentMethod::CASH ? $data->cash_received : $total;
+                $isSplit = $paymentMethod === PaymentMethod::SPLIT;
+                $cashAmount = $isSplit ? (float) $data->cash_amount : 0.00;
+                $bankAmount = $isSplit ? (float) $data->bank_amount : 0.00;
+
+                if ($isSplit) {
+                    if (abs(($cashAmount + $bankAmount) - $total) > 0.01 || ($cashAmount + $bankAmount) <= 0) {
+                        throw SaleException::invalidPayment('The total split payment amounts (₹'.round($cashAmount + $bankAmount, 2).") must equal the sale total (₹{$total}) and be greater than zero.");
+                    }
+                }
+
+                $cashReceived = $paymentMethod === PaymentMethod::CASH
+                    ? $data->cash_received
+                    : ($isSplit ? ($data->cash_received > 0 ? $data->cash_received : $cashAmount) : $total);
                 $change = 0;
 
                 if ($paymentMethod === PaymentMethod::CASH) {
@@ -730,6 +779,13 @@ class SaleService
                     }
                     if ($cashReceived >= $total) {
                         $change = round($cashReceived - $total, 2);
+                    }
+                } elseif ($isSplit) {
+                    if ($sale->status === SaleStatus::COMPLETED && $data->cash_received > 0 && $data->cash_received < $cashAmount) {
+                        throw SaleException::insufficientPayment($cashAmount, $data->cash_received);
+                    }
+                    if ($cashReceived >= $cashAmount) {
+                        $change = round($cashReceived - $cashAmount, 2);
                     }
                 }
 
@@ -758,6 +814,8 @@ class SaleService
                     'coupon_discount' => $couponDiscount,
                     'round_off' => $roundOff,
                     'total' => $total,
+                    'cash_amount' => $isSplit ? $cashAmount : 0.00,
+                    'bank_amount' => $isSplit ? $bankAmount : 0.00,
                     'cash_received' => $cashReceived,
                     'change' => $change,
                     'discount_coupon_id' => $appliedCoupon?->id,
@@ -787,6 +845,8 @@ class SaleService
                     'round_off' => (float) $sale->round_off,
                     'total_discount' => (float) $sale->total_discount,
                     'total' => (float) $sale->total,
+                    'cash_amount' => (float) ($sale->cash_amount ?? 0),
+                    'bank_amount' => (float) ($sale->bank_amount ?? 0),
                     'cash_received' => (float) $sale->cash_received,
                     'change' => (float) $sale->change,
                     'notes' => $sale->notes,
@@ -906,16 +966,43 @@ class SaleService
                 throw SaleException::invalidStatus('complete', $sale->status->label(), ['id' => $sale->id]);
             }
 
+            $isSplit = $sale->payment_method === PaymentMethod::SPLIT;
+            $cashAmount = isset($paymentData['cash_amount']) && $paymentData['cash_amount'] !== '' ? (float) $paymentData['cash_amount'] : (float) ($sale->cash_amount ?? 0);
+            $bankAmount = isset($paymentData['bank_amount']) && $paymentData['bank_amount'] !== '' ? (float) $paymentData['bank_amount'] : (float) ($sale->bank_amount ?? 0);
+            $total = (float) $sale->total;
+
+            if ($isSplit) {
+                if (abs(($cashAmount + $bankAmount) - $total) > 0.01 || ($cashAmount + $bankAmount) <= 0) {
+                    throw SaleException::invalidPayment('The total split payment amounts (₹'.round($cashAmount + $bankAmount, 2).") must equal the sale total (₹{$total}) and be greater than zero.");
+                }
+            }
+
             $cashReceived = round((float) ($paymentData['cash_received'] ?? $sale->cash_received), 2);
 
             if ($sale->payment_method === PaymentMethod::CASH && $cashReceived < $sale->total) {
                 throw SaleException::insufficientPayment($sale->total, $cashReceived);
             }
 
+            if ($isSplit && $cashReceived > 0 && $cashReceived < $cashAmount) {
+                throw SaleException::insufficientPayment($cashAmount, $cashReceived);
+            }
+
+            $change = 0;
+            if ($sale->payment_method === PaymentMethod::CASH) {
+                $change = round($cashReceived - $sale->total, 2);
+            } elseif ($isSplit) {
+                $effectiveCashReceived = $cashReceived > 0 ? $cashReceived : $cashAmount;
+                $change = max(0, round($effectiveCashReceived - $cashAmount, 2));
+            }
+
             $updateData = [
                 'status' => SaleStatus::COMPLETED,
-                'cash_received' => $sale->payment_method === PaymentMethod::CASH ? $cashReceived : $sale->total,
-                'change' => $sale->payment_method === PaymentMethod::CASH ? round($cashReceived - $sale->total, 2) : 0,
+                'cash_amount' => $isSplit ? $cashAmount : 0.00,
+                'bank_amount' => $isSplit ? $bankAmount : 0.00,
+                'cash_received' => $sale->payment_method === PaymentMethod::CASH
+                    ? $cashReceived
+                    : ($isSplit ? ($cashReceived > 0 ? $cashReceived : $cashAmount) : $sale->total),
+                'change' => $change,
             ];
 
             $sale->update($updateData);
@@ -1158,18 +1245,39 @@ class SaleService
     /**
      * Update the sale payment method, adjust tender/change, and synchronize finance and audit records.
      */
-    public function updatePaymentMethod(Sale $sale, PaymentMethod|string $paymentMethod, ?float $cashReceived = null, ?string $reason = null, ?string $paymentRef = null): Sale
+    public function updatePaymentMethod(Sale $sale, PaymentMethod|string $paymentMethod, ?float $cashReceived = null, ?string $reason = null, ?string $paymentRef = null, ?float $cashAmount = null, ?float $bankAmount = null): Sale
     {
-        return DB::transaction(function () use ($sale, $paymentMethod, $cashReceived, $reason, $paymentRef) {
+        return DB::transaction(function () use ($sale, $paymentMethod, $cashReceived, $reason, $paymentRef, $cashAmount, $bankAmount) {
             $oldMethod = $sale->payment_method;
             $newMethod = $paymentMethod instanceof PaymentMethod ? $paymentMethod : PaymentMethod::from($paymentMethod);
 
-            $cash = $newMethod === PaymentMethod::CASH ? round((float) ($cashReceived ?? $sale->total), 2) : $sale->total;
-            if ($newMethod === PaymentMethod::CASH && $sale->status === SaleStatus::COMPLETED && $cash < $sale->total) {
-                throw SaleException::insufficientPayment($sale->total, $cash);
+            $isSplit = $newMethod === PaymentMethod::SPLIT;
+            $newCashAmount = $isSplit ? (float) ($cashAmount ?? $sale->cash_amount ?? 0) : 0.00;
+            $newBankAmount = $isSplit ? (float) ($bankAmount ?? $sale->bank_amount ?? 0) : 0.00;
+
+            if ($isSplit) {
+                $total = (float) $sale->total;
+                if (abs(($newCashAmount + $newBankAmount) - $total) > 0.01 || ($newCashAmount + $newBankAmount) <= 0) {
+                    throw SaleException::invalidPayment('The total split payment amounts (₹'.round($newCashAmount + $newBankAmount, 2).") must equal the sale total (₹{$total}) and be greater than zero.");
+                }
             }
 
-            $change = ($newMethod === PaymentMethod::CASH && $cash >= $sale->total) ? round($cash - $sale->total, 2) : 0;
+            if ($newMethod === PaymentMethod::CASH) {
+                $cash = round((float) ($cashReceived ?? $sale->total), 2);
+                if ($sale->status === SaleStatus::COMPLETED && $cash < $sale->total) {
+                    throw SaleException::insufficientPayment($sale->total, $cash);
+                }
+                $change = $cash >= $sale->total ? round($cash - $sale->total, 2) : 0;
+            } elseif ($isSplit) {
+                $cash = round((float) ($cashReceived ?? $newCashAmount), 2);
+                if ($sale->status === SaleStatus::COMPLETED && $cashReceived !== null && $cash < $newCashAmount) {
+                    throw SaleException::insufficientPayment($newCashAmount, $cash);
+                }
+                $change = $cash >= $newCashAmount ? round($cash - $newCashAmount, 2) : 0;
+            } else {
+                $cash = $sale->total;
+                $change = 0;
+            }
 
             $notes = $sale->notes;
             if ($paymentRef && trim($paymentRef) !== '') {
@@ -1186,12 +1294,16 @@ class SaleService
 
             $oldState = [
                 'payment_method' => $oldMethod->value,
+                'cash_amount' => (float) ($sale->cash_amount ?? 0),
+                'bank_amount' => (float) ($sale->bank_amount ?? 0),
                 'cash_received' => (float) $sale->cash_received,
                 'change' => (float) $sale->change,
             ];
 
             $sale->update([
                 'payment_method' => $newMethod,
+                'cash_amount' => $newCashAmount,
+                'bank_amount' => $newBankAmount,
                 'cash_received' => $cash,
                 'change' => $change,
                 'notes' => $notes,

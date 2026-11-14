@@ -202,9 +202,10 @@
                     <span>New Sale (Cart)</span>
                     <span
                         x-show="validCartItems.length > 0"
-                        class="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold"
+                        class="px-2 py-0.5 rounded-full text-[10px] font-extrabold"
                         :class="activeTab === 'sale' ? 'bg-white text-indigo-700' : 'bg-indigo-100 text-indigo-700'"
-                        x-text="validCartItems.length"
+                        x-text="totalQuantity + ' pcs (' + validCartItems.length + ')'"
+                        :title="validCartItems.length + ' line items, ' + totalQuantity + ' total units'"
                     ></span>
                 </button>
 
@@ -486,50 +487,61 @@
                             </template>
                             <tr>
                                 <td colspan="8" class="px-4 py-3 bg-white border-t border-gray-200">
-                                    <div class="flex items-center gap-2.5 flex-wrap">
-                                        <button
-                                            type="button"
-                                            @click="addRow()"
-                                            :disabled="hasBlankRow"
-                                            class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                                            :class="hasBlankRow
-                                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200 shadow-none'
-                                                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm focus-visible:outline-emerald-600'"
-                                            :title="hasBlankRow ? 'Select an item in the blank row first' : 'Add another product row'"
-                                        >
-                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                            </svg>
-                                            <span>{{ __('Add Product') }}</span>
-                                        </button>
+                                    <div class="flex items-center justify-between gap-3 flex-wrap">
+                                        <div class="flex items-center gap-2.5 flex-wrap">
+                                            <button
+                                                type="button"
+                                                @click="addRow()"
+                                                :disabled="hasBlankRow"
+                                                class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                                                :class="hasBlankRow
+                                                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200 shadow-none'
+                                                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm focus-visible:outline-emerald-600'"
+                                                :title="hasBlankRow ? 'Select an item in the blank row first' : 'Add another product row'"
+                                            >
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                                </svg>
+                                                <span>{{ __('Add Product') }}</span>
+                                            </button>
 
-                                        <button
-                                            type="button"
-                                            @click="addServiceRow()"
-                                            :disabled="hasBlankServiceRow"
-                                            class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                                            :class="hasBlankServiceRow
-                                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200 shadow-none'
-                                                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-sm focus-visible:outline-purple-600'"
-                                            :title="hasBlankServiceRow ? 'Select a service for the existing blank row first' : 'Add a service (e.g. Facial, Hair Brow)'"
-                                        >
-                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879a3 3 0 11-4.242-4.242L7.757 7.757m0 0l7.071-7.071a3 3 0 114.243 4.243L12 12" />
-                                            </svg>
-                                            <span>{{ __('Add Service') }}</span>
-                                        </button>
+                                            <button
+                                                type="button"
+                                                @click="addServiceRow()"
+                                                :disabled="hasBlankServiceRow"
+                                                class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                                                :class="hasBlankServiceRow
+                                                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200 shadow-none'
+                                                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow-sm focus-visible:outline-purple-600'"
+                                                :title="hasBlankServiceRow ? 'Select a service for the existing blank row first' : 'Add a service (e.g. Facial, Hair Brow)'"
+                                            >
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879a3 3 0 11-4.242-4.242L7.757 7.757m0 0l7.071-7.071a3 3 0 114.243 4.243L12 12" />
+                                                </svg>
+                                                <span>{{ __('Add Service') }}</span>
+                                            </button>
 
-                                        <button
-                                            type="button"
-                                            @click="addManualRow()"
-                                            class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all bg-amber-600 hover:bg-amber-500 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600"
-                                            title="{{ __('Add manual unlisted product for quick sale and inventory reconciliation') }}"
-                                        >
-                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                            </svg>
-                                            <span>{{ __('+ Manual Item') }}</span>
-                                        </button>
+                                            <button
+                                                type="button"
+                                                @click="addManualRow()"
+                                                class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all bg-amber-600 hover:bg-amber-500 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600"
+                                                title="{{ __('Add manual unlisted product for quick sale and inventory reconciliation') }}"
+                                            >
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                                </svg>
+                                                <span>{{ __('+ Manual Item') }}</span>
+                                            </button>
+                                        </div>
+
+                                        <!-- Live Total Billed Qty Indicator -->
+                                        <div x-show="validCartItems.length > 0" class="flex items-center gap-2.5 bg-indigo-50/90 border border-indigo-200 rounded-lg px-3 py-1.5 text-xs shadow-xs">
+                                            <span class="text-gray-600 font-medium">Billed Items:</span>
+                                            <span class="font-bold text-gray-800" x-text="validCartItems.length + (validCartItems.length === 1 ? ' line' : ' lines')"></span>
+                                            <span class="text-indigo-200">|</span>
+                                            <span class="text-indigo-950 font-bold">Total Billed Qty:</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-black bg-indigo-600 text-white shadow-xs" x-text="totalQuantity + ' pcs'"></span>
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
@@ -551,13 +563,13 @@
                             <span class="text-[11px] text-gray-400 capitalize" x-text="'Selected: ' + payment.method"></span>
                         </div>
 
-                        <!-- 3 Payment Buttons: UPI / Cash / Card -->
-                        <div class="grid grid-cols-3 gap-2" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+                        <!-- 4 Payment Buttons: UPI / Cash / Card / Split -->
+                        <div class="grid grid-cols-4 gap-2" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
                             <!-- UPI -->
                             <button
                                 type="button"
                                 @click="selectPaymentMethod('upi')"
-                                class="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border-2 transition-all font-bold text-xs"
+                                class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
                                 :class="payment.method === 'upi' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
                             >
                                 <svg class="w-4 h-4 text-indigo-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
@@ -568,7 +580,7 @@
                             <button
                                 type="button"
                                 @click="selectPaymentMethod('cash')"
-                                class="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border-2 transition-all font-bold text-xs"
+                                class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
                                 :class="payment.method === 'cash' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
                             >
                                 <svg class="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
@@ -579,11 +591,22 @@
                             <button
                                 type="button"
                                 @click="selectPaymentMethod('card')"
-                                class="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border-2 transition-all font-bold text-xs"
+                                class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
                                 :class="payment.method === 'card' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
                             >
                                 <svg class="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
                                 <span>Card</span>
+                            </button>
+
+                            <!-- Split (Cash + UPI) -->
+                            <button
+                                type="button"
+                                @click="selectPaymentMethod('split')"
+                                class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
+                                :class="payment.method === 'split' ? 'border-purple-600 bg-purple-50/80 text-purple-700 shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
+                            >
+                                <svg class="w-4 h-4 text-purple-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                                <span>Split</span>
                             </button>
                         </div>
 
@@ -700,6 +723,123 @@
                                 >
                             </div>
                         </template>
+
+                        <!-- If SPLIT (Cash + UPI) -->
+                        <template x-if="payment.method === 'split'">
+                            <div class="bg-purple-50/60 rounded-lg p-3 border border-purple-200 space-y-2.5">
+                                <div class="flex items-center justify-between text-xs font-bold text-purple-800">
+                                    <div class="flex items-center gap-1.5">
+                                        <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                                        <span>Split Tender Calculator</span>
+                                    </div>
+                                    <span class="text-[11px] font-semibold text-purple-700">Total: <span x-text="formatCurrency(total)"></span></span>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <!-- Cash Portion -->
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
+                                            Cash Amount (₹)
+                                        </label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-emerald-600 font-bold text-xs">
+                                                ₹
+                                            </div>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                name="pos_split_cash"
+                                                id="pos_split_cash"
+                                                autocomplete="off"
+                                                :value="payment.cash_amount"
+                                                @input="onSplitCashInput($event.target.value)"
+                                                class="block w-full pl-7 pr-2 py-1.5 text-sm font-bold text-gray-900 border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
+                                                placeholder="0.00"
+                                            >
+                                        </div>
+                                    </div>
+
+                                    <!-- UPI / Bank Portion -->
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
+                                            UPI / Bank Amount (₹)
+                                        </label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-indigo-600 font-bold text-xs">
+                                                ₹
+                                            </div>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                name="pos_split_bank"
+                                                id="pos_split_bank"
+                                                autocomplete="off"
+                                                x-model.number="payment.bank_amount"
+                                                class="block w-full pl-7 pr-2 py-1.5 text-sm font-bold text-gray-900 border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
+                                                placeholder="0.00"
+                                            >
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Quick Cash Presets for Split -->
+                                <div class="flex items-center gap-1.5 pt-1">
+                                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Quick:</span>
+                                    <button type="button" @click="setSplitCash(total)" class="px-2 py-0.5 bg-white hover:bg-purple-100 border border-purple-200 rounded text-[11px] font-bold text-purple-700 transition-colors">
+                                        All Cash
+                                    </button>
+                                    <button type="button" @click="setSplitCash(0)" class="px-2 py-0.5 bg-white hover:bg-purple-100 border border-purple-200 rounded text-[11px] font-bold text-purple-700 transition-colors">
+                                        All UPI
+                                    </button>
+                                    <button type="button" @click="setSplitCash(Math.round(total / 2))" class="px-2 py-0.5 bg-white hover:bg-purple-100 border border-purple-200 rounded text-[11px] font-bold text-purple-700 transition-colors">
+                                        50 / 50
+                                    </button>
+                                    <button type="button" @click="addSplitCash(500)" class="px-2 py-0.5 bg-white hover:bg-gray-100 border border-gray-300 rounded text-[11px] font-bold text-gray-700 transition-colors">
+                                        +500 Cash
+                                    </button>
+                                    <button type="button" @click="addSplitCash(1000)" class="px-2 py-0.5 bg-white hover:bg-gray-100 border border-gray-300 rounded text-[11px] font-bold text-gray-700 transition-colors">
+                                        +1K Cash
+                                    </button>
+                                </div>
+
+                                <!-- UPI Reference Field -->
+                                <div>
+                                    <input
+                                        type="text"
+                                        name="pos_split_upi_ref"
+                                        id="pos_split_upi_ref"
+                                        autocomplete="off"
+                                        x-model="payment.ref"
+                                        placeholder="UPI UTR / Reference ID (Optional)..."
+                                        class="block w-full text-xs rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 py-1.5"
+                                    >
+                                </div>
+
+                                <!-- Allocation Status Pill -->
+                                <div class="pt-1">
+                                    <template x-if="isSplitBalanced">
+                                        <div class="flex items-center justify-between px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                            <span class="flex items-center gap-1.5">
+                                                <svg class="w-3.5 h-3.5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                                <span>Balanced Allocation</span>
+                                            </span>
+                                            <span>₹<span x-text="formatCurrency(payment.cash_amount)"></span> + ₹<span x-text="formatCurrency(payment.bank_amount)"></span> = ₹<span x-text="formatCurrency(total)"></span></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="!isSplitBalanced">
+                                        <div class="flex items-center justify-between px-2.5 py-1 rounded-md text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                            <span class="flex items-center gap-1.5">
+                                                <svg class="w-3.5 h-3.5 text-rose-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                                                <span>Unbalanced: <span x-text="((parseFloat(payment.cash_amount) || 0) + (parseFloat(payment.bank_amount) || 0)) < total ? 'Short by' : 'Exceeds by'"></span></span>
+                                            </span>
+                                            <span>₹<span x-text="formatCurrency(Math.abs(total - ((parseFloat(payment.cash_amount) || 0) + (parseFloat(payment.bank_amount) || 0))))"></span></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
                     </div>
 
                     <!-- Compact Notes Input -->
@@ -723,6 +863,18 @@
                 <!-- Right Column: Totals Summary & Action Buttons -->
                 <div class="flex flex-col justify-between space-y-2.5 bg-gray-50/80 p-3 sm:p-3.5 rounded-xl border border-gray-200">
                     <div class="space-y-1.5 text-xs">
+                        <!-- Total Billed Qty Counter Card -->
+                        <div class="flex justify-between items-center bg-indigo-50/80 border border-indigo-200/80 rounded-lg px-3 py-2 mb-2 text-xs shadow-2xs">
+                            <div class="flex items-center gap-2 text-indigo-950 font-bold">
+                                <svg class="w-4 h-4 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                                <span>Total Billed Qty</span>
+                                <span class="text-[11px] text-indigo-500 font-semibold" x-text="'(' + validCartItems.length + (validCartItems.length === 1 ? ' line)' : ' lines)')"></span>
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black bg-indigo-600 text-white shadow-xs tracking-wide" x-text="totalQuantity + ' pcs'"></span>
+                        </div>
+
                         <div class="flex justify-between items-center text-gray-600 font-medium">
                             <span>Subtotal</span>
                             <span class="font-semibold text-gray-900" x-text="formatCurrency(subtotal)"></span>
@@ -962,7 +1114,7 @@
                             <button
                                 type="button"
                                 @click="openConfirmation()"
-                                :disabled="isSubmitting || validCartItems.length === 0 || (saleStatus === 'completed' && payment.method === 'cash' && payment.cash_received < total)"
+                                :disabled="isSubmitting || validCartItems.length === 0 || (saleStatus === 'completed' && payment.method === 'cash' && payment.cash_received < total) || (saleStatus === 'completed' && payment.method === 'split' && !isSplitBalanced)"
                                 class="w-2/3 flex justify-center items-center py-2 px-3 rounded-lg shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                             >
                                 <template x-if="isSubmitting">
@@ -1259,8 +1411,10 @@
                     lastLookedUpPhone: null,
 
                     payment: {
-                        method: 'cash', // 'upi', 'cash', 'card'
+                        method: 'cash', // 'upi', 'cash', 'card', 'split'
                         cash_received: 0,
+                        cash_amount: 0,
+                        bank_amount: 0,
                         notes: '',
                         ref: ''
                     },
@@ -1327,7 +1481,14 @@
                         const savedPayment = localStorage.getItem('pos_payment');
                         if (savedPayment) {
                             try {
-                                this.payment = JSON.parse(savedPayment);
+                                this.payment = Object.assign({
+                                    method: 'cash',
+                                    cash_received: 0,
+                                    cash_amount: 0,
+                                    bank_amount: 0,
+                                    notes: '',
+                                    ref: ''
+                                }, JSON.parse(savedPayment));
                             } catch (e) {}
                         }
 
@@ -1351,6 +1512,8 @@
 
                         if (this.payment.method === 'cash') {
                             this.selectExactCash();
+                        } else if (this.payment.method === 'split') {
+                            this.initSplitAmounts();
                         }
 
                         // Watchers to synchronize with LocalStorage
@@ -1360,6 +1523,14 @@
                         this.$watch('total', (newTotal) => {
                             if (this.payment.method === 'cash' && this.cashIsExact) {
                                 this.payment.cash_received = newTotal;
+                            }
+                            if (this.payment.method === 'split') {
+                                const currentCash = Math.min(parseFloat(this.payment.cash_amount) || 0, newTotal);
+                                this.payment.cash_amount = currentCash;
+                                this.payment.bank_amount = Math.max(0, +(newTotal - currentCash).toFixed(2));
+                                if (!this.payment.cash_received || this.payment.cash_received === 0) {
+                                    this.payment.cash_received = currentCash;
+                                }
                             }
                         });
                         this.$watch('customer', (val) => localStorage.setItem('pos_customer', JSON.stringify(val)));
@@ -2598,7 +2769,43 @@
                         this.payment.method = method;
                         if (method === 'cash') {
                             this.selectExactCash();
+                        } else if (method === 'split') {
+                            this.initSplitAmounts();
                         }
+                    },
+
+                    initSplitAmounts() {
+                        const total = this.total;
+                        let cash = parseFloat(this.payment.cash_amount) || 0;
+                        if (cash <= 0 || cash > total) {
+                            cash = 0;
+                        }
+                        this.payment.cash_amount = cash;
+                        this.payment.bank_amount = Math.max(0, +(total - cash).toFixed(2));
+                        this.payment.cash_received = cash;
+                    },
+
+                    onSplitCashInput(value) {
+                        const cash = Math.max(0, parseFloat(value) || 0);
+                        this.payment.cash_amount = cash;
+                        this.payment.bank_amount = Math.max(0, +(this.total - cash).toFixed(2));
+                        this.payment.cash_received = cash;
+                    },
+
+                    setSplitCash(cash) {
+                        this.onSplitCashInput(cash);
+                    },
+
+                    addSplitCash(amount) {
+                        const current = parseFloat(this.payment.cash_amount) || 0;
+                        this.onSplitCashInput(current + amount);
+                    },
+
+                    get isSplitBalanced() {
+                        if (this.payment.method !== 'split') return true;
+                        const cash = parseFloat(this.payment.cash_amount) || 0;
+                        const bank = parseFloat(this.payment.bank_amount) || 0;
+                        return this.total > 0 && Math.abs((cash + bank) - this.total) < 0.01;
                     },
 
                     selectExactCash() {
@@ -2626,6 +2833,10 @@
                             }
                             return !!item.id;
                         });
+                    },
+
+                    get totalQuantity() {
+                        return this.validCartItems.reduce((sum, item) => sum + (parseInt(item.quantity, 10) || 0), 0);
                     },
 
                     get hasBlankRow() {
@@ -2722,8 +2933,15 @@
                     },
 
                     get change() {
-                        if (this.payment.method !== 'cash') return 0;
-                        return (parseFloat(this.payment.cash_received) || 0) - this.total;
+                        if (this.payment.method === 'cash') {
+                            return Math.max(0, (parseFloat(this.payment.cash_received) || 0) - this.total);
+                        }
+                        if (this.payment.method === 'split') {
+                            const cashRec = parseFloat(this.payment.cash_received) || 0;
+                            const cashDue = parseFloat(this.payment.cash_amount) || 0;
+                            return Math.max(0, cashRec - cashDue);
+                        }
+                        return 0;
                     },
 
                     get isExactCash() {
@@ -2983,6 +3201,10 @@
                             this.$dispatch('toast', { message: 'Cash received is less than total amount.', type: 'error' });
                             return;
                         }
+                        if (this.saleStatus === 'completed' && this.payment.method === 'split' && !this.isSplitBalanced) {
+                            this.$dispatch('toast', { message: 'Split tender amounts must equal total payable.', type: 'error' });
+                            return;
+                        }
 
                         this.$dispatch('open-modal', { name: 'confirmation-modal' });
                     },
@@ -2990,6 +3212,10 @@
                     async submitSale() {
                         if (this.saleStatus === 'completed' && this.payment.method === 'cash' && this.payment.cash_received < this.total) {
                             this.$dispatch('toast', { message: 'Insufficient payment!', type: 'error' });
+                            return;
+                        }
+                        if (this.saleStatus === 'completed' && this.payment.method === 'split' && !this.isSplitBalanced) {
+                            this.$dispatch('toast', { message: 'Split tender amounts must equal total payable.', type: 'error' });
                             return;
                         }
 
@@ -3068,7 +3294,10 @@
                                 customer_id: customerId,
                                 items: items,
                                 payment_method: this.payment.method,
-                                cash_received: this.payment.method === 'cash' ? this.payment.cash_received : this.total,
+                                total: this.total,
+                                cash_received: this.payment.method === 'cash' ? this.payment.cash_received : (this.payment.method === 'split' ? (parseFloat(this.payment.cash_received) || parseFloat(this.payment.cash_amount) || 0) : this.total),
+                                cash_amount: this.payment.method === 'split' ? (parseFloat(this.payment.cash_amount) || 0) : (this.payment.method === 'cash' ? this.total : 0),
+                                bank_amount: this.payment.method === 'split' ? (parseFloat(this.payment.bank_amount) || 0) : (['upi', 'card', 'transfer'].includes(this.payment.method) ? this.total : 0),
                                 notes: notes || null,
                                 round_off: this.numericRoundOff,
                                 bill_discount: -this.numericRoundOff,
@@ -3134,6 +3363,8 @@
                         this.payment = {
                             method: 'cash',
                             cash_received: 0,
+                            cash_amount: 0,
+                            bank_amount: 0,
                             notes: '',
                             ref: ''
                         };
@@ -3187,15 +3418,22 @@
                               :class="{
                                   'bg-indigo-100 text-indigo-800': payment.method === 'upi',
                                   'bg-emerald-100 text-emerald-800': payment.method === 'cash',
-                                  'bg-blue-100 text-blue-800': payment.method === 'card'
+                                  'bg-blue-100 text-blue-800': payment.method === 'card',
+                                  'bg-purple-100 text-purple-800': payment.method === 'split'
                               }"
-                              x-text="payment.method"></span>
+                              x-text="payment.method === 'split' ? 'Split (Cash + UPI)' : payment.method"></span>
                     </div>
 
-                    <!-- Total Items -->
+                    <!-- Item Lines -->
                     <div class="flex items-center justify-between">
-                        <span class="text-gray-500">Total Items</span>
-                        <span class="font-semibold text-gray-800" x-text="validCartItems.reduce((sum, item) => sum + parseInt(item.quantity), 0)"></span>
+                        <span class="text-gray-500">Item Lines</span>
+                        <span class="font-semibold text-gray-800" x-text="validCartItems.length + (validCartItems.length === 1 ? ' line' : ' lines')"></span>
+                    </div>
+
+                    <!-- Total Billed Qty -->
+                    <div class="flex items-center justify-between bg-indigo-50/80 px-2.5 py-1.5 rounded-lg border border-indigo-100">
+                        <span class="font-bold text-indigo-900">Total Billed Qty</span>
+                        <span class="font-black text-indigo-700 text-sm" x-text="totalQuantity + ' pcs'"></span>
                     </div>
 
                     <!-- Subtotal -->
@@ -3248,6 +3486,26 @@
                                 <span class="text-gray-500 font-medium">Change Due</span>
                                 <span class="font-bold text-emerald-600" x-text="formatCurrency(change)"></span>
                             </div>
+                        </div>
+                    </template>
+
+                    <!-- Split Details (if Split) -->
+                    <template x-if="payment.method === 'split'">
+                        <div class="pt-2 border-t border-gray-100 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-500">Cash Portion</span>
+                                <span class="font-semibold text-emerald-700" x-text="formatCurrency(payment.cash_amount)"></span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-500">UPI / Bank Portion</span>
+                                <span class="font-semibold text-indigo-700" x-text="formatCurrency(payment.bank_amount)"></span>
+                            </div>
+                            <template x-if="change > 0">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-500 font-medium">Change Due (from Cash)</span>
+                                    <span class="font-bold text-emerald-600" x-text="formatCurrency(change)"></span>
+                                </div>
+                            </template>
                         </div>
                     </template>
                 </div>

@@ -61,4 +61,12 @@ class DiscountCoupon extends Model
 
         return implode(' ', $parts);
     }
+
+    /**
+     * Check if the coupon is currently marked active.
+     */
+    public function isActive(): bool
+    {
+        return (bool) $this->is_active;
+    }
 }

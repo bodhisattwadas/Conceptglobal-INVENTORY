@@ -73,9 +73,16 @@
 
                         <!-- Payment Method -->
                         <div class="flex items-start justify-between">
-                            <x-detail-item label="Payment Method" :value="$sale->payment_method->label()">
-                                <x-heroicon-o-credit-card class="w-4 h-4 text-gray-400" />
-                            </x-detail-item>
+                            <div>
+                                <x-detail-item label="Payment Method" :value="$sale->payment_method->label()">
+                                    <x-heroicon-o-credit-card class="w-4 h-4 text-gray-400" />
+                                </x-detail-item>
+                                @if($sale->isSplit())
+                                    <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                                        Split (Cash + UPI)
+                                    </span>
+                                @endif
+                            </div>
                             @if(auth()->user()?->isAdmin() && $sale->status !== \App\Enums\SaleStatus::CANCELLED)
                                 <button
                                     type="button"
@@ -119,6 +126,45 @@
                             </div>
                         </div>
                     </div>
+
+                    @if($sale->isSplit())
+                        <div class="mt-6 p-4 rounded-xl bg-purple-50/70 border border-purple-200">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-purple-100 text-purple-700">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                                    </span>
+                                    <div>
+                                        <h4 class="text-xs font-bold uppercase tracking-wider text-purple-900">{{ __('Split Tender Allocation') }}</h4>
+                                        <p class="text-[11px] text-purple-600">{{ __('Dual register postings to Cash and Bank ledgers') }}</p>
+                                    </div>
+                                </div>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    {{ __('Balanced') }}
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div class="bg-white p-3.5 rounded-lg border border-purple-100 shadow-xs flex items-center justify-between">
+                                    <div>
+                                        <span class="text-xs text-gray-500 font-medium block">{{ __('Cash Register Inflow') }}</span>
+                                        <span class="text-lg font-bold text-gray-900">@money($sale->cash_amount)</span>
+                                    </div>
+                                    <span class="px-2 py-1 rounded text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        {{ __('Cash') }}
+                                    </span>
+                                </div>
+                                <div class="bg-white p-3.5 rounded-lg border border-purple-100 shadow-xs flex items-center justify-between">
+                                    <div>
+                                        <span class="text-xs text-gray-500 font-medium block">{{ __('Bank Register Inflow (UPI)') }}</span>
+                                        <span class="text-lg font-bold text-gray-900">@money($sale->bank_amount)</span>
+                                    </div>
+                                    <span class="px-2 py-1 rounded text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                        {{ __('UPI / Bank') }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
 
                     <!-- Items Table Section -->
                     <div class="mt-6 border-t overflow-x-auto">
@@ -192,6 +238,19 @@
                                 @endforeach
                             </tbody>
                             <tfoot class="bg-gray-50 font-bold">
+                                <tr class="bg-indigo-50/60 border-t-2 border-indigo-100">
+                                    <td colspan="4" class="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider text-indigo-900">
+                                        {{ __('Total Billed Quantity:') }}
+                                    </td>
+                                    <td class="px-6 py-3 text-center">
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black bg-indigo-600 text-white shadow-2xs">
+                                            {{ number_format($sale->items->sum('quantity')) }} pcs
+                                        </span>
+                                    </td>
+                                    <td colspan="3" class="px-6 py-3 text-left text-xs font-medium text-gray-500">
+                                        ({{ count($sale->items) }} {{ count($sale->items) === 1 ? __('line item') : __('line items') }})
+                                    </td>
+                                </tr>
                                 <tr>
                                     <td colspan="7" class="px-6 py-4 text-right">Subtotal</td>
                                     <td class="px-6 py-4 text-right text-gray-700">
@@ -260,18 +319,41 @@
                                         @money($sale->total)
                                     </td>
                                 </tr>
-                                <tr>
-                                    <td colspan="7" class="px-6 py-4 text-right text-gray-600">Cash Received</td>
-                                    <td class="px-6 py-4 text-right text-gray-800">
-                                        @money($sale->cash_received)
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td colspan="7" class="px-6 py-4 text-right text-gray-600">Change</td>
-                                    <td class="px-6 py-4 text-right text-green-600">
-                                        @money($sale->change)
-                                    </td>
-                                </tr>
+                                @if($sale->isSplit())
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-right text-gray-600 font-medium">Cash Paid</td>
+                                        <td class="px-6 py-4 text-right text-emerald-700 font-bold">
+                                            @money($sale->cash_amount)
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-right text-gray-600 font-medium">UPI / Bank Paid</td>
+                                        <td class="px-6 py-4 text-right text-indigo-700 font-bold">
+                                            @money($sale->bank_amount)
+                                        </td>
+                                    </tr>
+                                    @if($sale->change > 0)
+                                        <tr>
+                                            <td colspan="7" class="px-6 py-4 text-right text-gray-600">Change</td>
+                                            <td class="px-6 py-4 text-right text-green-600">
+                                                @money($sale->change)
+                                            </td>
+                                        </tr>
+                                    @endif
+                                @else
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-right text-gray-600">Cash Received</td>
+                                        <td class="px-6 py-4 text-right text-gray-800">
+                                            @money($sale->cash_received)
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-right text-gray-600">Change</td>
+                                        <td class="px-6 py-4 text-right text-green-600">
+                                            @money($sale->change)
+                                        </td>
+                                    </tr>
+                                @endif
                             </tfoot>
                         </table>
                     </div>

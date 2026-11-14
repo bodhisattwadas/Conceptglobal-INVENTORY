@@ -11,6 +11,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class BankLedgerTable extends Component
 {
@@ -398,6 +399,16 @@ class BankLedgerTable extends Component
 
         $this->closeEditModal();
         session()->flash('success', 'Bank transaction updated successfully.');
+    }
+
+    public function exportExcel(BankLedgerService $service): BinaryFileResponse
+    {
+        return $service->exportXls(
+            $this->startDate,
+            $this->endDate,
+            $this->search,
+            $this->typeFilter
+        );
     }
 
     public function render(BankLedgerService $service): View

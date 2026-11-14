@@ -326,6 +326,13 @@ class SalesReportService
                 'count' => 0,
                 'percentage' => 0.0,
             ],
+            PaymentMethod::SPLIT->value => [
+                'key' => PaymentMethod::SPLIT->value,
+                'label' => PaymentMethod::SPLIT->label(),
+                'amount' => 0.0,
+                'count' => 0,
+                'percentage' => 0.0,
+            ],
         ];
 
         foreach ($sales as $sale) {
@@ -375,29 +382,27 @@ class SalesReportService
                     $margin = 0.0;
                 }
 
-                $cash = (float) $daySales->where(function ($s) {
-                    $val = $s->payment_method instanceof PaymentMethod ? $s->payment_method->value : $s->payment_method;
+                $cash = 0.0;
+                $upi = 0.0;
+                $card = 0.0;
+                $transfer = 0.0;
 
-                    return $val === PaymentMethod::CASH->value;
-                })->sum('total');
+                foreach ($daySales as $s) {
+                    $val = $s->payment_method instanceof PaymentMethod ? $s->payment_method->value : (string) $s->payment_method;
 
-                $upi = (float) $daySales->where(function ($s) {
-                    $val = $s->payment_method instanceof PaymentMethod ? $s->payment_method->value : $s->payment_method;
-
-                    return $val === PaymentMethod::UPI->value;
-                })->sum('total');
-
-                $card = (float) $daySales->where(function ($s) {
-                    $val = $s->payment_method instanceof PaymentMethod ? $s->payment_method->value : $s->payment_method;
-
-                    return $val === PaymentMethod::CARD->value;
-                })->sum('total');
-
-                $transfer = (float) $daySales->where(function ($s) {
-                    $val = $s->payment_method instanceof PaymentMethod ? $s->payment_method->value : $s->payment_method;
-
-                    return $val === PaymentMethod::TRANSFER->value;
-                })->sum('total');
+                    if ($val === PaymentMethod::CASH->value || $val === 'cash') {
+                        $cash += (float) $s->total;
+                    } elseif ($val === PaymentMethod::UPI->value || $val === 'upi') {
+                        $upi += (float) $s->total;
+                    } elseif ($val === PaymentMethod::CARD->value || $val === 'card' || $val === 'credit') {
+                        $card += (float) $s->total;
+                    } elseif ($val === PaymentMethod::TRANSFER->value || $val === 'transfer') {
+                        $transfer += (float) $s->total;
+                    } elseif ($val === PaymentMethod::SPLIT->value || $val === 'split') {
+                        $cash += (float) ($s->cash_amount ?? 0);
+                        $upi += (float) ($s->bank_amount ?? 0);
+                    }
+                }
 
                 $formattedDate = $date !== 'Unknown'
                     ? Carbon::parse($date)->format('d M Y')

@@ -11,6 +11,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CashLedgerTable extends Component
 {
@@ -398,6 +399,16 @@ class CashLedgerTable extends Component
 
         $this->closeEditModal();
         session()->flash('success', 'Cash transaction updated successfully.');
+    }
+
+    public function exportExcel(CashLedgerService $service): BinaryFileResponse
+    {
+        return $service->exportXls(
+            $this->startDate,
+            $this->endDate,
+            $this->search,
+            $this->typeFilter
+        );
     }
 
     public function render(CashLedgerService $service): View

@@ -311,6 +311,13 @@
                 </tr>
                 @endfor
             </tbody>
+            <tfoot>
+                <tr style="background: #f5f5f5; font-weight: bold; border-top: 1.5px solid #000;">
+                    <td class="col-name" style="text-align: right; font-weight: bold; padding: 4px 6px;">Total Billed Qty:</td>
+                    <td class="col-qty" style="text-align: center; font-weight: bold; font-size: 8.5pt; padding: 4px; background: #eef2ff;">{{ (int)$sale->items->sum('quantity') }}</td>
+                    <td colspan="3" style="text-align: right; font-size: 7.5pt; color: #444; padding: 4px 6px;">{{ count($sale->items) }} item line(s)</td>
+                </tr>
+            </tfoot>
         </table>
 
         <!-- Footer -->
@@ -328,6 +335,10 @@
             </div>
 
             <div class="footer-right">
+                <div class="amount-row" style="background: #f0f4ff; padding: 3px 4px; border: 1px solid #dbeafe; border-radius: 3px; margin-bottom: 6px;">
+                    <span class="amount-label" style="color: #1e1b4b; font-size: 9pt;">Total Billed Qty</span>
+                    <span class="amount-value" style="color: #1e1b4b; font-weight: 800; border-bottom: none; font-size: 9.5pt;">{{ (int)$sale->items->sum('quantity') }} pcs</span>
+                </div>
                 <div class="amount-row">
                     <span class="amount-label">Subtotal</span>
                     <span class="amount-value">@money($sale->total + $sale->global_discount)</span>
@@ -377,6 +388,26 @@
                     <span class="amount-value">@money($sale->total)</span>
                 </div>
                 <div class="amount-row">
+                    <span class="amount-label">Payment Mode</span>
+                    <span class="amount-value">{{ $sale->payment_method?->label() ?? ucfirst((string) $sale->payment_method) }}</span>
+                </div>
+                @if($sale->isSplit())
+                <div class="amount-row">
+                    <span class="amount-label">Cash Paid</span>
+                    <span class="amount-value">@money($sale->cash_amount)</span>
+                </div>
+                <div class="amount-row">
+                    <span class="amount-label">UPI / Bank Paid</span>
+                    <span class="amount-value">@money($sale->bank_amount)</span>
+                </div>
+                @if($sale->change > 0)
+                <div class="amount-row">
+                    <span class="amount-label">Change Returned</span>
+                    <span class="amount-value">@money($sale->change)</span>
+                </div>
+                @endif
+                @else
+                <div class="amount-row">
                     <span class="amount-label">Amount Received</span>
                     <span class="amount-value">@money($sale->cash_received)</span>
                 </div>
@@ -384,6 +415,7 @@
                     <span class="amount-label">Change</span>
                     <span class="amount-value">@money($sale->change)</span>
                 </div>
+                @endif
             </div>
         </div>
     </div>

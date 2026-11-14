@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\CouponType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
+use App\Models\DiscountCoupon;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -36,6 +38,8 @@ class StoreSaleRequest extends FormRequest
         $this->merge([
             'cash_received' => $this->normalizeMoney($this->input('cash_received')),
             'change' => $this->normalizeMoney($this->input('change')),
+            'cash_amount' => $this->normalizeMoney($this->input('cash_amount')),
+            'bank_amount' => $this->normalizeMoney($this->input('bank_amount')),
             'bill_discount' => $this->normalizeMoney($this->input('bill_discount')),
             'global_discount' => $this->normalizeMoney($this->input('global_discount')),
             'round_off' => $this->normalizeMoney($this->input('round_off')),
@@ -67,6 +71,8 @@ class StoreSaleRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:2000'],
             'cash_received' => ['nullable', 'numeric', 'min:0'],
             'change' => ['nullable', 'numeric', 'min:0'],
+            'cash_amount' => ['nullable', 'numeric', 'min:0'],
+            'bank_amount' => ['nullable', 'numeric', 'min:0'],
             'bill_discount' => ['nullable', 'numeric'],
             'global_discount' => ['nullable', 'numeric'],
             'round_off' => ['nullable', 'numeric'],
@@ -130,6 +136,77 @@ class StoreSaleRequest extends FormRequest
                     } else {
                         $serviceIndices[$serviceId] = $index;
                     }
+                }
+            }
+
+            $itemsTotal = 0.0;
+            foreach ((array) $this->input('items', []) as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+                $qty = (float) ($item['quantity'] ?? 0);
+                $price = (float) ($item['unit_price'] ?? 0);
+                $disc = (float) ($item['discount'] ?? 0);
+                $itemsTotal += max(0, ($price - $disc) * $qty);
+            }
+
+            $couponDiscount = 0.0;
+            if ($this->has('coupon_id') && $this->input('coupon_id')) {
+                $coupon = DiscountCoupon::find($this->input('coupon_id'));
+                if ($coupon && $coupon->isActive()) {
+                    $isPercentage = $coupon->type === 'percentage'
+                        || $coupon->type === CouponType::Percentage
+                        || ($coupon->type instanceof \BackedEnum && $coupon->type->value === 'percentage');
+
+                    if ($isPercentage) {
+                        $couponDiscount = round(($itemsTotal * (float) $coupon->value) / 100, 2);
+                        if ($coupon->max_discount_amount && $couponDiscount > (float) $coupon->max_discount_amount) {
+                            $couponDiscount = (float) $coupon->max_discount_amount;
+                        }
+                    } else {
+                        $couponDiscount = min((float) $coupon->value, $itemsTotal);
+                    }
+                }
+            }
+
+            $returnDiscount = (float) ($this->input('return_discount') ?? 0);
+            $hasRoundOff = $this->has('round_off') && $this->input('round_off') !== null && $this->input('round_off') !== '';
+            $roundOff = $hasRoundOff ? (float) $this->input('round_off') : 0.0;
+
+            $rawBillDiscount = abs((float) ($this->input('bill_discount') ?? 0));
+            $rawGlobalDiscount = abs((float) ($this->input('global_discount') ?? 0));
+            $billDiscount = $rawBillDiscount > 0 ? $rawBillDiscount : ($couponDiscount <= 0 ? $rawGlobalDiscount : 0.0);
+
+            if ($hasRoundOff && abs($roundOff) >= 0.001) {
+                $discount = round($couponDiscount - $roundOff, 2);
+            } else {
+                $discount = round($couponDiscount + $billDiscount, 2);
+            }
+
+            $computedExpectedTotal = max(0, round($itemsTotal - $discount - $returnDiscount, 2));
+
+            if ($this->has('total') && is_numeric($this->input('total'))) {
+                $submittedTotal = round((float) $this->input('total'), 2);
+                if (abs($submittedTotal - $computedExpectedTotal) > 0.01) {
+                    $validator->errors()->add('total', "The submitted total (₹{$submittedTotal}) does not match the computed items total (₹{$computedExpectedTotal}).");
+                }
+            }
+
+            $paymentMethod = $this->input('payment_method');
+            $isSplit = $paymentMethod === PaymentMethod::SPLIT->value || $paymentMethod === 'split';
+
+            if ($isSplit) {
+                $cashAmount = (float) ($this->input('cash_amount') ?? 0);
+                $bankAmount = (float) ($this->input('bank_amount') ?? 0);
+                $allocated = round($cashAmount + $bankAmount, 2);
+
+                if ($allocated <= 0) {
+                    $validator->errors()->add('cash_amount', 'Split payment amounts must be greater than zero.');
+                } elseif (abs($allocated - $computedExpectedTotal) > 0.01) {
+                    $message = "The total split payment amounts (₹{$allocated}) must equal the sale total (₹{$computedExpectedTotal}).";
+                    $validator->errors()->add('payment_method', $message);
+                    $validator->errors()->add('cash_amount', $message);
+                    $validator->errors()->add('bank_amount', $message);
                 }
             }
         });

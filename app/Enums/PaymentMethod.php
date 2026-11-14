@@ -8,6 +8,7 @@ enum PaymentMethod: string
     case UPI = 'upi';
     case CARD = 'card';
     case TRANSFER = 'transfer';
+    case SPLIT = 'split';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum PaymentMethod: string
             self::UPI => 'UPI',
             self::CARD => 'Card',
             self::TRANSFER => 'Bank Transfer',
+            self::SPLIT => 'Split (Cash + UPI)',
         };
     }
 }

@@ -611,6 +611,64 @@ class BankLedgerWorkflowTest extends TestCase
             ->assertSee('-');
     }
 
+    public function test_bank_ledger_auto_syncs_missing_completed_sales_on_retrieval(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        // Directly insert a completed upi sale bypassing service to simulate missing sync
+        $sale = Sale::create([
+            'invoice_number' => 'INV-BANK-AUTOSYNC-001',
+            'created_by' => $admin->id,
+            'sale_date' => now(),
+            'status' => SaleStatus::COMPLETED,
+            'subtotal' => 1200.00,
+            'global_discount' => 0,
+            'total_discount' => 0,
+            'total' => 1200.00,
+            'cash_received' => 0,
+            'change' => 0,
+            'payment_method' => PaymentMethod::UPI,
+        ]);
+
+        $this->assertDatabaseMissing('bank_transactions', [
+            'reference_id' => $sale->id,
+        ]);
+
+        // When getLedgerEntries is called, it auto-syncs
+        $entries = $this->bankLedgerService->getLedgerEntries();
+
+        $this->assertDatabaseHas('bank_transactions', [
+            'reference_id' => $sale->id,
+            'amount' => 1200.00,
+        ]);
+        $this->assertEquals(1200.00, $entries['total_inflows']);
+    }
+
+    public function test_bank_ledger_export_xls_generates_valid_download_response(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $this->bankLedgerService->recordBankInvestment([
+            'amount' => 10000.00,
+            'description' => 'Initial Bank Capital',
+        ], $admin->id);
+
+        $response = $this->bankLedgerService->exportXls();
+
+        $this->assertTrue($response->headers->contains('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
+        $this->assertFileExists($response->getFile()->getPathname());
+    }
+
+    public function test_livewire_bank_ledger_table_export_excel_action(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        Livewire::actingAs($admin)
+            ->test(BankLedgerTable::class)
+            ->call('exportExcel')
+            ->assertFileDownloaded();
+    }
+
     private function createPendingSale(User $user, float $total, ?Customer $customer = null, PaymentMethod $method = PaymentMethod::UPI): Sale
     {
         return Sale::create([

@@ -28,6 +28,8 @@ readonly class SaleData
         public ?string $coupon_code = null,
         public float $return_discount = 0,
         public array $returned_items = [],
+        public float $cash_amount = 0,
+        public float $bank_amount = 0,
     ) {}
 
     public static function fromArray(array $data): self
@@ -49,6 +51,8 @@ readonly class SaleData
             coupon_code: ! empty($data['coupon_code']) ? strtoupper(trim($data['coupon_code'])) : null,
             return_discount: (float) ($data['return_discount'] ?? 0),
             returned_items: (array) ($data['returned_items'] ?? []),
+            cash_amount: (float) ($data['cash_amount'] ?? 0),
+            bank_amount: (float) ($data['bank_amount'] ?? 0),
         );
     }
 
@@ -71,6 +75,8 @@ readonly class SaleData
             'coupon_code' => $this->coupon_code,
             'return_discount' => $this->return_discount,
             'returned_items' => $this->returned_items,
+            'cash_amount' => $this->cash_amount,
+            'bank_amount' => $this->bank_amount,
         ];
     }
 }

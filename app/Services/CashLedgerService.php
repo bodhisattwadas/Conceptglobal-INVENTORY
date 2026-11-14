@@ -13,6 +13,9 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CashLedgerService
 {
@@ -24,9 +27,16 @@ class CashLedgerService
     public function recordCashSale(Sale $sale): ?CashTransaction
     {
         $isCash = $sale->payment_method === PaymentMethod::CASH || $sale->payment_method === 'cash';
+        $isSplit = $sale->payment_method === PaymentMethod::SPLIT || $sale->payment_method === 'split';
         $isCompleted = $sale->status === SaleStatus::COMPLETED || $sale->status === 'completed';
 
-        if (! $isCash || ! $isCompleted) {
+        if ($isSplit) {
+            if (! $isCompleted || (float) $sale->cash_amount <= 0) {
+                $this->voidSaleTransaction($sale);
+
+                return null;
+            }
+        } elseif (! $isCash || ! $isCompleted) {
             $this->voidSaleTransaction($sale);
 
             return null;
@@ -38,6 +48,12 @@ class CashLedgerService
         $sale->load('customer');
         $customerName = $sale->customer?->name ?? 'Walk-in Customer';
 
+        $description = $isSplit
+            ? 'Cash Portion (Split) - Inv: '.$sale->invoice_number
+            : 'Cash Sale - Inv: '.$sale->invoice_number;
+
+        $amount = $isSplit ? (float) $sale->cash_amount : (float) $sale->total;
+
         return CashTransaction::updateOrCreate(
             [
                 'reference_type' => Sale::class,
@@ -48,10 +64,10 @@ class CashLedgerService
                 'transaction_type' => CashTransactionType::CashSale,
                 'reference_number' => $sale->invoice_number,
                 'name' => $customerName,
-                'description' => 'Cash Sale - Inv: '.$sale->invoice_number,
+                'description' => $description,
                 'account_name' => $accountName,
                 'split_account' => 'Product Sales',
-                'amount' => $sale->total,
+                'amount' => $amount,
                 'created_by' => $sale->created_by ?? Auth::id() ?? 1,
             ]
         );
@@ -285,6 +301,8 @@ class CashLedgerService
         ?string $search = null,
         ?string $type = null
     ): array {
+        $this->ensureSalesSynced();
+
         $beginningBalance = $this->getBeginningBalance($startDate);
 
         $query = CashTransaction::query()->with(['category', 'creator']);
@@ -343,13 +361,172 @@ class CashLedgerService
     }
 
     /**
+     * Ensure any unsynced completed cash sales are backfilled into the ledger.
+     */
+    public function ensureSalesSynced(): int
+    {
+        $existingSaleIds = CashTransaction::query()
+            ->where('reference_type', Sale::class)
+            ->pluck('reference_id');
+
+        $missingSales = Sale::query()
+            ->where('status', SaleStatus::COMPLETED)
+            ->where(function ($q) {
+                $q->where('payment_method', PaymentMethod::CASH)
+                    ->orWhere('payment_method', 'cash')
+                    ->orWhere(function ($sq) {
+                        $sq->where(function ($pq) {
+                            $pq->where('payment_method', PaymentMethod::SPLIT)
+                                ->orWhere('payment_method', 'split');
+                        })->where('cash_amount', '>', 0);
+                    });
+            })
+            ->whereNotIn('id', $existingSaleIds)
+            ->get();
+
+        $synced = 0;
+        foreach ($missingSales as $sale) {
+            $this->recordCashSale($sale);
+            $synced++;
+        }
+
+        return $synced;
+    }
+
+    /**
+     * Export cash ledger data to an Excel XLSX workbook.
+     */
+    public function exportXls(
+        ?string $startDate = null,
+        ?string $endDate = null,
+        ?string $search = null,
+        ?string $type = null
+    ): BinaryFileResponse {
+        $ledgerData = $this->getLedgerEntries($startDate, $endDate, $search, $type);
+        $accountName = Setting::get('cash_account_name', '1100 Cash and Cash Equivalent');
+
+        $writer = new Writer;
+        $tempPath = tempnam(sys_get_temp_dir(), 'cash_ledger_').'.xlsx';
+        $writer->openToFile($tempPath);
+
+        $periodLabel = 'All Time';
+        if ($startDate && $endDate) {
+            $periodLabel = Carbon::parse($startDate)->format('d M Y').' to '.Carbon::parse($endDate)->format('d M Y');
+        } elseif ($startDate) {
+            $periodLabel = 'From '.Carbon::parse($startDate)->format('d M Y');
+        } elseif ($endDate) {
+            $periodLabel = 'Up to '.Carbon::parse($endDate)->format('d M Y');
+        }
+
+        $filename = 'cash-ledger-'.($startDate ?: 'all').'-to-'.($endDate ?: 'time').'.xlsx';
+
+        // Title and Metadata Block
+        $writer->addRow(Row::fromValues(['CASH REGISTER - 1100 CASH AND CASH EQUIVALENT']));
+        $writer->addRow(Row::fromValues(['Account Name:', $accountName]));
+        $writer->addRow(Row::fromValues(['Period:', $periodLabel]));
+        $writer->addRow(Row::fromValues(['Generated At:', now()->format('d M Y, h:i A')]));
+        $writer->addRow(Row::fromValues([]));
+
+        // KPI Summary Block
+        $writer->addRow(Row::fromValues([
+            'Beginning Balance',
+            'Total Cash Inflows',
+            'Total Cash Outflows',
+            'Net Ending Balance',
+        ]));
+        $writer->addRow(Row::fromValues([
+            (float) $ledgerData['beginning_balance'],
+            (float) $ledgerData['total_inflows'],
+            (float) $ledgerData['total_outflows'],
+            (float) $ledgerData['ending_balance'],
+        ]));
+        $writer->addRow(Row::fromValues([]));
+
+        // Table Header
+        $writer->addRow(Row::fromValues([
+            'Date',
+            'Transaction Type',
+            'Num / Ref #',
+            'Name / Entity',
+            'Description / Memo',
+            'Account Name',
+            'Item Split Account',
+            'Inflow (INR)',
+            'Outflow (INR)',
+            'Running Balance (INR)',
+        ]));
+
+        // Beginning Balance Row
+        $writer->addRow(Row::fromValues([
+            $startDate ? Carbon::parse($startDate)->format('d/m/Y') : '-',
+            'Beginning Balance',
+            '-',
+            'Beginning Balance',
+            'Opening baseline fund balance',
+            $accountName,
+            '-',
+            0.00,
+            0.00,
+            (float) $ledgerData['beginning_balance'],
+        ]));
+
+        /** @var CashTransaction $txn */
+        foreach ($ledgerData['entries'] as $txn) {
+            $inflow = $txn->transaction_type->isInflow() ? (float) $txn->amount : 0.00;
+            $outflow = $txn->transaction_type->isOutflow() ? (float) $txn->amount : 0.00;
+
+            $writer->addRow(Row::fromValues([
+                $txn->transaction_date ? Carbon::parse($txn->transaction_date)->format('d/m/Y') : '-',
+                $txn->transaction_type->label(),
+                $txn->reference_number ?: '-',
+                $txn->name ?: '-',
+                $txn->description ?: '-',
+                $txn->account_name,
+                $txn->split_account ?: ($txn->category?->name ?: '-'),
+                $inflow,
+                $outflow,
+                (float) $txn->running_balance,
+            ]));
+        }
+
+        // Summary Totals Row
+        $writer->addRow(Row::fromValues([
+            'TOTALS',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            (float) $ledgerData['total_inflows'],
+            (float) $ledgerData['total_outflows'],
+            (float) $ledgerData['ending_balance'],
+        ]));
+
+        $writer->close();
+
+        return response()->download($tempPath, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
      * Backfill existing completed cash sales into the cash ledger.
      */
     public function syncHistoricalCashSales(): int
     {
         $sales = Sale::query()
             ->where('status', SaleStatus::COMPLETED)
-            ->where('payment_method', PaymentMethod::CASH)
+            ->where(function ($q) {
+                $q->where('payment_method', PaymentMethod::CASH)
+                    ->orWhere('payment_method', 'cash')
+                    ->orWhere(function ($sq) {
+                        $sq->where(function ($pq) {
+                            $pq->where('payment_method', PaymentMethod::SPLIT)
+                                ->orWhere('payment_method', 'split');
+                        })->where('cash_amount', '>', 0);
+                    });
+            })
             ->get();
 
         $synced = 0;
