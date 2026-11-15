@@ -907,4 +907,156 @@ class HistoricalSaleEditTest extends TestCase
         $this->assertEquals(1, $sale->items->count());
         $this->assertEquals($uninventorizedProduct->id, $sale->items->first()->product_id);
     }
+
+    public function test_admin_can_update_historical_sale_to_split_payment_method(): void
+    {
+        $sale = $this->createTestSale(5, PaymentMethod::CASH); // total = 1000
+
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::SPLIT->value,
+            'cash_amount' => 600,
+            'bank_amount' => 400,
+            'total' => 1000,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 5,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $sale->refresh();
+
+        $this->assertEquals(PaymentMethod::SPLIT, $sale->payment_method);
+        $this->assertEquals(600, (float) $sale->cash_amount);
+        $this->assertEquals(400, (float) $sale->bank_amount);
+
+        // Verify Cash Transaction has 600 and Bank Transaction has 400
+        $this->assertDatabaseHas('cash_transactions', [
+            'reference_type' => Sale::class,
+            'reference_id' => $sale->id,
+            'amount' => 600,
+        ]);
+        $this->assertDatabaseHas('bank_transactions', [
+            'reference_type' => Sale::class,
+            'reference_id' => $sale->id,
+            'amount' => 400,
+        ]);
+    }
+
+    public function test_admin_can_update_historical_split_sale_back_to_single_payment_method(): void
+    {
+        // Start as Split sale
+        $sale = $this->createTestSale(5, PaymentMethod::CASH);
+        app(SaleService::class)->updatePaymentMethod($sale, PaymentMethod::SPLIT, null, null, null, 600, 400);
+
+        $sale->refresh();
+        $this->assertEquals(PaymentMethod::SPLIT, $sale->payment_method);
+
+        // Convert back to 100% UPI
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::UPI->value,
+            'total' => 1000,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 5,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $sale->refresh();
+
+        $this->assertEquals(PaymentMethod::UPI, $sale->payment_method);
+        $this->assertTrue(empty($sale->cash_amount) || (float) $sale->cash_amount == 0);
+        $this->assertTrue(empty($sale->bank_amount) || (float) $sale->bank_amount == 0);
+
+        // Verify Cash Transaction for this sale is missing/0 and Bank Transaction has 1000
+        $this->assertDatabaseMissing('cash_transactions', [
+            'reference_type' => Sale::class,
+            'reference_id' => $sale->id,
+            'amount' => 600,
+        ]);
+        $this->assertDatabaseHas('bank_transactions', [
+            'reference_type' => Sale::class,
+            'reference_id' => $sale->id,
+            'amount' => 1000,
+        ]);
+    }
+
+    public function test_admin_can_update_payment_method_to_split_via_quick_endpoint(): void
+    {
+        $sale = $this->createTestSale(5, PaymentMethod::CASH); // total = 1000
+
+        $response = $this->actingAs($this->admin)->patch(route('sales.update-payment-method', $sale), [
+            'payment_method' => PaymentMethod::SPLIT->value,
+            'cash_amount' => 700,
+            'bank_amount' => 300,
+            'reason' => 'Customer split cash and gpay',
+        ]);
+
+        $response->assertRedirect();
+        $sale->refresh();
+
+        $this->assertEquals(PaymentMethod::SPLIT, $sale->payment_method);
+        $this->assertEquals(700, (float) $sale->cash_amount);
+        $this->assertEquals(300, (float) $sale->bank_amount);
+
+        $this->assertDatabaseHas('cash_transactions', [
+            'reference_type' => Sale::class,
+            'reference_id' => $sale->id,
+            'amount' => 700,
+        ]);
+        $this->assertDatabaseHas('bank_transactions', [
+            'reference_type' => Sale::class,
+            'reference_id' => $sale->id,
+            'amount' => 300,
+        ]);
+    }
+
+    public function test_historical_sale_edit_rejects_unbalanced_split_payment(): void
+    {
+        $sale = $this->createTestSale(5, PaymentMethod::CASH); // total = 1000
+
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::SPLIT->value,
+            'cash_amount' => 500,
+            'bank_amount' => 300, // total = 800 != 1000
+            'total' => 1000,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 5,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors(['cash_amount', 'payment_method']);
+    }
+
+    public function test_edit_view_and_show_modal_render_split_payment_options(): void
+    {
+        $sale = $this->createTestSale(5, PaymentMethod::CASH);
+
+        $editResponse = $this->actingAs($this->admin)->get(route('sales.edit', $sale));
+        $editResponse->assertOk();
+        $editResponse->assertSee("selectPaymentMethod('split')", false);
+        $editResponse->assertSee('Split Tender Allocation (Cash + UPI)', false);
+
+        $showResponse = $this->actingAs($this->admin)->get(route('sales.show', $sale));
+        $showResponse->assertOk();
+        $showResponse->assertSee("selectMethod('split')", false);
+        $showResponse->assertSee('Split Tender Allocation', false);
+    }
 }

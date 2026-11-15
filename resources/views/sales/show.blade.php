@@ -541,7 +541,44 @@
                             method: '{{ $sale->payment_method->value }}',
                             paymentRef: '{{ addslashes($showPaymentRef) }}',
                             cashReceived: {{ (float) ($sale->cash_received ?: $sale->total) }},
-                            total: {{ (float) $sale->total }}
+                            cashAmount: {{ (float) ($sale->cash_amount ?: ($sale->payment_method->value === 'split' ? $sale->cash_amount : $sale->total)) }},
+                            bankAmount: {{ (float) ($sale->bank_amount ?: 0) }},
+                            total: {{ (float) $sale->total }},
+                            get isSplitBalanced() {
+                                if (this.method !== 'split') return true;
+                                const cash = parseFloat(this.cashAmount) || 0;
+                                const bank = parseFloat(this.bankAmount) || 0;
+                                return Math.abs((cash + bank) - this.total) <= 0.01;
+                            },
+                            onSplitCashInput(val) {
+                                const raw = parseFloat(val);
+                                const cash = isNaN(raw) ? 0 : Math.max(0, raw);
+                                this.cashAmount = cash;
+                                this.bankAmount = Math.max(0, Math.round((this.total - cash) * 100) / 100);
+                                this.cashReceived = cash;
+                            },
+                            setSplitCash(val) {
+                                const clamped = Math.max(0, Math.min(this.total, parseFloat(val) || 0));
+                                this.cashAmount = Math.round(clamped * 100) / 100;
+                                this.bankAmount = Math.max(0, Math.round((this.total - this.cashAmount) * 100) / 100);
+                                this.cashReceived = this.cashAmount;
+                            },
+                            selectMethod(m) {
+                                this.method = m;
+                                if (m === 'cash') {
+                                    if (this.cashReceived <= 0) this.cashReceived = this.total;
+                                } else if (m === 'split') {
+                                    const cash = parseFloat(this.cashAmount) || 0;
+                                    const bank = parseFloat(this.bankAmount) || 0;
+                                    if (cash <= 0 && bank <= 0) {
+                                        this.cashAmount = this.total;
+                                        this.bankAmount = 0;
+                                    } else if (Math.abs((cash + bank) - this.total) > 0.01) {
+                                        this.bankAmount = Math.max(0, Math.round((this.total - cash) * 100) / 100);
+                                    }
+                                    this.cashReceived = this.cashAmount;
+                                }
+                            }
                         }"
                     >
                         @csrf
@@ -568,12 +605,12 @@
                                     <span class="text-xs text-gray-400 font-medium">Selected: <strong class="text-indigo-600 capitalize" x-text="method"></strong></span>
                                 </div>
 
-                                <!-- 3-4 Payment Method Buttons: UPI / Cash / Card / Transfer -->
-                                <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                <!-- 5 Payment Method Buttons: UPI / Cash / Card / Transfer / Split -->
+                                <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
                                     <!-- UPI -->
                                     <button
                                         type="button"
-                                        @click="method = 'upi'"
+                                        @click="selectMethod('upi')"
                                         class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
                                         :class="method === 'upi' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-xs' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
                                     >
@@ -584,7 +621,7 @@
                                     <!-- Cash -->
                                     <button
                                         type="button"
-                                        @click="method = 'cash'"
+                                        @click="selectMethod('cash')"
                                         class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
                                         :class="method === 'cash' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-xs' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
                                     >
@@ -595,7 +632,7 @@
                                     <!-- Card -->
                                     <button
                                         type="button"
-                                        @click="method = 'card'"
+                                        @click="selectMethod('card')"
                                         class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
                                         :class="method === 'card' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-xs' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
                                     >
@@ -606,16 +643,29 @@
                                     <!-- Bank Transfer -->
                                     <button
                                         type="button"
-                                        @click="method = 'transfer'"
+                                        @click="selectMethod('transfer')"
                                         class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
                                         :class="method === 'transfer' ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-xs' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
                                     >
                                         <svg class="w-4 h-4 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
                                         <span>Transfer</span>
                                     </button>
+
+                                    <!-- Split (Cash + UPI) -->
+                                    <button
+                                        type="button"
+                                        @click="selectMethod('split')"
+                                        class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all font-bold text-xs"
+                                        :class="method === 'split' ? 'border-purple-600 bg-purple-50/80 text-purple-700 shadow-xs' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
+                                    >
+                                        <svg class="w-4 h-4 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                                        <span>Split</span>
+                                    </button>
                                 </div>
 
                                 <input type="hidden" name="payment_method" :value="method">
+                                <input type="hidden" name="cash_amount" :value="method === 'split' ? cashAmount : ''">
+                                <input type="hidden" name="bank_amount" :value="method === 'split' ? bankAmount : ''">
                             </div>
 
                             <!-- If CARD -->
@@ -663,6 +713,77 @@
                                 >
                             </div>
 
+                            <!-- If SPLIT (Cash + UPI) -->
+                            <div x-show="method === 'split'" class="p-3 bg-purple-50/70 rounded-lg border border-purple-200 space-y-2.5">
+                                <div class="flex justify-between items-center text-xs font-bold text-purple-900">
+                                    <span class="flex items-center gap-1">
+                                        <svg class="w-3.5 h-3.5 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                                        {{ __('Split Tender Allocation') }}
+                                    </span>
+                                    <span class="text-[11px] font-semibold text-purple-700">{{ __('Total: ₹') }}<span x-text="total.toFixed(2)"></span></span>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-gray-600 uppercase mb-0.5">{{ __('Cash (₹)') }}</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            :value="cashAmount"
+                                            @input="onSplitCashInput($event.target.value)"
+                                            class="w-full text-xs font-bold border-gray-300 rounded px-2 py-1.5 text-right focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="0.00"
+                                        >
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-gray-600 uppercase mb-0.5">{{ __('UPI / Bank (₹)') }}</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            x-model.number="bankAmount"
+                                            class="w-full text-xs font-bold border-gray-300 rounded px-2 py-1.5 text-right focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="0.00"
+                                        >
+                                    </div>
+                                </div>
+
+                                <!-- Quick Presets -->
+                                <div class="flex items-center gap-1 flex-wrap pt-0.5">
+                                    <span class="text-[10px] font-bold text-gray-500 uppercase">{{ __('Quick:') }}</span>
+                                    <button type="button" @click="setSplitCash(total)" class="px-1.5 py-0.5 bg-white hover:bg-purple-100 border border-purple-200 rounded text-[10px] font-bold text-purple-700">All Cash</button>
+                                    <button type="button" @click="setSplitCash(0)" class="px-1.5 py-0.5 bg-white hover:bg-purple-100 border border-purple-200 rounded text-[10px] font-bold text-purple-700">All UPI</button>
+                                    <button type="button" @click="setSplitCash(Math.round(total / 2))" class="px-1.5 py-0.5 bg-white hover:bg-purple-100 border border-purple-200 rounded text-[10px] font-bold text-purple-700">50/50</button>
+                                </div>
+
+                                <div>
+                                    <input
+                                        type="text"
+                                        name="payment_ref"
+                                        x-model="paymentRef"
+                                        placeholder="{{ __('UPI UTR / Bank Reference (Optional)...') }}"
+                                        class="block w-full text-xs rounded-md border-gray-300 shadow-xs focus:border-purple-500 focus:ring-purple-500 py-1"
+                                    >
+                                </div>
+
+                                <!-- Allocation Status Pill -->
+                                <div>
+                                    <template x-if="isSplitBalanced">
+                                        <div class="flex items-center justify-between px-2 py-1 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                            <span>✓ Balanced</span>
+                                            <span>₹<span x-text="(parseFloat(cashAmount)||0).toFixed(2)"></span> + ₹<span x-text="(parseFloat(bankAmount)||0).toFixed(2)"></span></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="!isSplitBalanced">
+                                        <div class="flex items-center justify-between px-2 py-1 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                            <span>⚠ Unbalanced</span>
+                                            <span>Diff: ₹<span x-text="Math.abs(total - ((parseFloat(cashAmount)||0) + (parseFloat(bankAmount)||0))).toFixed(2)"></span></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
                             <!-- If CASH -->
                             <div x-show="method === 'cash'" class="p-3 bg-emerald-50 rounded-lg border border-emerald-200 space-y-2">
                                 <div class="flex justify-between items-center">
@@ -675,7 +796,14 @@
                                     min="0"
                                     name="cash_received"
                                     x-model.number="cashReceived"
+                                    :disabled="method !== 'cash'"
                                     class="w-full text-sm border-gray-300 rounded px-2.5 py-1.5 text-right font-bold"
+                                >
+                                <input
+                                    type="hidden"
+                                    name="cash_received"
+                                    :value="method === 'split' ? cashAmount : total"
+                                    :disabled="method === 'cash'"
                                 >
                                 <div class="flex justify-between text-xs text-emerald-700 font-semibold pt-1">
                                     <span>{{ __('Change to Return:') }}</span>
@@ -707,7 +835,11 @@
                                 {{ __('Cancel') }}
                             </x-secondary-button>
 
-                            <x-primary-button type="submit">
+                            <x-primary-button
+                                type="submit"
+                                ::disabled="method === 'split' && !isSplitBalanced"
+                                class="disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
                                 <x-heroicon-o-check class="w-4 h-4 mr-1.5" />
                                 {{ __('Save Changes') }}
                             </x-primary-button>

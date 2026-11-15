@@ -97,6 +97,8 @@
                     notes: {{ Js::from(old('notes', $sale->notes)) }},
                     reason: {{ Js::from(old('reason', '')) }},
                     cashReceived: {{ Js::from(old('cash_received', (float) $sale->cash_received)) }},
+                    cashAmount: {{ Js::from(old('cash_amount', (float) ($sale->cash_amount ?? 0))) }},
+                    bankAmount: {{ Js::from(old('bank_amount', (float) ($sale->bank_amount ?? 0))) }},
                     roundOff: {{ Js::from(old('round_off', $sale->round_off !== null ? (float) $sale->round_off : 0)) }},
                     billDiscount: {{ Js::from(old('bill_discount', 0)) }},
                     appliedCoupon: {{ Js::from(
@@ -123,6 +125,10 @@
             >
                 @csrf
                 @method('PUT')
+
+                <!-- Hidden Split Payment Inputs for Form Submission -->
+                <input type="hidden" name="cash_amount" :value="paymentMethod === 'split' ? cashAmount : ''">
+                <input type="hidden" name="bank_amount" :value="paymentMethod === 'split' ? bankAmount : ''">
 
                 <!-- Hidden Coupon Inputs for Form Submission -->
                 <input type="hidden" name="coupon_id" :value="appliedCoupon ? appliedCoupon.id : ''">
@@ -518,8 +524,8 @@
                             <span class="text-xs text-gray-400 font-medium">Selected: <strong class="text-indigo-600 capitalize" x-text="paymentMethodLabel()"></strong></span>
                         </div>
 
-                        <!-- 3-4 Payment Buttons: UPI / Cash / Card / Transfer -->
-                        <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                        <!-- 5 Payment Buttons: UPI / Cash / Card / Transfer / Split -->
+                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
                             <!-- UPI -->
                             <button
                                 type="button"
@@ -563,6 +569,17 @@
                                 <svg class="w-4 h-4 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
                                 <span>Transfer</span>
                             </button>
+
+                            <!-- Split (Cash + UPI) -->
+                            <button
+                                type="button"
+                                @click="selectPaymentMethod('split')"
+                                class="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border-2 transition-all font-bold text-xs"
+                                :class="paymentMethod === 'split' ? 'border-purple-600 bg-purple-50/80 text-purple-700 shadow-xs' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
+                            >
+                                <svg class="w-4 h-4 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                                <span>Split</span>
+                            </button>
                         </div>
 
                         <!-- Tender Details Box -->
@@ -587,7 +604,14 @@
                                         min="0"
                                         name="cash_received"
                                         x-model.number="cashReceived"
+                                        :disabled="paymentMethod !== 'cash'"
                                         class="w-full text-sm font-bold border border-gray-300 rounded-lg px-3 py-2 text-right focus:ring-emerald-500 focus:border-emerald-500"
+                                    >
+                                    <input
+                                        type="hidden"
+                                        name="cash_received"
+                                        :value="paymentMethod === 'split' ? cashAmount : total"
+                                        :disabled="paymentMethod === 'cash'"
                                     >
                                 </div>
                                 <div>
@@ -645,6 +669,118 @@
                                 placeholder="{{ __('Bank Transfer Reference (Optional)...') }}"
                                 class="block w-full text-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-1.5"
                             >
+                        </div>
+
+                        <!-- If SPLIT (Cash + UPI) -->
+                        <div x-show="paymentMethod === 'split'" class="p-3.5 rounded-lg bg-purple-50/60 border border-purple-200 space-y-3">
+                            <div class="flex items-center justify-between text-xs font-bold text-purple-900">
+                                <div class="flex items-center gap-1.5">
+                                    <svg class="w-4 h-4 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                                    <span>{{ __('Split Tender Allocation (Cash + UPI)') }}</span>
+                                </div>
+                                <span class="text-[11px] font-semibold text-purple-700">{{ __('Order Total:') }} <span class="font-bold text-purple-900" x-text="'₹' + formatMoney(total)"></span></span>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <!-- Cash Portion -->
+                                <div>
+                                    <label class="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
+                                        {{ __('Cash Amount (₹)') }}
+                                    </label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-emerald-600 font-bold text-xs">
+                                            ₹
+                                        </div>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            autocomplete="off"
+                                            :value="cashAmount"
+                                            @input="onSplitCashInput($event.target.value)"
+                                            class="block w-full pl-7 pr-2.5 py-1.5 text-sm font-bold text-gray-900 border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="0.00"
+                                        >
+                                    </div>
+                                </div>
+
+                                <!-- UPI / Bank Portion -->
+                                <div>
+                                    <label class="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
+                                        {{ __('UPI / Bank Amount (₹)') }}
+                                    </label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-indigo-600 font-bold text-xs">
+                                            ₹
+                                        </div>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            autocomplete="off"
+                                            x-model.number="bankAmount"
+                                            class="block w-full pl-7 pr-2.5 py-1.5 text-sm font-bold text-gray-900 border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="0.00"
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Quick Cash Presets for Split -->
+                            <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{{ __('Quick:') }}</span>
+                                <button type="button" @click="setSplitCash(total)" class="px-2 py-0.5 bg-white hover:bg-purple-100 border border-purple-200 rounded text-[11px] font-bold text-purple-700 transition-colors shadow-2xs">
+                                    {{ __('All Cash') }}
+                                </button>
+                                <button type="button" @click="setSplitCash(0)" class="px-2 py-0.5 bg-white hover:bg-purple-100 border border-purple-200 rounded text-[11px] font-bold text-purple-700 transition-colors shadow-2xs">
+                                    {{ __('All UPI') }}
+                                </button>
+                                <button type="button" @click="setSplitCash(Math.round(total / 2))" class="px-2 py-0.5 bg-white hover:bg-purple-100 border border-purple-200 rounded text-[11px] font-bold text-purple-700 transition-colors shadow-2xs">
+                                    {{ __('50 / 50') }}
+                                </button>
+                                <button type="button" @click="addSplitCash(500)" class="px-2 py-0.5 bg-white hover:bg-gray-100 border border-gray-300 rounded text-[11px] font-bold text-gray-700 transition-colors shadow-2xs">
+                                    +500 Cash
+                                </button>
+                                <button type="button" @click="addSplitCash(1000)" class="px-2 py-0.5 bg-white hover:bg-gray-100 border border-gray-300 rounded text-[11px] font-bold text-gray-700 transition-colors shadow-2xs">
+                                    +1K Cash
+                                </button>
+                            </div>
+
+                            <!-- UPI Reference Field -->
+                            <div>
+                                <label class="block text-[11px] font-semibold text-gray-600 mb-1">
+                                    {{ __('UPI Reference / UTR Number (Optional)') }}
+                                </label>
+                                <input
+                                    type="text"
+                                    name="payment_ref"
+                                    x-model="paymentRef"
+                                    placeholder="{{ __('UPI UTR / Bank Reference (Optional)...') }}"
+                                    class="block w-full text-xs rounded-md border-gray-300 shadow-xs focus:border-purple-500 focus:ring-purple-500 py-1.5"
+                                >
+                            </div>
+
+                            <!-- Allocation Status Pill -->
+                            <div>
+                                <template x-if="isSplitBalanced">
+                                    <div class="flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-2xs">
+                                        <span class="flex items-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                            <span>{{ __('Balanced Allocation') }}</span>
+                                        </span>
+                                        <span>₹<span x-text="formatMoney(cashAmount)"></span> + ₹<span x-text="formatMoney(bankAmount)"></span> = ₹<span x-text="formatMoney(total)"></span></span>
+                                    </div>
+                                </template>
+                                <template x-if="!isSplitBalanced">
+                                    <div class="flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200 shadow-2xs">
+                                        <span class="flex items-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5 text-rose-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                                            <span>{{ __('Unbalanced:') }} <span x-text="((parseFloat(cashAmount) || 0) + (parseFloat(bankAmount) || 0)) < total ? 'Short by' : 'Exceeds by'"></span></span>
+                                        </span>
+                                        <span>₹<span x-text="formatMoney(Math.abs(total - ((parseFloat(cashAmount) || 0) + (parseFloat(bankAmount) || 0))))"></span></span>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
 
                         <!-- Additional Notes -->
@@ -833,7 +969,11 @@
                             <x-secondary-button href="{{ route('sales.show', $sale) }}">
                                 {{ __('Cancel') }}
                             </x-secondary-button>
-                            <x-primary-button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5">
+                            <x-primary-button
+                                type="submit"
+                                ::disabled="paymentMethod === 'split' && !isSplitBalanced"
+                                class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
                                 <x-heroicon-o-check class="w-5 h-5 mr-1.5" />
                                 {{ __('Save Historical Changes') }}
                             </x-primary-button>
@@ -958,6 +1098,8 @@
                 notes: config.notes || '',
                 reason: config.reason || '',
                 cashReceived: config.cashReceived || 0,
+                cashAmount: config.cashAmount || 0,
+                bankAmount: config.bankAmount || 0,
                 roundOff: config.roundOff || 0,
                 billDiscount: config.billDiscount || 0,
                 appliedCoupon: config.appliedCoupon || null,
@@ -1133,11 +1275,49 @@
                     return Math.max(0, parseFloat((received - this.total).toFixed(2)));
                 },
 
+                get isSplitBalanced() {
+                    if (this.paymentMethod !== 'split') return true;
+                    const cash = parseFloat(this.cashAmount) || 0;
+                    const bank = parseFloat(this.bankAmount) || 0;
+                    return Math.abs((cash + bank) - this.total) <= 0.01;
+                },
+
+                onSplitCashInput(value) {
+                    const rawVal = parseFloat(value);
+                    const cashVal = isNaN(rawVal) ? 0 : Math.max(0, rawVal);
+                    this.cashAmount = cashVal;
+                    const remaining = Math.max(0, Math.round((this.total - cashVal) * 100) / 100);
+                    this.bankAmount = remaining;
+                    this.cashReceived = cashVal;
+                },
+
+                setSplitCash(amount) {
+                    const clamped = Math.max(0, Math.min(this.total, parseFloat(amount) || 0));
+                    this.cashAmount = Math.round(clamped * 100) / 100;
+                    this.bankAmount = Math.max(0, Math.round((this.total - this.cashAmount) * 100) / 100);
+                    this.cashReceived = this.cashAmount;
+                },
+
+                addSplitCash(amount) {
+                    const current = parseFloat(this.cashAmount) || 0;
+                    this.setSplitCash(current + amount);
+                },
+
                 onPaymentMethodChange() {
                     if (this.paymentMethod === 'cash') {
                         if (this.cashReceived <= 0) {
                             this.cashReceived = this.total;
                         }
+                    } else if (this.paymentMethod === 'split') {
+                        const cash = parseFloat(this.cashAmount) || 0;
+                        const bank = parseFloat(this.bankAmount) || 0;
+                        if (cash <= 0 && bank <= 0) {
+                            this.cashAmount = this.total;
+                            this.bankAmount = 0;
+                        } else if (Math.abs((cash + bank) - this.total) > 0.01) {
+                            this.bankAmount = Math.max(0, Math.round((this.total - cash) * 100) / 100);
+                        }
+                        this.cashReceived = this.cashAmount;
                     } else {
                         this.cashReceived = this.total;
                     }
@@ -1154,6 +1334,7 @@
                         case 'upi': return 'UPI';
                         case 'card': return 'Card';
                         case 'transfer': return 'Bank Transfer';
+                        case 'split': return 'Split (Cash + UPI)';
                         default: return this.paymentMethod;
                     }
                 },

@@ -770,7 +770,7 @@ class SaleService
 
                 $cashReceived = $paymentMethod === PaymentMethod::CASH
                     ? $data->cash_received
-                    : ($isSplit ? ($data->cash_received > 0 ? $data->cash_received : $cashAmount) : $total);
+                    : ($isSplit ? $cashAmount : $total);
                 $change = 0;
 
                 if ($paymentMethod === PaymentMethod::CASH) {
@@ -779,13 +779,6 @@ class SaleService
                     }
                     if ($cashReceived >= $total) {
                         $change = round($cashReceived - $total, 2);
-                    }
-                } elseif ($isSplit) {
-                    if ($sale->status === SaleStatus::COMPLETED && $data->cash_received > 0 && $data->cash_received < $cashAmount) {
-                        throw SaleException::insufficientPayment($cashAmount, $data->cash_received);
-                    }
-                    if ($cashReceived >= $cashAmount) {
-                        $change = round($cashReceived - $cashAmount, 2);
                     }
                 }
 
