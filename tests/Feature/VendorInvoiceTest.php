@@ -261,4 +261,55 @@ class VendorInvoiceTest extends TestCase
 
         $this->assertNull($inv->fresh()->invoice_number);
     }
+
+    public function test_vendor_invoice_show_page_accepts_decimal_in_paid_amount_input(): void
+    {
+        $invoice = $this->createInvoice(['amount' => 1250.75, 'paid_amount' => 0.00]);
+
+        $response = $this->actingAs($this->admin)->get(route('vendor-invoices.show', $invoice));
+
+        $response->assertOk();
+        $response->assertSee('step="any"', false);
+        $response->assertSee('min="0.01"', false);
+        $response->assertSee('value="1250.75"', false);
+    }
+
+    public function test_admin_can_mark_vendor_invoice_paid_with_decimal_amount(): void
+    {
+        $invoice = $this->createInvoice(['amount' => 655.70, 'paid_amount' => 0.00]);
+
+        $response = $this->actingAs($this->admin)->patch(route('vendor-invoices.mark-paid', $invoice), [
+            'payment_method' => 'bank_transfer',
+            'paid_amount' => 655.7,
+            'paid_at' => '2026-11-16',
+            'payment_reference' => 'UTR99887766',
+            'payment_notes' => 'Settled with decimals',
+        ]);
+
+        $response->assertRedirect(route('vendor-invoices.show', $invoice));
+        $response->assertSessionHas('success');
+
+        $refreshed = $invoice->fresh();
+        $this->assertEquals(655.70, (float) $refreshed->paid_amount);
+        $this->assertEquals(VendorInvoiceStatus::PAID, $refreshed->status);
+        $this->assertSame('bank_transfer', $refreshed->payment_method);
+        $this->assertSame('UTR99887766', $refreshed->payment_reference);
+    }
+
+    public function test_admin_can_make_partial_payment_with_decimal_amount(): void
+    {
+        $invoice = $this->createInvoice(['amount' => 1000.50, 'paid_amount' => 0.00]);
+
+        $response = $this->actingAs($this->admin)->patch(route('vendor-invoices.mark-paid', $invoice), [
+            'payment_method' => 'upi',
+            'paid_amount' => 300.25,
+            'paid_at' => '2026-11-16',
+            'payment_reference' => 'UPI12345',
+        ]);
+
+        $response->assertRedirect(route('vendor-invoices.show', $invoice));
+        $refreshed = $invoice->fresh();
+        $this->assertEquals(300.25, (float) $refreshed->paid_amount);
+        $this->assertEquals(VendorInvoiceStatus::PARTIALLY_PAID, $refreshed->status);
+    }
 }

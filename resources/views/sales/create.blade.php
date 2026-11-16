@@ -1294,12 +1294,17 @@
                                             <tr class="hover:bg-rose-50/30 transition-colors" :class="isItemReturnSelected(item.id) ? 'bg-rose-50/50' : ''">
                                                 <!-- Checkbox -->
                                                 <td class="p-2.5 text-center align-middle">
-                                                    <input
-                                                        type="checkbox"
-                                                        :checked="isItemReturnSelected(item.id)"
-                                                        @change="toggleItemReturn(sale, item)"
-                                                        class="rounded border-gray-300 text-rose-600 focus:ring-rose-500 h-4 w-4 cursor-pointer"
-                                                    >
+                                                    <template x-if="item.product_id">
+                                                        <input
+                                                            type="checkbox"
+                                                            :checked="isItemReturnSelected(item.id)"
+                                                            @change="toggleItemReturn(sale, item)"
+                                                            class="rounded border-gray-300 text-rose-600 focus:ring-rose-500 h-4 w-4 cursor-pointer"
+                                                        >
+                                                    </template>
+                                                    <template x-if="!item.product_id">
+                                                        <span class="text-[10px] text-gray-400 italic">N/A</span>
+                                                    </template>
                                                 </td>
 
                                                 <!-- Product & Batch -->
@@ -1307,7 +1312,7 @@
                                                     <div class="font-bold text-gray-800" x-text="item.product_name"></div>
                                                     <div class="flex items-center gap-1.5 mt-0.5">
                                                         <span class="text-[10px] font-mono text-gray-500" x-show="item.sku" x-text="item.sku"></span>
-                                                        <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200" x-text="'Batch: ' + item.batch_number"></span>
+                                                        <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200" x-text="item.product_id ? 'Batch: ' + item.batch_number : 'Non-Inventory'"></span>
                                                     </div>
                                                 </td>
 
@@ -1322,30 +1327,35 @@
 
                                                 <!-- Return Qty Selector -->
                                                 <td class="p-2.5 align-middle text-center">
-                                                    <div class="inline-flex items-center rounded-lg border border-gray-300 bg-white overflow-hidden shadow-sm" :class="!isItemReturnSelected(item.id) ? 'opacity-50 pointer-events-none' : ''">
-                                                        <button
-                                                            type="button"
-                                                            @click="decrementReturnQty(item.id)"
-                                                            class="px-2 py-1 text-gray-600 hover:bg-gray-100 font-bold transition-colors"
-                                                        >-</button>
-                                                        <input
-                                                            type="number"
-                                                            :value="getReturnQty(item.id, item.quantity)"
-                                                            @input="setReturnQty(item.id, $event.target.value, item.quantity)"
-                                                            min="1"
-                                                            :max="item.quantity"
-                                                            class="w-12 text-center text-xs font-bold border-0 p-1 focus:ring-0 text-gray-800"
-                                                        >
-                                                        <button
-                                                            type="button"
-                                                            @click="incrementReturnQty(item.id, item.quantity)"
-                                                            class="px-2 py-1 text-gray-600 hover:bg-gray-100 font-bold transition-colors"
-                                                        >+</button>
-                                                    </div>
+                                                    <template x-if="item.product_id">
+                                                        <div class="inline-flex items-center rounded-lg border border-gray-300 bg-white overflow-hidden shadow-sm" :class="!isItemReturnSelected(item.id) ? 'opacity-50 pointer-events-none' : ''">
+                                                            <button
+                                                                type="button"
+                                                                @click="decrementReturnQty(item.id)"
+                                                                class="px-2 py-1 text-gray-600 hover:bg-gray-100 font-bold transition-colors"
+                                                            >-</button>
+                                                            <input
+                                                                type="number"
+                                                                :value="getReturnQty(item.id, item.quantity)"
+                                                                @input="setReturnQty(item.id, $event.target.value, item.quantity)"
+                                                                min="1"
+                                                                :max="item.quantity"
+                                                                class="w-12 text-center text-xs font-bold border-0 p-1 focus:ring-0 text-gray-800"
+                                                            >
+                                                            <button
+                                                                type="button"
+                                                                @click="incrementReturnQty(item.id, item.quantity)"
+                                                                class="px-2 py-1 text-gray-600 hover:bg-gray-100 font-bold transition-colors"
+                                                            >+</button>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="!item.product_id">
+                                                        <span class="text-[10px] text-gray-400 italic">Non-returnable</span>
+                                                    </template>
                                                 </td>
 
                                                 <!-- Return Value -->
-                                                <td class="p-2.5 align-middle text-right font-bold text-rose-600" x-text="formatCurrency(calcItemReturnValue(item))"></td>
+                                                <td class="p-2.5 align-middle text-right font-bold text-rose-600" x-text="item.product_id ? formatCurrency(calcItemReturnValue(item)) : '-'"></td>
                                             </tr>
                                         </template>
                                     </tbody>
@@ -3098,6 +3108,7 @@
                     },
 
                     toggleItemReturn(sale, item) {
+                        if (!item.product_id) return;
                         const current = this.customerReturnSelections[item.id];
                         if (current && current.selected) {
                             this.customerReturnSelections[item.id] = {
@@ -3148,7 +3159,7 @@
                     },
 
                     applyCustomerReturns() {
-                        const selectedEntries = Object.values(this.customerReturnSelections).filter(s => s.selected);
+                        const selectedEntries = Object.values(this.customerReturnSelections).filter(s => s.selected && s.item?.product_id);
                         if (selectedEntries.length === 0) {
                             this.$dispatch('toast', { message: 'No products selected for return.', type: 'warning' });
                             return;

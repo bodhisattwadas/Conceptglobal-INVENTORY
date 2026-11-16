@@ -46,9 +46,11 @@ class VendorInvoiceService
             return;
         }
 
-        $paidAmount = (float) ($paymentDetails['paid_amount'] ?? 0);
-        $newPaidAmount = min((float) $vendorInvoice->amount, (float) $vendorInvoice->paid_amount + $paidAmount);
-        $status = $newPaidAmount >= (float) $vendorInvoice->amount
+        $paidAmount = round((float) ($paymentDetails['paid_amount'] ?? 0), 2);
+        $totalAmount = round((float) $vendorInvoice->amount, 2);
+        $currentPaid = round((float) $vendorInvoice->paid_amount, 2);
+        $newPaidAmount = round(min($totalAmount, $currentPaid + $paidAmount), 2);
+        $status = $newPaidAmount >= $totalAmount
             ? VendorInvoiceStatus::PAID
             : VendorInvoiceStatus::PARTIALLY_PAID;
 

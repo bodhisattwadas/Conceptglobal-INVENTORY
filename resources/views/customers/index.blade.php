@@ -20,6 +20,7 @@
                     isLoading: false,
                     customer: null,
                     sales: [],
+                    salesCount: 0,
                     totalSpent: 0,
                     hasSearched: false,
                     notFound: false,
@@ -43,7 +44,7 @@
                                     'X-CSRF-TOKEN': document.querySelector('meta[name=\'csrf-token\']')?.content || '',
                                     'Accept': 'application/json'
                                 },
-                                body: JSON.stringify({ query: q, phone: q })
+                                body: JSON.stringify({ query: q, phone: q, full_history: true })
                             });
 
                             const data = await res.json();
@@ -51,11 +52,17 @@
                             if (data.success && data.customer && data.customer.id) {
                                 this.customer = data.customer;
                                 this.sales = data.sales || [];
-                                this.totalSpent = this.sales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
+                                this.salesCount = data.sales_count !== undefined
+                                    ? Number(data.sales_count)
+                                    : (this.sales.length || 0);
+                                this.totalSpent = data.total_spent !== undefined
+                                    ? Number(data.total_spent)
+                                    : this.sales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
                                 this.notFound = false;
                             } else {
                                 this.customer = null;
                                 this.sales = [];
+                                this.salesCount = 0;
                                 this.totalSpent = 0;
                                 this.notFound = true;
                             }
@@ -71,6 +78,7 @@
                         this.phoneQuery = '';
                         this.customer = null;
                         this.sales = [];
+                        this.salesCount = 0;
                         this.totalSpent = 0;
                         this.hasSearched = false;
                         this.notFound = false;
@@ -155,7 +163,7 @@
                                         <span class="text-gray-500" x-text="customer.email"></span>
                                     </template>
                                     <span>&bull;</span>
-                                    <span class="font-bold text-gray-800" x-text="sales.length + ' bill(s) on record'"></span>
+                                    <span class="font-bold text-gray-800" x-text="(salesCount || sales.length) + ' bill(s) on record'"></span>
                                     <span>&bull;</span>
                                     <span class="font-bold text-emerald-700" x-text="'Total: ' + formatMoney(totalSpent)"></span>
                                 </div>

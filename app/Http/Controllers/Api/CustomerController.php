@@ -131,7 +131,7 @@ class CustomerController extends Controller
             $customer = Customer::find($customerId);
         }
 
-        // 2. If no direct invoice match was found, check if it's a customer phone
+        // 2. If no direct invoice match was found, check if it's a customer phone or name
         if (! $customer && $salesByInvoice->isEmpty() && ! blank($query)) {
             $digits = preg_replace('/\D+/', '', $query);
             $formatted = normalize_indian_phone($query);
@@ -152,10 +152,11 @@ class CustomerController extends Controller
                             ->orWhere('phone', 'like', "%{$part1}%{$part2}%");
                     }
                 })
+                ->orWhere('name', 'like', "%{$query}%")
                 ->first();
         }
 
-        $digits = preg_replace('/\D+/', '', $query);
+        $digits = preg_replace('/\D+/', '', (string) ($customer?->phone ?? $query));
         $last10 = ! empty($digits) && strlen($digits) >= 10 ? substr($digits, -10) : null;
 
         if (! $customer && ! $last10 && $salesByInvoice->isEmpty()) {
@@ -164,14 +165,17 @@ class CustomerController extends Controller
                 'found' => false,
                 'customer' => null,
                 'sales' => [],
+                'sales_count' => 0,
+                'total_spent' => 0.0,
+                'formatted_total_spent' => format_money(0),
             ]);
         }
 
-        // 3. Fetch completed sales for this customer (or guest bills matching phone in notes or matched invoice numbers) with products
+        // 3. Fetch completed sales for this customer (or guest bills matching phone in notes or matched invoice numbers)
         $salesQuery = Sale::query()
             ->where('status', SaleStatus::COMPLETED);
 
-        if ($salesByInvoice->isNotEmpty()) {
+        if ($salesByInvoice->isNotEmpty() && (! $request->boolean('full_history') || ! $customer)) {
             $salesQuery->whereIn('id', $salesByInvoice->pluck('id'));
         } else {
             $salesQuery->where(function ($q) use ($customer, $last10) {
@@ -186,30 +190,33 @@ class CustomerController extends Controller
 
         $sales = $salesQuery->with([
             'items' => function ($q) {
-                $q->whereNotNull('product_id')
-                    ->where('quantity', '>', 0)
+                $q->where('quantity', '>', 0)
                     ->with([
                         'product.company',
                         'product.unit',
+                        'service',
                         'inventoryMovements' => function ($m) {
                             $m->whereNotNull('purchase_item_id')->with('purchaseItem');
                         },
                     ]);
             },
         ])
-            ->orderBy('sale_date', 'desc')
-            ->limit(50)
+            ->orderByDesc('sale_date')
+            ->orderByDesc('id')
             ->get();
 
         $mappedSales = $sales->map(function ($sale) {
-            $items = $sale->items->filter(fn ($item) => $item->product_id !== null && $item->quantity > 0)->map(function ($item) {
+            $items = $sale->items->filter(fn ($item) => (int) $item->quantity > 0)->map(function ($item) {
                 // Find batch info from inventoryMovements
                 $batchMovement = $item->inventoryMovements
                     ->first(fn ($m) => ! empty($m->purchaseItem?->batch_number));
 
                 $batchNumber = $batchMovement?->purchaseItem?->batch_number
                     ?? $item->inventoryMovements->first()?->purchaseItem?->batch_number
-                    ?? 'N/A';
+                    ?? ($item->service_id ? 'Service' : 'N/A');
+
+                $brandName = $item->product?->company?->company_name
+                    ?? ($item->service_id ? 'Service' : 'N/A');
 
                 $purchaseItemId = $batchMovement?->purchase_item_id
                     ?? $item->inventoryMovements->first()?->purchase_item_id;
@@ -220,12 +227,16 @@ class CustomerController extends Controller
 
                 return [
                     'id' => $item->id,
+                    'is_product' => (bool) $item->product_id,
+                    'is_service' => (bool) $item->service_id,
+                    'is_manual' => (bool) $item->is_manual,
                     'product_id' => $item->product_id,
+                    'service_id' => $item->service_id,
                     'product_name' => $item->item_name,
-                    'brand_name' => $item->product?->company?->company_name ?? 'N/A',
+                    'brand_name' => $brandName,
                     'sku' => $item->product?->sku ?? '',
-                    'barcode' => $item->product?->barcode ?? '',
-                    'unit' => $item->product?->unit?->short_name ?? 'pcs',
+                    'barcode' => $item->product?->barcode ?? ($item->barcode ?? ''),
+                    'unit' => $item->product?->unit?->short_name ?? ($item->service_id ? 'srv' : 'pcs'),
                     'quantity' => (int) $item->quantity,
                     'unit_price' => (float) $item->unit_price,
                     'discount' => (float) $item->discount,
@@ -242,14 +253,17 @@ class CustomerController extends Controller
                 'invoice_number' => $sale->invoice_number,
                 'sale_date' => $sale->sale_date ? $sale->sale_date->format('d M Y, h:i A') : '',
                 'raw_date' => $sale->sale_date ? $sale->sale_date->toIso8601String() : '',
-                'payment_method' => $sale->payment_method?->label() ?? 'Cash',
+                'payment_method' => $sale->payment_method?->label() ?? (is_string($sale->payment_method) ? ucfirst($sale->payment_method) : 'Cash'),
                 'subtotal' => (float) $sale->subtotal,
                 'total_discount' => (float) $sale->total_discount,
                 'total' => (float) $sale->total,
                 'formatted_total' => format_money($sale->total),
                 'items' => $items,
             ];
-        })->filter(fn ($s) => count($s['items']) > 0)->values();
+        })->values();
+
+        $totalSpent = (float) $mappedSales->sum('total');
+        $salesCount = $mappedSales->count();
 
         return response()->json([
             'success' => true,
@@ -261,6 +275,9 @@ class CustomerController extends Controller
                 'raw_phone' => $customer?->phone ?? ($digits && strlen($digits) >= 10 ? $query : ''),
             ],
             'sales' => $mappedSales,
+            'sales_count' => $salesCount,
+            'total_spent' => $totalSpent,
+            'formatted_total_spent' => format_money($totalSpent),
         ]);
     }
 

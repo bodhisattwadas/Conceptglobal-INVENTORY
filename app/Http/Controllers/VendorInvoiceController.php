@@ -44,7 +44,7 @@ class VendorInvoiceController extends Controller
 
     public function markPaid(Request $request, VendorInvoice $vendorInvoice, VendorInvoiceService $service)
     {
-        $dueAmount = max(0, (float) $vendorInvoice->amount - (float) $vendorInvoice->paid_amount);
+        $dueAmount = round(max(0, (float) $vendorInvoice->amount - (float) $vendorInvoice->paid_amount), 2);
 
         $validated = $request->validate([
             'payment_method' => ['required', Rule::in(['cash', 'bank_transfer', 'upi', 'cheque', 'card', 'other'])],

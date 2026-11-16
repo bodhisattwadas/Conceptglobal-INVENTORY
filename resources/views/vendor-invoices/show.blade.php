@@ -1,6 +1,6 @@
 <x-app-layout title="Vendor Invoice Details">
     @php
-        $dueAmount = max(0, (float) $vendorInvoice->amount - (float) $vendorInvoice->paid_amount);
+        $dueAmount = round(max(0, (float) $vendorInvoice->amount - (float) $vendorInvoice->paid_amount), 2);
         $vendorDiscount = (float) $vendorInvoice->vendor_additional_discount;
         $vendorDiscountClass = $vendorDiscount > 0 ? 'text-emerald-700' : 'text-red-700';
         $vendorDiscountLabel = ($vendorDiscount > 0 ? '+ ' : '') . format_money($vendorDiscount);
@@ -132,8 +132,9 @@
                                     <input
                                         id="paid_amount"
                                         type="number"
+                                        step="any"
                                         name="paid_amount"
-                                        min="1"
+                                        min="0.01"
                                         max="{{ $dueAmount }}"
                                         value="{{ old('paid_amount', $dueAmount) }}"
                                         required
