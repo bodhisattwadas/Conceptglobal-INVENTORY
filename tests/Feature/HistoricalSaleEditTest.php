@@ -1059,4 +1059,126 @@ class HistoricalSaleEditTest extends TestCase
         $showResponse->assertSee("selectMethod('split')", false);
         $showResponse->assertSee('Split Tender Allocation', false);
     }
+
+    public function test_admin_can_update_invoice_number_on_existing_sale(): void
+    {
+        $sale = $this->createTestSale(2, PaymentMethod::CASH);
+
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'invoice_number' => 'INV-OVERRIDE-001',
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::CASH->value,
+            'cash_received' => 400,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $this->assertSame('INV-OVERRIDE-001', $sale->fresh()->invoice_number);
+        $this->assertDatabaseHas('sales', [
+            'id' => $sale->id,
+            'invoice_number' => 'INV-OVERRIDE-001',
+        ]);
+    }
+
+    public function test_duplicate_invoice_number_is_rejected_by_validation(): void
+    {
+        $saleA = $this->createTestSale(2, PaymentMethod::CASH);
+        $saleB = $this->createTestSale(2, PaymentMethod::CASH);
+
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $saleB), [
+            'invoice_number' => $saleA->invoice_number,
+            'sale_date' => $saleB->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::CASH->value,
+            'cash_received' => 400,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors(['invoice_number']);
+        $this->assertNotEquals($saleA->invoice_number, $saleB->fresh()->invoice_number);
+    }
+
+    public function test_admin_can_resubmit_same_invoice_number_without_validation_error(): void
+    {
+        $sale = $this->createTestSale(2, PaymentMethod::CASH);
+        $originalInvoice = $sale->invoice_number;
+
+        $response = $this->actingAs($this->admin)->put(route('sales.update', $sale), [
+            'invoice_number' => $originalInvoice,
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::CASH->value,
+            'cash_received' => 400,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $this->assertSame($originalInvoice, $sale->fresh()->invoice_number);
+    }
+
+    public function test_non_admin_cannot_update_invoice_number(): void
+    {
+        $sale = $this->createTestSale(2, PaymentMethod::CASH);
+
+        $response = $this->actingAs($this->salesUser)->put(route('sales.update', $sale), [
+            'invoice_number' => 'UNAUTH-INV-001',
+            'sale_date' => $sale->sale_date->format('Y-m-d'),
+            'payment_method' => PaymentMethod::CASH->value,
+            'cash_received' => 400,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 2,
+                    'unit_price' => 200,
+                    'discount' => 0,
+                ],
+            ],
+        ]);
+
+        $response->assertForbidden();
+        $this->assertNotEquals('UNAUTH-INV-001', $sale->fresh()->invoice_number);
+    }
+
+    public function test_edit_view_renders_editable_invoice_number_input_for_admin(): void
+    {
+        $sale = $this->createTestSale(2, PaymentMethod::CASH);
+
+        $response = $this->actingAs($this->admin)->get(route('sales.edit', $sale));
+
+        $response->assertOk();
+        $response->assertSee('name="invoice_number"', false);
+        $response->assertSee('value="'.$sale->invoice_number.'"', false);
+    }
+
+    public function test_sale_service_update_sale_persists_invoice_number(): void
+    {
+        $sale = $this->createTestSale(2, PaymentMethod::CASH);
+        $saleService = app(SaleService::class);
+
+        $updated = $saleService->updateSale($sale, [
+            'invoice_number' => 'INV-SERVICE-TEST-999',
+        ]);
+
+        $this->assertSame('INV-SERVICE-TEST-999', $updated->invoice_number);
+        $this->assertSame('INV-SERVICE-TEST-999', $sale->fresh()->invoice_number);
+    }
 }

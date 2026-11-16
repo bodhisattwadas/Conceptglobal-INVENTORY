@@ -90,6 +90,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Master Data
     // =========================================================================
     Route::view('master/customers', 'customers.index')->middleware('role:admin,sales')->name('customers.index');
+    Route::get('master/customers/{customer}', [CustomerController::class, 'show'])->middleware('role:admin,sales')->name('customers.show');
     Route::prefix('master')->middleware('role:admin,manager')->group(function () {
         Route::view('suppliers/create', 'suppliers.create')->name('suppliers.create');
         Route::get('suppliers/{supplier}', function (Supplier $supplier) {
@@ -158,6 +159,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('vendor-invoices', [VendorInvoiceController::class, 'index'])->middleware('role:admin,manager')->name('vendor-invoices.index');
     Route::get('vendor-invoices/{vendorInvoice}', [VendorInvoiceController::class, 'show'])->middleware('role:admin,manager')->name('vendor-invoices.show');
+    Route::match(['put', 'patch'], 'vendor-invoices/{vendorInvoice}', [VendorInvoiceController::class, 'update'])->middleware('role:admin,manager')->name('vendor-invoices.update');
     Route::patch('vendor-invoices/{vendorInvoice}/paid', [VendorInvoiceController::class, 'markPaid'])->middleware('role:admin,manager')->name('vendor-invoices.mark-paid');
 
     // Vendor Returns
@@ -174,9 +176,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('sales/xls', [ReportController::class, 'salesXls'])->name('sales.xls');
         });
         Route::middleware('role:admin,manager')->group(function () {
+            Route::get('/', [ReportController::class, 'index'])->name('index');
             Route::get('adjustments', [ReportController::class, 'adjustments'])->name('adjustments');
             Route::get('adjustments/pdf', [ReportController::class, 'adjustmentsPdf'])->name('adjustments.pdf');
             Route::get('adjustments/csv', [ReportController::class, 'adjustmentsCsv'])->name('adjustments.csv');
+
+            // Accounts Payable Vendor Aging Report
+            Route::get('vendor-aging', [ReportController::class, 'vendorAging'])->name('vendor-aging');
+            Route::get('vendor-aging/pdf', [ReportController::class, 'vendorAgingPdf'])->name('vendor-aging.pdf');
+            Route::get('vendor-aging/csv', [ReportController::class, 'vendorAgingCsv'])->name('vendor-aging.csv');
+            Route::get('vendor-aging-pdf', [ReportController::class, 'vendorAgingPdf'])->name('vendor-aging-pdf');
+            Route::get('vendor-aging-csv', [ReportController::class, 'vendorAgingCsv'])->name('vendor-aging-csv');
         });
     });
 

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Supplier;
 use App\Services\InventoryAdjustmentReportService;
 use App\Services\SalesReportService;
+use App\Services\VendorAgingReportService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -11,6 +13,14 @@ use Illuminate\View\View;
 
 class ReportController extends Controller
 {
+    /**
+     * Display the reports hub overview page.
+     */
+    public function index(): View
+    {
+        return view('reports.index');
+    }
+
     /**
      * Display the main sales report page.
      */
@@ -194,5 +204,69 @@ class ReportController extends Controller
         ];
 
         return $service->exportCsv($startDate, $endDate, $filters);
+    }
+
+    /**
+     * Display the Accounts Payable Vendor Aging report page.
+     */
+    public function vendorAging(): View
+    {
+        return view('reports.vendor-aging');
+    }
+
+    /**
+     * Generate and download / stream the Vendor Aging PDF report.
+     */
+    public function vendorAgingPdf(Request $request, VendorAgingReportService $service)
+    {
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
+        $filters = [
+            'supplier_id' => $request->query('supplier_id', 'all'),
+            'bucket' => $request->query('bucket', 'all'),
+            'search' => $request->query('search', ''),
+        ];
+
+        if (! empty($filters['supplier_id']) && $filters['supplier_id'] !== 'all') {
+            $supplier = Supplier::find($filters['supplier_id']);
+            if ($supplier) {
+                $filters['supplier_name'] = $supplier->name;
+            }
+        }
+
+        $pdf = $service->generatePdf($filters);
+
+        $filename = 'vendor-aging-report-'.now()->format('Y-m-d').'.pdf';
+
+        if ($request->boolean('download')) {
+            return $pdf->download($filename);
+        }
+
+        return $pdf->stream($filename);
+    }
+
+    /**
+     * Stream CSV export of Vendor Aging data.
+     */
+    public function vendorAgingCsv(Request $request, VendorAgingReportService $service)
+    {
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
+        $filters = [
+            'supplier_id' => $request->query('supplier_id', 'all'),
+            'bucket' => $request->query('bucket', 'all'),
+            'search' => $request->query('search', ''),
+        ];
+
+        if (! empty($filters['supplier_id']) && $filters['supplier_id'] !== 'all') {
+            $supplier = Supplier::find($filters['supplier_id']);
+            if ($supplier) {
+                $filters['supplier_name'] = $supplier->name;
+            }
+        }
+
+        return $service->exportCsv($filters);
     }
 }

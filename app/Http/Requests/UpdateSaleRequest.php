@@ -6,6 +6,7 @@ use App\Enums\CouponType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Models\DiscountCoupon;
+use App\Models\Sale;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -62,7 +63,17 @@ class UpdateSaleRequest extends FormRequest
      */
     public function rules(): array
     {
+        $sale = $this->route('sale');
+        $saleId = $sale instanceof Sale ? $sale->id : $sale;
+
         return [
+            'invoice_number' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('sales', 'invoice_number')->ignore($saleId),
+            ],
             'customer_id' => ['nullable', 'integer'],
             'customer_phone' => ['nullable', 'string', 'max:50'],
             'customer_name' => ['nullable', 'string', 'max:255'],

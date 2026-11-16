@@ -21,6 +21,27 @@ class VendorInvoiceController extends Controller
         return view('vendor-invoices.show', compact('vendorInvoice'));
     }
 
+    public function update(Request $request, VendorInvoice $vendorInvoice, VendorInvoiceService $service)
+    {
+        $validated = $request->validate([
+            'invoice_number' => ['nullable', 'string', 'max:255'],
+            'invoice_date' => ['nullable', 'date'],
+            'vendor_additional_discount' => ['nullable', 'numeric', 'min:0'],
+            'additional_discount' => ['nullable', 'numeric', 'min:0'],
+            'document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+        ]);
+
+        $service->updateInvoiceDetails(
+            $vendorInvoice,
+            $validated,
+            $request->file('document')
+        );
+
+        return redirect()
+            ->route('vendor-invoices.show', $vendorInvoice)
+            ->with('success', 'Vendor invoice details updated successfully.');
+    }
+
     public function markPaid(Request $request, VendorInvoice $vendorInvoice, VendorInvoiceService $service)
     {
         $dueAmount = max(0, (float) $vendorInvoice->amount - (float) $vendorInvoice->paid_amount);

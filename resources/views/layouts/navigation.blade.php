@@ -39,11 +39,6 @@
                                 <x-dropdown-link :href="route('customers.index')" :active="request()->routeIs('customers.*')">
                                     Customers
                                 </x-dropdown-link>
-                                @if(Auth::user()->isAdmin())
-                                <x-dropdown-link :href="route('reports.sales')" :active="request()->routeIs('reports.*')">
-                                    Reports
-                                </x-dropdown-link>
-                                @endif
                             </x-slot>
                         </x-nav-dropdown>
                         @endif
@@ -84,9 +79,6 @@
                             <x-slot name="content">
                                 <x-dropdown-link :href="route('inventory.index')" :active="request()->routeIs('inventory.index')">
                                     Inventory
-                                </x-dropdown-link>
-                                <x-dropdown-link :href="route('reports.adjustments')" :active="request()->routeIs('reports.adjustments*')">
-                                    {{ __('Adjustments Report') }}
                                 </x-dropdown-link>
                                 <x-dropdown-link :href="route('inventory.reconciliations')" :active="request()->routeIs('inventory.reconciliations')">
                                     <div class="flex items-center justify-between w-full">
@@ -146,9 +138,37 @@
                         </x-nav-dropdown>
                         @endif
 
+                        <!-- Reports Dropdown -->
+                        @if(Auth::user()->hasRole('admin', 'manager'))
+                        <x-nav-dropdown active="{{ request()->routeIs('reports.*') }}">
+                            <x-slot name="icon">
+                                <x-heroicon-o-document-chart-bar class="mr-2 h-4 w-4" />
+                            </x-slot>
+                            <x-slot name="trigger">
+                                Reports
+                            </x-slot>
+                            <x-slot name="content">
+                                <x-dropdown-link :href="route('reports.index')" :active="request()->routeIs('reports.index')">
+                                    {{ __('All Reports Overview') }}
+                                </x-dropdown-link>
+                                @if(Auth::user()->isAdmin())
+                                <x-dropdown-link :href="route('reports.sales')" :active="request()->routeIs('reports.sales*')">
+                                    {{ __('Sales Reports') }}
+                                </x-dropdown-link>
+                                @endif
+                                <x-dropdown-link :href="route('reports.adjustments')" :active="request()->routeIs('reports.adjustments*')">
+                                    {{ __('Adjustments Report') }}
+                                </x-dropdown-link>
+                                <x-dropdown-link :href="route('reports.vendor-aging')" :active="request()->routeIs('reports.vendor-aging*')">
+                                    {{ __('Vendor Aging Report') }}
+                                </x-dropdown-link>
+                            </x-slot>
+                        </x-nav-dropdown>
+                        @endif
+
                         <!-- Admin Dropdown -->
                         @if(Auth::user()->isAdmin())
-                        <x-nav-dropdown active="{{ request()->routeIs(['users.*', 'services.*', 'settings.*', 'coupons.*', 'reports.*']) }}">
+                        <x-nav-dropdown active="{{ request()->routeIs(['users.*', 'services.*', 'settings.*', 'coupons.*']) }}">
                             <x-slot name="icon">
                                 <x-heroicon-o-users class="mr-2 h-4 w-4" />
                             </x-slot>
@@ -156,12 +176,6 @@
                                 Admin
                             </x-slot>
                             <x-slot name="content">
-                                <x-dropdown-link :href="route('reports.sales')" :active="request()->routeIs('reports.sales*')">
-                                    {{ __('Sales Reports') }}
-                                </x-dropdown-link>
-                                <x-dropdown-link :href="route('reports.adjustments')" :active="request()->routeIs('reports.adjustments*')">
-                                    {{ __('Adjustments Report') }}
-                                </x-dropdown-link>
                                 <x-dropdown-link :href="route('users.index')" :active="request()->routeIs('users.*')">
                                     Users
                                 </x-dropdown-link>
@@ -281,9 +295,6 @@
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('sales.create') ? 'text-primary' : '' }}" href="{{ route('sales.create') }}">POS</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs(['sales.index', 'sales.show']) ? 'text-primary' : '' }}" href="{{ route('sales.index') }}">Sales</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('customers.*') ? 'text-primary' : '' }}" href="{{ route('customers.index') }}">Customers</a>
-                                    @if(Auth::user()->isAdmin())
-                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('reports.*') ? 'text-primary' : '' }}" href="{{ route('reports.sales') }}">Reports</a>
-                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -315,7 +326,6 @@
                             <div x-show="expanded" x-collapse>
                                 <div class="mt-2 flex flex-col gap-2 pl-4 border-l border-border ml-2">
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('inventory.index') ? 'text-primary' : '' }}" href="{{ route('inventory.index') }}">Inventory</a>
-                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('reports.adjustments*') ? 'text-primary' : '' }}" href="{{ route('reports.adjustments') }}">{{ __('Adjustments Report') }}</a>
                                     <a class="text-sm font-medium hover:underline py-1 flex items-center justify-between {{ request()->routeIs('inventory.reconciliations') ? 'text-primary' : '' }}" href="{{ route('inventory.reconciliations') }}">
                                         <span>Reconciliation</span>
                                         @if($pendingReconCount > 0)
@@ -352,17 +362,35 @@
                         </div>
                         @endif
 
+                        <!-- Mobile Reports Accordion -->
+                        @if(Auth::user()->hasRole('admin', 'manager'))
+                        <div x-data="{ expanded: {{ request()->routeIs(['reports.*']) ? 'true' : 'false' }} }" class="border-b-0">
+                            <button @click="expanded = !expanded" class="flex flex-1 items-center justify-between py-0 font-semibold transition-all hover:underline [&[data-state=open]>svg]:rotate-180 w-full text-left text-md {{ request()->routeIs(['reports.*']) ? 'text-primary' : '' }}">
+                                Reports
+                                <x-heroicon-o-chevron-down :class="{'rotate-180': expanded}" class="h-4 w-4 shrink-0 transition-transform duration-200" />
+                            </button>
+                            <div x-show="expanded" x-collapse>
+                                <div class="mt-2 flex flex-col gap-2 pl-4 border-l border-border ml-2">
+                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('reports.index') ? 'text-primary' : '' }}" href="{{ route('reports.index') }}">{{ __('All Reports Overview') }}</a>
+                                    @if(Auth::user()->isAdmin())
+                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('reports.sales*') ? 'text-primary' : '' }}" href="{{ route('reports.sales') }}">{{ __('Sales Reports') }}</a>
+                                    @endif
+                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('reports.adjustments*') ? 'text-primary' : '' }}" href="{{ route('reports.adjustments') }}">{{ __('Adjustments Report') }}</a>
+                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('reports.vendor-aging*') ? 'text-primary' : '' }}" href="{{ route('reports.vendor-aging') }}">{{ __('Vendor Aging Report') }}</a>
+                                </div>
+                            </div>
+                        </div>
+                        @endif
+
                         <!-- Mobile Admin Accordion -->
                         @if(Auth::user()->isAdmin())
-                        <div x-data="{ expanded: {{ request()->routeIs(['users.*', 'services.*', 'settings.*', 'coupons.*', 'reports.*']) ? 'true' : 'false' }} }" class="border-b-0">
-                            <button @click="expanded = !expanded" class="flex flex-1 items-center justify-between py-0 font-semibold transition-all hover:underline [&[data-state=open]>svg]:rotate-180 w-full text-left text-md {{ request()->routeIs(['users.*', 'services.*', 'settings.*', 'coupons.*', 'reports.*']) ? 'text-primary' : '' }}">
+                        <div x-data="{ expanded: {{ request()->routeIs(['users.*', 'services.*', 'settings.*', 'coupons.*']) ? 'true' : 'false' }} }" class="border-b-0">
+                            <button @click="expanded = !expanded" class="flex flex-1 items-center justify-between py-0 font-semibold transition-all hover:underline [&[data-state=open]>svg]:rotate-180 w-full text-left text-md {{ request()->routeIs(['users.*', 'services.*', 'settings.*', 'coupons.*']) ? 'text-primary' : '' }}">
                                 Admin
                                 <x-heroicon-o-chevron-down :class="{'rotate-180': expanded}" class="h-4 w-4 shrink-0 transition-transform duration-200" />
                             </button>
                             <div x-show="expanded" x-collapse>
                                 <div class="mt-2 flex flex-col gap-2 pl-4 border-l border-border ml-2">
-                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('reports.sales*') ? 'text-primary' : '' }}" href="{{ route('reports.sales') }}">Sales Reports</a>
-                                    <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('reports.adjustments*') ? 'text-primary' : '' }}" href="{{ route('reports.adjustments') }}">{{ __('Adjustments Report') }}</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('users.*') ? 'text-primary' : '' }}" href="{{ route('users.index') }}">Users</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('services.*') ? 'text-primary' : '' }}" href="{{ Route::has('services.index') ? route('services.index') : url('/services') }}">Services</a>
                                     <a class="text-sm font-medium hover:underline py-1 {{ request()->routeIs('coupons.*') ? 'text-primary' : '' }}" href="{{ route('coupons.index') }}">Coupons</a>

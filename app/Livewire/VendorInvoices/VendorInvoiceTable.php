@@ -24,11 +24,17 @@ final class VendorInvoiceTable extends PowerGridComponent
 
     public string $sortDirection = 'desc';
 
+    public function boot(): void
+    {
+        config(['livewire-powergrid.filter' => 'outside']);
+    }
+
     public function setUp(): array
     {
         return [
             PowerGrid::exportable('vendor_invoice_export_'.now()->format('Y_m_d'))
-                ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV),
+                ->type(Exportable::TYPE_XLS, Exportable::TYPE_CSV)
+                ->stripTags(true),
             PowerGrid::header()->showSearchInput(),
             PowerGrid::footer()->showPerPage()->showRecordCount(),
         ];
@@ -46,15 +52,22 @@ final class VendorInvoiceTable extends PowerGridComponent
     {
         return PowerGrid::fields()
             ->add('id')
+            ->add('po_reference', fn (VendorInvoice $model) => $model->po_reference ?: '-')
             ->add('po_reference_link', fn (VendorInvoice $model) => $this->poReferenceLink($model))
-            ->add('invoice_number', fn (VendorInvoice $model) => $model->invoice_number ?: '<span class="italic text-gray-400">-</span>')
+            ->add('invoice_number', fn (VendorInvoice $model) => $this->invoiceNumberLink($model))
+            ->add('invoice_number_raw', fn (VendorInvoice $model) => $model->invoice_number ?: '-')
+            ->add('supplier_name', fn (VendorInvoice $model) => $model->supplier?->name ?: '-')
             ->add('supplier_link', fn (VendorInvoice $model) => $this->supplierLink($model))
             ->add('company_name', fn (VendorInvoice $model) => $model->company?->short_name ?: $model->company?->company_name ?: '-')
             ->add('amount_formatted', fn (VendorInvoice $model) => format_money($model->amount))
             ->add('vendor_additional_discount_formatted', fn (VendorInvoice $model) => $this->vendorDiscountLabel($model))
+            ->add('vendor_discount_clean', fn (VendorInvoice $model) => $this->vendorDiscountClean($model))
             ->add('paid_amount_badge', fn (VendorInvoice $model) => $this->amountBadge(format_money($model->paid_amount), 'paid'))
-            ->add('due_amount_badge', fn (VendorInvoice $model) => $this->amountBadge(format_money(max(0, (int) $model->amount - (int) $model->paid_amount)), max(0, (int) $model->amount - (int) $model->paid_amount) > 0 ? 'due' : 'clear'))
+            ->add('paid_amount_clean', fn (VendorInvoice $model) => format_money($model->paid_amount))
+            ->add('due_amount_badge', fn (VendorInvoice $model) => $this->amountBadge(format_money(max(0, (float) $model->amount - (float) $model->paid_amount)), max(0, (float) $model->amount - (float) $model->paid_amount) > 0 ? 'due' : 'clear'))
+            ->add('due_amount_clean', fn (VendorInvoice $model) => format_money(max(0, (float) $model->amount - (float) $model->paid_amount)))
             ->add('status_badge', fn (VendorInvoice $model) => view('components.status-badge', ['status' => $model->status])->render())
+            ->add('status_label', fn (VendorInvoice $model) => $model->status instanceof VendorInvoiceStatus ? $model->status->label() : ($model->status ? ucfirst((string) $model->status) : '-'))
             ->add('document_link', fn (VendorInvoice $model) => $this->documentLink($model))
             ->add('payment_method_formatted', fn (VendorInvoice $model) => $model->payment_method ? str($model->payment_method)->replace('_', ' ')->title() : '-')
             ->add('payment_reference', fn (VendorInvoice $model) => $model->payment_reference ?: '-')
@@ -65,16 +78,89 @@ final class VendorInvoiceTable extends PowerGridComponent
     public function columns(): array
     {
         return [
-            Column::action(''),
-            Column::make('PO Reference', 'po_reference_link', 'po_reference')->searchable()->sortable(),
-            Column::make('Invoice Number', 'invoice_number')->searchable()->sortable(),
-            Column::make('Supplier / Vendor', 'supplier_link', 'suppliers.name')->searchable()->sortable(),
-            Column::make('Amount', 'amount_formatted', 'amount')->sortable()->headerAttribute('text-right')->bodyAttribute('text-right'),
-            Column::make('Vendor Discount', 'vendor_additional_discount_formatted', 'vendor_additional_discount')->sortable()->headerAttribute('text-right')->bodyAttribute('text-right'),
-            Column::make('Paid', 'paid_amount_badge', 'paid_amount')->sortable()->headerAttribute('text-right')->bodyAttribute('text-right'),
-            Column::make('Due', 'due_amount_badge')->headerAttribute('text-right')->bodyAttribute('text-right'),
-            Column::make('Status', 'status_badge', 'vendor_invoices.status')->sortable()->headerAttribute('text-center')->bodyAttribute('text-center'),
-            Column::make('Paid At', 'paid_at_formatted', 'paid_at')->sortable(),
+            Column::action('')
+                ->visibleInExport(false),
+
+            // PO Reference
+            Column::make('PO Reference', 'po_reference_link', 'po_reference')
+                ->searchable()
+                ->sortable()
+                ->visibleInExport(false),
+            Column::make('PO Reference', 'po_reference', 'po_reference')
+                ->hidden()
+                ->visibleInExport(true),
+
+            // Invoice Number
+            Column::make('Invoice Number', 'invoice_number', 'vendor_invoices.invoice_number')
+                ->searchable()
+                ->sortable()
+                ->visibleInExport(false),
+            Column::make('Invoice Number', 'invoice_number_raw', 'vendor_invoices.invoice_number')
+                ->hidden()
+                ->visibleInExport(true),
+
+            // Supplier / Vendor
+            Column::make('Supplier / Vendor', 'supplier_link', 'suppliers.name')
+                ->searchable()
+                ->sortable()
+                ->visibleInExport(false),
+            Column::make('Supplier / Vendor', 'supplier_name', 'suppliers.name')
+                ->hidden()
+                ->visibleInExport(true),
+
+            // Brand / Company (included in export)
+            Column::make('Brand / Company', 'company_name')
+                ->hidden()
+                ->visibleInExport(true),
+
+            // Amount
+            Column::make('Amount', 'amount_formatted', 'amount')
+                ->sortable()
+                ->headerAttribute('text-right')
+                ->bodyAttribute('text-right'),
+
+            // Vendor Discount
+            Column::make('Vendor Discount', 'vendor_additional_discount_formatted', 'vendor_additional_discount')
+                ->sortable()
+                ->headerAttribute('text-right')
+                ->bodyAttribute('text-right')
+                ->visibleInExport(false),
+            Column::make('Vendor Discount', 'vendor_discount_clean', 'vendor_additional_discount')
+                ->hidden()
+                ->visibleInExport(true),
+
+            // Paid
+            Column::make('Paid', 'paid_amount_badge', 'paid_amount')
+                ->sortable()
+                ->headerAttribute('text-right')
+                ->bodyAttribute('text-right')
+                ->visibleInExport(false),
+            Column::make('Paid', 'paid_amount_clean', 'paid_amount')
+                ->hidden()
+                ->visibleInExport(true),
+
+            // Due
+            Column::make('Due', 'due_amount_badge')
+                ->headerAttribute('text-right')
+                ->bodyAttribute('text-right')
+                ->visibleInExport(false),
+            Column::make('Due', 'due_amount_clean')
+                ->hidden()
+                ->visibleInExport(true),
+
+            // Status
+            Column::make('Status', 'status_badge', 'vendor_invoices.status')
+                ->sortable()
+                ->headerAttribute('text-center')
+                ->bodyAttribute('text-center')
+                ->visibleInExport(false),
+            Column::make('Status', 'status_label', 'vendor_invoices.status')
+                ->hidden()
+                ->visibleInExport(true),
+
+            // Paid At
+            Column::make('Paid At', 'paid_at_formatted', 'paid_at')
+                ->sortable(),
         ];
     }
 
@@ -133,6 +219,24 @@ final class VendorInvoiceTable extends PowerGridComponent
         );
     }
 
+    private function invoiceNumberLink(VendorInvoice $invoice): string
+    {
+        if (blank($invoice->invoice_number)) {
+            return sprintf(
+                '<a href="%s" class="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-100" title="%s"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>%s</a>',
+                e(route('vendor-invoices.show', $invoice)),
+                e(__('Missing invoice number - Click to update')),
+                e(__('Missing'))
+            );
+        }
+
+        return sprintf(
+            '<a href="%s" class="font-medium text-blue-700 underline-offset-2 hover:text-blue-900 hover:underline">%s</a>',
+            e(route('vendor-invoices.show', $invoice)),
+            e($invoice->invoice_number)
+        );
+    }
+
     private function supplierLink(VendorInvoice $invoice): string
     {
         if (! $invoice->supplier) {
@@ -171,5 +275,16 @@ final class VendorInvoiceTable extends PowerGridComponent
         $label = ($discount > 0 ? '+ ' : '').format_money($discount);
 
         return '<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold '.$class.'">'.e($label).'</span>';
+    }
+
+    private function vendorDiscountClean(VendorInvoice $invoice): string
+    {
+        $discount = (float) $invoice->vendor_additional_discount;
+
+        if ($discount == 0.0) {
+            return '-';
+        }
+
+        return ($discount > 0 ? '+ ' : '').format_money($discount);
     }
 }

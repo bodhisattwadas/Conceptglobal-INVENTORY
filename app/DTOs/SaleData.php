@@ -30,6 +30,7 @@ readonly class SaleData
         public array $returned_items = [],
         public float $cash_amount = 0,
         public float $bank_amount = 0,
+        public ?string $invoice_number = null,
     ) {}
 
     public static function fromArray(array $data): self
@@ -53,6 +54,9 @@ readonly class SaleData
             returned_items: (array) ($data['returned_items'] ?? []),
             cash_amount: (float) ($data['cash_amount'] ?? 0),
             bank_amount: (float) ($data['bank_amount'] ?? 0),
+            invoice_number: isset($data['invoice_number']) && trim((string) $data['invoice_number']) !== ''
+                ? trim((string) $data['invoice_number'])
+                : null,
         );
     }
 
@@ -77,6 +81,7 @@ readonly class SaleData
             'returned_items' => $this->returned_items,
             'cash_amount' => $this->cash_amount,
             'bank_amount' => $this->bank_amount,
+            'invoice_number' => $this->invoice_number,
         ];
     }
 }

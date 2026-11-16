@@ -15,6 +15,15 @@
                 <p class="mt-1 text-sm text-gray-500">{{ __('Track supplier invoice document, payable amount, and completed payment details.') }}</p>
             </div>
             <div class="flex items-center gap-2">
+                <button
+                    type="button"
+                    x-data
+                    x-on:click="$dispatch('open-modal', { name: 'edit-invoice-details-modal' })"
+                    class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 shadow-xs"
+                >
+                    <x-heroicon-o-pencil-square class="h-4 w-4" />
+                    {{ __('Edit Invoice Details') }}
+                </button>
                 @if($vendorInvoice->purchase_id)
                     <a href="{{ route('vendor-returns.create', ['purchase_id' => $vendorInvoice->purchase_id]) }}" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-rose-600 px-3 text-sm font-semibold text-white hover:bg-rose-700 shadow-xs transition-colors">
                         <x-heroicon-o-arrow-uturn-left class="h-4 w-4" />
@@ -72,6 +81,15 @@
                     </div>
 
                     <div class="mt-7 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-5">
+                        <button
+                            type="button"
+                            x-data
+                            x-on:click="$dispatch('open-modal', { name: 'edit-invoice-details-modal' })"
+                            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+                        >
+                            <x-heroicon-o-pencil-square class="h-4 w-4" />
+                            {{ __('Edit Details') }}
+                        </button>
                         <a href="{{ route('purchases.show', $vendorInvoice->purchase) }}" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                             <x-heroicon-o-eye class="h-4 w-4" />
                             {{ __('View PO') }}
@@ -173,4 +191,50 @@
             </div>
         </div>
     </div>
+
+    <x-modal name="edit-invoice-details-modal" :title="__('Edit Invoice Details')" maxWidth="lg">
+        <form action="{{ route('vendor-invoices.update', $vendorInvoice) }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
+            @csrf
+            @method('PUT')
+
+            <div class="space-y-2">
+                <x-input-label for="modal_invoice_number" :value="__('Supplier Invoice Number')" hint="Invoice number provided by vendor" />
+                <x-text-input id="modal_invoice_number" name="invoice_number" :value="old('invoice_number', $vendorInvoice->invoice_number)" placeholder="e.g. INV-2026-001" />
+                <x-input-error :messages="$errors->get('invoice_number')" />
+            </div>
+
+            <div class="space-y-2">
+                <x-input-label for="modal_invoice_date" :value="__('Invoice Date')" hint="Date on the supplier invoice" />
+                <x-text-input id="modal_invoice_date" type="date" name="invoice_date" :value="old('invoice_date', $vendorInvoice->invoice_date?->format('Y-m-d'))" />
+                <x-input-error :messages="$errors->get('invoice_date')" />
+            </div>
+
+            <div class="space-y-2">
+                <x-input-label for="modal_vendor_additional_discount" :value="__('Vendor Additional Discount')" hint="Any additional discount from vendor" />
+                <x-text-input id="modal_vendor_additional_discount" type="number" step="0.01" min="0" name="vendor_additional_discount" :value="old('vendor_additional_discount', $vendorInvoice->vendor_additional_discount)" placeholder="0.00" />
+                <x-input-error :messages="$errors->get('vendor_additional_discount')" />
+            </div>
+
+            <div class="space-y-2">
+                <x-input-label for="modal_document" :value="__('Invoice Document Attachment')" hint="Upload PDF or image (max 10MB)" />
+                @if($vendorInvoice->document_path)
+                    <p class="text-xs text-gray-500 mb-1">
+                        {{ __('Current document:') }}
+                        <a href="{{ public_storage_url($vendorInvoice->document_path) }}" target="_blank" class="text-indigo-600 underline hover:text-indigo-800">{{ basename($vendorInvoice->document_path) }}</a>
+                    </p>
+                @endif
+                <input id="modal_document" type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+                <x-input-error :messages="$errors->get('document')" />
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
+                <button type="button" x-on:click="$dispatch('close-modal', { name: 'edit-invoice-details-modal' })" class="inline-flex h-9 items-center justify-center rounded-md border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                    {{ __('Cancel') }}
+                </button>
+                <button type="submit" class="inline-flex h-9 items-center justify-center rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 shadow-xs">
+                    {{ __('Save Changes') }}
+                </button>
+            </div>
+        </form>
+    </x-modal>
 </x-app-layout>

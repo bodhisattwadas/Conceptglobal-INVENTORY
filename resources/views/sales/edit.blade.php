@@ -141,15 +141,29 @@
                     </h3>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                        <!-- Invoice Number (Readonly) -->
+                        <!-- Invoice Number -->
                         <div>
-                            <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">{{ __('Invoice Number') }}</label>
-                            <input
-                                type="text"
-                                readonly
-                                value="{{ $sale->invoice_number }}"
-                                class="w-full text-sm bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 text-gray-700 font-mono"
-                            >
+                            <label for="invoice_number" class="block text-xs font-semibold text-gray-600 uppercase mb-1">{{ __('Invoice Number') }} @if(auth()->user()?->isAdmin())*@endif</label>
+                            @if(auth()->user()?->isAdmin())
+                                <input
+                                    type="text"
+                                    id="invoice_number"
+                                    name="invoice_number"
+                                    value="{{ old('invoice_number', $sale->invoice_number) }}"
+                                    required
+                                    class="w-full text-sm bg-white border @error('invoice_number') border-red-500 @else border-gray-300 @enderror rounded-lg px-3 py-2 text-gray-800 font-mono focus:ring-indigo-500 focus:border-indigo-500"
+                                >
+                                @error('invoice_number')
+                                    <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                                @enderror
+                            @else
+                                <input
+                                    type="text"
+                                    readonly
+                                    value="{{ $sale->invoice_number }}"
+                                    class="w-full text-sm bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 text-gray-700 font-mono cursor-not-allowed"
+                                >
+                            @endif
                         </div>
 
                         <!-- Sale Date -->

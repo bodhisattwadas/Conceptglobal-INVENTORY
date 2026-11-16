@@ -369,6 +369,23 @@ class SaleService
     }
 
     /**
+     * Update an existing sale.
+     */
+    public function updateSale(Sale $sale, SaleData|array $data, ?string $reason = null, ?string $paymentRef = null): Sale
+    {
+        if (is_array($data)) {
+            if (! isset($data['items']) && isset($data['invoice_number'])) {
+                $sale->update(['invoice_number' => $data['invoice_number']]);
+
+                return $sale->refresh();
+            }
+            $data = SaleData::fromArray($data);
+        }
+
+        return $this->updateHistoricalSale($sale, $data, $reason, $paymentRef);
+    }
+
+    /**
      * Safely update numbers, prices, payment method, and metadata on a historical sale,
      * synchronizing inventory stock, batch remaining quantities, movements, finance records, and audit logs.
      */
@@ -384,6 +401,7 @@ class SaleService
 
                 // Snapshot old state for audit logging
                 $oldState = [
+                    'invoice_number' => $sale->invoice_number,
                     'customer_id' => $sale->customer_id,
                     'customer_name' => $sale->customer?->name,
                     'sale_date' => $sale->sale_date?->toDateTimeString(),
@@ -796,7 +814,7 @@ class SaleService
                     $notes = ($notes ? $notes."\n" : '').'[Edited]: '.$reason;
                 }
 
-                $sale->update([
+                $saleUpdateData = [
                     'customer_id' => $data->customer_id,
                     'sale_date' => $data->sale_date,
                     'payment_method' => $paymentMethod,
@@ -813,7 +831,13 @@ class SaleService
                     'change' => $change,
                     'discount_coupon_id' => $appliedCoupon?->id,
                     'coupon_code' => $appliedCoupon?->code ?? $data->coupon_code,
-                ]);
+                ];
+
+                if (! empty($data->invoice_number)) {
+                    $saleUpdateData['invoice_number'] = $data->invoice_number;
+                }
+
+                $sale->update($saleUpdateData);
 
                 // 9. Finance Synchronization
                 $sale->load(['items.product', 'items.service', 'customer']);
@@ -828,6 +852,7 @@ class SaleService
 
                 // 10. Audit Log
                 $newState = [
+                    'invoice_number' => $sale->invoice_number,
                     'customer_id' => $sale->customer_id,
                     'customer_name' => $sale->customer?->name,
                     'sale_date' => $sale->sale_date?->toDateTimeString(),

@@ -264,6 +264,19 @@ class CustomerController extends Controller
         ]);
     }
 
+    public function show(Customer $customer, CustomerService $customerService, Request $request)
+    {
+        $search = $request->query('search');
+        $data = $customerService->getCustomerTransactionsData($customer, $search);
+
+        return view('customers.show', [
+            'customer' => $customer,
+            'metrics' => $data['metrics'],
+            'sales' => $data['sales'],
+            'search' => $search,
+        ]);
+    }
+
     public function store(Request $request, CustomerService $customerService)
     {
         try {
