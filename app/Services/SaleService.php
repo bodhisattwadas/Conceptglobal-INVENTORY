@@ -184,8 +184,7 @@ class SaleService
                             'subtotal' => $subtotal,
                         ]);
 
-                        InventoryReconciliation::create([
-                            'reconciliation_number' => InventoryReconciliation::generateReconciliationNumber(),
+                        InventoryReconciliation::createWithUniqueNumber([
                             'sale_id' => $sale->id,
                             'sale_item_id' => $saleItem->id,
                             'matched_product_id' => $matchedProduct?->id ?? $itemData->matched_product_id,
@@ -658,8 +657,8 @@ class SaleService
                             ? ($existingRecon->notes ? $existingRecon->notes."\n[Sale Edit]: Details synchronized on ".now()->format('Y-m-d H:i') : '[Sale Edit]: Details synchronized on '.now()->format('Y-m-d H:i'))
                             : null;
 
-                        InventoryReconciliation::create([
-                            'reconciliation_number' => $existingRecon?->reconciliation_number ?? InventoryReconciliation::generateReconciliationNumber(),
+                        InventoryReconciliation::createWithUniqueNumber([
+                            'reconciliation_number' => $existingRecon?->reconciliation_number,
                             'sale_id' => $sale->id,
                             'sale_item_id' => $saleItem->id,
                             'matched_product_id' => $matchedProduct?->id ?? $itemData->matched_product_id ?? $existingRecon?->matched_product_id,
