@@ -38,6 +38,18 @@ Route::get('media/{path}', function (string $path) {
     return response()->file(Storage::disk('public')->path($path));
 })->where('path', '.*')->name('media.public');
 
+Route::get('sales/{sale}/public-pdf', [SalesController::class, 'publicPdf'])
+    ->middleware('signed')
+    ->name('sales.public-pdf');
+
+// =========================================================================
+// Public Legal Pages
+// =========================================================================
+Route::view('privacy-policy', 'legal.privacy-policy')->name('privacy-policy');
+Route::view('terms-and-conditions', 'legal.terms-and-conditions')->name('terms-and-conditions');
+Route::redirect('privacy', 'privacy-policy')->name('privacy');
+Route::redirect('terms', 'terms-and-conditions')->name('terms');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     // =========================================================================
     // Dashboard & Profile
@@ -134,6 +146,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
     Route::prefix('sales/{sale}')->name('sales.')->controller(SalesController::class)->middleware('role:admin,sales')->group(function () {
         Route::get('print', 'print')->name('print');
+        Route::get('pdf', 'downloadPdf')->name('pdf');
+        Route::post('send-whatsapp', 'sendWhatsapp')->name('send-whatsapp');
         Route::patch('complete', 'complete')->name('complete');
         Route::patch('restore', 'restore')->name('restore');
         Route::patch('date', 'updateDate')->name('update-date');

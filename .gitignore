@@ -21,3 +21,8 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Local live-data dumps and audit artefacts (contain customer data - never commit)
+/storage/*.sql
+/storage/*.sqlite
+/storage/AUDIT_*.md

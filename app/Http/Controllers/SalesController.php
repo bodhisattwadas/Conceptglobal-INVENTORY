@@ -13,7 +13,11 @@ use App\Models\Customer;
 use App\Models\Sale;
 use App\Services\DiscountCouponService;
 use App\Services\SaleService;
+use App\Services\WhatsAppService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
@@ -218,6 +222,80 @@ class SalesController extends Controller
         $sale->load(['items.product.unit', 'customer', 'creator']);
 
         return view('sales.print', compact('sale'));
+    }
+
+    public function downloadPdf(Sale $sale): Response
+    {
+        [$pdf, $filename] = $this->buildInvoicePdf($sale);
+
+        return $pdf->download($filename);
+    }
+
+    public function publicPdf(Sale $sale): Response
+    {
+        [$pdf, $filename] = $this->buildInvoicePdf($sale);
+
+        return $pdf->stream($filename);
+    }
+
+    public function sendWhatsapp(Request $request, Sale $sale, WhatsAppService $whatsAppService): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => [
+                'bail',
+                'required',
+                'string',
+                'max:25',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! is_string($value)) {
+                        return;
+                    }
+
+                    $digits = preg_replace('/\D+/', '', $value) ?? '';
+                    if (strlen($digits) < 10) {
+                        $fail('The phone number must contain at least 10 digits.');
+                    }
+                },
+            ],
+        ]);
+
+        $result = $whatsAppService->sendInvoiceMessage($sale, $validated['phone']);
+
+        if (! ($result['success'] ?? false)) {
+            $status = (int) ($result['status'] ?? 422);
+            if ($status < 400 || $status > 599) {
+                $status = 502;
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Failed to send WhatsApp message.',
+            ], $status);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['message'] ?? 'Message sent via WhatsApp',
+        ]);
+    }
+
+    /**
+     * @return array{0: \Barryvdh\DomPDF\PDF, 1: string}
+     */
+    private function buildInvoicePdf(Sale $sale): array
+    {
+        $sale->load(['customer', 'items.product.unit', 'items.service', 'creator']);
+
+        $safeInvoiceNumber = preg_replace('/[^A-Za-z0-9._-]+/', '-', (string) $sale->invoice_number) ?: (string) $sale->id;
+        $filename = "Invoice-{$safeInvoiceNumber}.pdf";
+
+        $pdf = Pdf::loadView('sales.pdf', compact('sale'))
+            ->setPaper('a5', 'landscape')
+            ->setOption('isPhpEnabled', false)
+            ->setOption('isRemoteEnabled', false)
+            ->setOption('isHtml5ParserEnabled', true);
+
+        return [$pdf, $filename];
     }
 
     public function restore(Sale $sale, SaleService $saleService)

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Invoice #{{ $sale->invoice_number }}</title>
     <style>
         @media print {
@@ -14,6 +15,9 @@
                 margin: 5mm 10mm;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
+            }
+            .no-print {
+                display: none !important;
             }
         }
 
@@ -113,8 +117,6 @@
 
         .header-right .header-value {
             flex-grow: 0;
-            min-width: 150px;
-        }
             min-width: 150px;
         }
 
@@ -234,9 +236,249 @@
             margin-top: 5px;
         }
 
+        /* TOP ACTION BAR (NO-PRINT) */
+        .no-print-bar {
+            position: sticky;
+            top: 8px;
+            z-index: 50;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+            padding: 10px 14px;
+            margin-bottom: 14px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+        }
+
+        .action-bar-inner {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .invoice-meta {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            font-size: 9pt;
+            color: #1e293b;
+        }
+
+        .meta-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 4px 8px;
+        }
+
+        .meta-label {
+            color: #64748b;
+            font-weight: 600;
+            font-size: 8pt;
+        }
+
+        .meta-value {
+            color: #0f172a;
+            font-weight: 700;
+        }
+
+        .action-controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .wa-input-group {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #ffffff;
+        }
+
+        .wa-input-group:focus-within {
+            border-color: #16a34a;
+            box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.15);
+        }
+
+        .wa-prefix {
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 8.5pt;
+            font-weight: 600;
+            padding: 6px 8px;
+            border-right: 1px solid #cbd5e1;
+            user-select: none;
+        }
+
+        .wa-phone-input {
+            border: none;
+            outline: none;
+            padding: 6px 8px;
+            font-size: 9pt;
+            width: 140px;
+            color: #0f172a;
+            background: transparent;
+        }
+
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: none;
+            border-radius: 6px;
+            padding: 7px 12px;
+            font-size: 9pt;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.15s ease, opacity 0.15s ease;
+            line-height: 1.2;
+        }
+
+        .action-btn-whatsapp {
+            background: #16a34a;
+            color: #ffffff;
+        }
+
+        .action-btn-whatsapp:hover:not(:disabled) {
+            background: #15803d;
+        }
+
+        .action-btn-whatsapp:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .action-btn-pdf {
+            background: #0f172a;
+            color: #ffffff;
+        }
+
+        .action-btn-pdf:hover {
+            background: #1e293b;
+        }
+
+        .action-btn-print {
+            background: #2563eb;
+            color: #ffffff;
+        }
+
+        .action-btn-print:hover {
+            background: #1d4ed8;
+        }
+
+        .wa-spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            display: inline-block;
+            animation: wa-spin 0.7s linear infinite;
+        }
+
+        .wa-spinner[hidden] {
+            display: none;
+        }
+
+        @keyframes wa-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .wa-status-banner {
+            margin-top: 8px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 8.5pt;
+            font-weight: 500;
+        }
+
+        .wa-status-banner[hidden] {
+            display: none;
+        }
+
+        .wa-status-success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+        }
+
+        .wa-status-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
     </style>
 </head>
 <body>
+
+    <div class="no-print no-print-bar">
+        <div class="action-bar-inner">
+            <div class="invoice-meta">
+                <span class="meta-pill">
+                    <span class="meta-label">Invoice</span>
+                    <span class="meta-value">#{{ $sale->invoice_number }}</span>
+                </span>
+                <span class="meta-pill">
+                    <span class="meta-label">Total</span>
+                    <span class="meta-value">@money($sale->total)</span>
+                </span>
+                <span class="meta-pill">
+                    <span class="meta-label">Customer</span>
+                    <span class="meta-value">{{ $sale->customer->name ?? 'Guest' }}</span>
+                </span>
+            </div>
+
+            <div class="action-controls">
+                <div class="wa-input-group">
+                    <span class="wa-prefix">+{{ ltrim((string) config('wati.default_country_code', '91'), '+') }}</span>
+                    <input
+                        id="whatsapp-phone"
+                        type="tel"
+                        class="wa-phone-input"
+                        value="{{ $sale->customer?->phone ?? '' }}"
+                        placeholder="WhatsApp number"
+                        aria-label="Customer WhatsApp phone number"
+                    >
+                </div>
+
+                <button
+                    id="whatsapp-send-btn"
+                    type="button"
+                    class="action-btn action-btn-whatsapp"
+                    data-send-url="{{ route('sales.send-whatsapp', $sale) }}"
+                    disabled
+                >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm5.8 14.07c-.24.68-1.42 1.3-1.97 1.38-.5.08-1.15.11-1.85-.11-.43-.14-.98-.32-1.69-.62-2.98-1.29-4.92-4.3-5.07-4.5-.15-.2-1.21-1.61-1.21-3.07 0-1.46.77-2.18 1.04-2.48.27-.3.6-.37.8-.37h.58c.19 0 .44-.07.68.52.25.6.84 2.06.92 2.21.07.15.12.32.02.52-.1.2-.15.32-.3.5-.15.17-.31.39-.45.52-.15.15-.3.31-.13.61.17.3.77 1.27 1.65 2.05 1.13 1.01 2.09 1.32 2.39 1.47.3.15.48.13.66-.08.18-.2.75-.87.95-1.17.2-.3.4-.25.67-.15.27.1 1.74.82 2.04.97.3.15.5.22.57.35.08.13.08.73-.16 1.41z"/>
+                    </svg>
+                    <span id="whatsapp-spinner" class="wa-spinner" hidden></span>
+                    <span id="whatsapp-btn-text">Send via WhatsApp</span>
+                </button>
+
+                <a href="{{ route('sales.pdf', $sale) }}" class="action-btn action-btn-pdf">
+                    Download as PDF
+                </a>
+
+                <button type="button" onclick="window.print()" class="action-btn action-btn-print">
+                    Print
+                </button>
+            </div>
+        </div>
+
+        <div id="whatsapp-status-banner" class="wa-status-banner" role="status" aria-live="polite" hidden></div>
+    </div>
 
     <div class="container">
         <!-- Header -->
@@ -420,5 +662,98 @@
         </div>
     </div>
 
+    <script>
+        (function () {
+            const phoneInput = document.getElementById('whatsapp-phone');
+            const sendBtn = document.getElementById('whatsapp-send-btn');
+            const btnText = document.getElementById('whatsapp-btn-text');
+            const spinner = document.getElementById('whatsapp-spinner');
+            const banner = document.getElementById('whatsapp-status-banner');
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const sendUrl = sendBtn ? sendBtn.dataset.sendUrl : '';
+            let isSending = false;
+
+            function digitCount(value) {
+                return (value || '').replace(/\D+/g, '').length;
+            }
+
+            function showBanner(type, message) {
+                if (!banner) return;
+                banner.textContent = message;
+                banner.className = 'wa-status-banner ' + (type === 'success' ? 'wa-status-success' : 'wa-status-error');
+                banner.hidden = false;
+            }
+
+            function hideBanner() {
+                if (!banner) return;
+                banner.hidden = true;
+                banner.textContent = '';
+            }
+
+            function syncButtonState() {
+                if (!phoneInput || !sendBtn) return;
+                sendBtn.disabled = isSending || digitCount(phoneInput.value) < 10;
+            }
+
+            if (phoneInput && sendBtn) {
+                syncButtonState();
+
+                phoneInput.addEventListener('input', function () {
+                    if (!isSending && btnText && btnText.textContent !== 'Send via WhatsApp') {
+                        btnText.textContent = 'Send via WhatsApp';
+                    }
+                    hideBanner();
+                    syncButtonState();
+                });
+
+                sendBtn.addEventListener('click', async function () {
+                    if (isSending || digitCount(phoneInput.value) < 10) {
+                        return;
+                    }
+
+                    isSending = true;
+                    hideBanner();
+                    syncButtonState();
+                    if (spinner) spinner.hidden = false;
+                    if (btnText) btnText.textContent = 'Sending...';
+
+                    try {
+                        const response = await fetch(sendUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                            },
+                            body: JSON.stringify({
+                                phone: phoneInput.value.trim(),
+                            }),
+                        });
+
+                        const data = await response.json().catch(function () {
+                            return {};
+                        });
+
+                        if (response.ok && data.success) {
+                            if (btnText) btnText.textContent = 'Sent! ✓';
+                            showBanner('success', data.message || 'Message sent via WhatsApp');
+                        } else {
+                            const validationError = data.errors && data.errors.phone && data.errors.phone[0];
+                            const errorMsg = validationError || data.message || 'Failed to send WhatsApp message.';
+                            if (btnText) btnText.textContent = 'Send via WhatsApp';
+                            showBanner('error', errorMsg);
+                        }
+                    } catch (err) {
+                        if (btnText) btnText.textContent = 'Send via WhatsApp';
+                        showBanner('error', 'Network error while sending WhatsApp message.');
+                    } finally {
+                        isSending = false;
+                        if (spinner) spinner.hidden = true;
+                        syncButtonState();
+                    }
+                });
+            }
+        })();
+    </script>
 </body>
 </html>
