@@ -100,6 +100,29 @@ class MetaWhatsAppService
         ];
 
         if ($templateName !== '') {
+            $components = [
+                [
+                    'type' => 'header',
+                    'parameters' => [
+                        [
+                            'type' => 'document',
+                            'document' => [
+                                'link' => $pdfUrl,
+                                'filename' => "Invoice-{$invoiceNumber}.pdf",
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    'type' => 'body',
+                    'parameters' => [
+                        ['type' => 'text', 'text' => $customerName],
+                        ['type' => 'text', 'text' => $invoiceNumber],
+                        ['type' => 'text', 'text' => $totalAmount],
+                    ],
+                ],
+            ];
+
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'recipient_type' => 'individual',
@@ -110,17 +133,7 @@ class MetaWhatsAppService
                     'language' => [
                         'code' => $languageCode,
                     ],
-                    'components' => [
-                        [
-                            'type' => 'body',
-                            'parameters' => [
-                                ['type' => 'text', 'text' => $customerName],
-                                ['type' => 'text', 'text' => $invoiceNumber],
-                                ['type' => 'text', 'text' => $totalAmount],
-                                ['type' => 'text', 'text' => $pdfUrl],
-                            ],
-                        ],
-                    ],
+                    'components' => $components,
                 ],
             ];
         } else {
@@ -152,8 +165,8 @@ class MetaWhatsAppService
             $errorCode = (int) ($json['error']['code'] ?? 0);
             $metaError = $json['error']['message'] ?? $json['message'] ?? 'Meta WhatsApp API returned an error.';
 
-            // If the configured template does not exist on Meta, automatically fallback to direct text invoice
-            if ($templateName !== '' && ($errorCode === 132001 || str_contains($metaError, 'Template name does not exist'))) {
+            // If the configured template does not exist, is paused, or is pending review on Meta, automatically fallback to direct text invoice
+            if ($templateName !== '' && (in_array($errorCode, [132000, 132001, 132015, 132016], true) || str_contains($metaError, 'Template') || str_contains($metaError, 'template'))) {
                 $fallbackResponse = $client->post($url, $textPayload);
 
                 if ($fallbackResponse->successful()) {
