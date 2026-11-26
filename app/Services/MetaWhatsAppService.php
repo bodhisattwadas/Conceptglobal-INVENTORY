@@ -79,11 +79,12 @@ class MetaWhatsAppService
 
         $storeName = (string) Setting::get('store_name', config('app.name'));
         $messageText = implode("\n", [
+            "Hello {$customerName},",
+            '',
+            "Your invoice for order #{$invoiceNumber} of amount {$totalAmount} is ready.",
+            '',
             "Thank you for shopping with {$storeName}!",
-            "Customer: {$customerName}",
-            "Invoice: #{$invoiceNumber}",
-            "Date: {$invoiceDate}",
-            "Total: {$totalAmount}",
+            '',
             "View/Download Invoice: {$pdfUrl}",
         ]);
 
@@ -114,8 +115,8 @@ class MetaWhatsAppService
                             'type' => 'body',
                             'parameters' => [
                                 ['type' => 'text', 'text' => $customerName],
-                                ['type' => 'text', 'text' => $totalAmount],
                                 ['type' => 'text', 'text' => $invoiceNumber],
+                                ['type' => 'text', 'text' => $totalAmount],
                                 ['type' => 'text', 'text' => $pdfUrl],
                             ],
                         ],
