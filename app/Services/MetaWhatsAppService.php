@@ -100,8 +100,19 @@ class MetaWhatsAppService
         ];
 
         if ($templateName !== '') {
-            $components = [
-                [
+            $components = [];
+
+            if ($templateName === 'order_final') {
+                $components[] = [
+                    'type' => 'body',
+                    'parameters' => [
+                        ['type' => 'text', 'text' => $customerName],
+                        ['type' => 'text', 'text' => $totalAmount],
+                        ['type' => 'text', 'text' => $invoiceNumber],
+                    ],
+                ];
+            } else {
+                $components[] = [
                     'type' => 'header',
                     'parameters' => [
                         [
@@ -112,16 +123,16 @@ class MetaWhatsAppService
                             ],
                         ],
                     ],
-                ],
-                [
+                ];
+                $components[] = [
                     'type' => 'body',
                     'parameters' => [
                         ['type' => 'text', 'text' => $customerName],
                         ['type' => 'text', 'text' => $invoiceNumber],
                         ['type' => 'text', 'text' => $totalAmount],
                     ],
-                ],
-            ];
+                ];
+            }
 
             $payload = [
                 'messaging_product' => 'whatsapp',
