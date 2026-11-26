@@ -77,6 +77,27 @@ class MetaWhatsAppService
 
         $url = "https://graph.facebook.com/{$apiVersion}/{$phoneNumberId}/messages";
 
+        $storeName = (string) Setting::get('store_name', config('app.name'));
+        $messageText = implode("\n", [
+            "Thank you for shopping with {$storeName}!",
+            "Customer: {$customerName}",
+            "Invoice: #{$invoiceNumber}",
+            "Date: {$invoiceDate}",
+            "Total: {$totalAmount}",
+            "View/Download Invoice: {$pdfUrl}",
+        ]);
+
+        $textPayload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $normalizedPhone,
+            'type' => 'text',
+            'text' => [
+                'preview_url' => true,
+                'body' => $messageText,
+            ],
+        ];
+
         if ($templateName !== '') {
             $payload = [
                 'messaging_product' => 'whatsapp',
@@ -102,26 +123,7 @@ class MetaWhatsAppService
                 ],
             ];
         } else {
-            $storeName = (string) Setting::get('store_name', config('app.name'));
-            $messageText = implode("\n", [
-                "Thank you for shopping with {$storeName}!",
-                "Customer: {$customerName}",
-                "Invoice: #{$invoiceNumber}",
-                "Date: {$invoiceDate}",
-                "Total: {$totalAmount}",
-                "View/Download Invoice: {$pdfUrl}",
-            ]);
-
-            $payload = [
-                'messaging_product' => 'whatsapp',
-                'recipient_type' => 'individual',
-                'to' => $normalizedPhone,
-                'type' => 'text',
-                'text' => [
-                    'preview_url' => true,
-                    'body' => $messageText,
-                ],
-            ];
+            $payload = $textPayload;
         }
 
         try {
@@ -146,7 +148,25 @@ class MetaWhatsAppService
             }
 
             $json = $response->json();
+            $errorCode = (int) ($json['error']['code'] ?? 0);
             $metaError = $json['error']['message'] ?? $json['message'] ?? 'Meta WhatsApp API returned an error.';
+
+            // If the configured template does not exist on Meta, automatically fallback to direct text invoice
+            if ($templateName !== '' && ($errorCode === 132001 || str_contains($metaError, 'Template name does not exist'))) {
+                $fallbackResponse = $client->post($url, $textPayload);
+
+                if ($fallbackResponse->successful()) {
+                    return [
+                        'success' => true,
+                        'message' => 'Invoice sent via WhatsApp.',
+                        'status' => 200,
+                        'data' => $fallbackResponse->json(),
+                    ];
+                }
+
+                $json = $fallbackResponse->json();
+                $metaError = $json['error']['message'] ?? $json['message'] ?? $metaError;
+            }
 
             return [
                 'success' => false,
