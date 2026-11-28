@@ -111,6 +111,15 @@ class MetaWhatsAppService
                         ['type' => 'text', 'text' => $invoiceNumber],
                     ],
                 ];
+            } elseif ($templateName === 'glam_order_approved') {
+                $components[] = [
+                    'type' => 'body',
+                    'parameters' => [
+                        ['type' => 'text', 'text' => $customerName],
+                        ['type' => 'text', 'text' => $invoiceNumber],
+                        ['type' => 'text', 'text' => $totalAmount],
+                    ],
+                ];
             } else {
                 $components[] = [
                     'type' => 'header',
