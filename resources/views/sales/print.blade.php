@@ -499,11 +499,12 @@
                     <div class="logo-box">TB</div>
                 @endif
                 <div class="company-info">
-                    <div class="company-name">{{ \App\Models\Setting::get('store_name', config('app.name')) }}</div>
-                    <div class="company-desc">Selling: cosmetics, beauty tools, skincare, and accessories.</div>
+                    <div class="company-name">{{ \App\Models\Setting::get('store_name', 'GLAM & GLOW') }}</div>
+                    <div class="company-desc">C/O Concept Global Realty LLP</div>
                     <div class="company-address">
-                        {{ \App\Models\Setting::get('store_address', 'Jl. Default No. 1') }}<br>
-                        Phone: {{ format_indian_phone(\App\Models\Setting::get('store_phone', '-')) }}
+                        1, B K Moitra Rd, Baranagar, West Bengal 700036<br>
+                        Phone: +91 91477 68015<br>
+                        GSTIN: 19AAWFC2199J1ZM
                         @if(\App\Models\Setting::get('store_email'))
                             <br>Email: {{ \App\Models\Setting::get('store_email') }}
                         @endif

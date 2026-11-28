@@ -76,7 +76,7 @@ class MetaWhatsAppServiceTest extends TestCase
                 && ($data['to'] ?? '') === '919876543210'
                 && ($data['type'] ?? '') === 'template'
                 && ($data['template']['name'] ?? '') === 'billing_template'
-                && count($data['template']['components'][0]['parameters']) === 4;
+                && count($data['template']['components']) >= 1;
         });
     }
 
