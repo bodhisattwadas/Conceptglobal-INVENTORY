@@ -52,6 +52,15 @@
             align-items: center;
         }
 
+        .store-logo-img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 12px;
+            display: block;
+        }
+
         .logo-box {
             border: 3px double #000;
             width: 60px;
@@ -484,7 +493,11 @@
         <!-- Header -->
         <div class="header">
             <div class="header-left">
-                <div class="logo-box">TB</div>
+                @if(file_exists(public_path('images/logo.jpg')))
+                    <img src="{{ asset('images/logo.jpg') }}" alt="Logo" class="store-logo-img">
+                @else
+                    <div class="logo-box">TB</div>
+                @endif
                 <div class="company-info">
                     <div class="company-name">{{ \App\Models\Setting::get('store_name', config('app.name')) }}</div>
                     <div class="company-desc">Selling: cosmetics, beauty tools, skincare, and accessories.</div>

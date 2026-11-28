@@ -51,9 +51,16 @@
         }
 
         table.brand-table td.logo-cell {
-            width: 54px;
+            width: 55px;
             vertical-align: middle;
             padding: 0 8px 0 0;
+        }
+
+        .store-logo-img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: block;
         }
 
         .logo-box {
@@ -253,6 +260,8 @@
         $couponDiscountAmount = $sale->coupon_discount > 0 ? $sale->coupon_discount : ($hasCoupon ? $sale->global_discount : 0);
         $hasRoundOff = ($sale->round_off != 0) || (! $sale->coupon_code && $sale->global_discount != 0 && $sale->round_off == 0);
         $roundOffAmount = $sale->round_off != 0 ? $sale->round_off : ($hasRoundOff ? -$sale->global_discount : 0);
+        $logoPath = public_path('images/logo.jpg');
+        $logoBase64 = file_exists($logoPath) ? 'data:image/jpeg;base64,' . base64_encode(file_get_contents($logoPath)) : null;
     @endphp
 
     <div class="container">
@@ -263,7 +272,11 @@
                     <table class="brand-table">
                         <tr>
                             <td class="logo-cell">
-                                <div class="logo-box">TB</div>
+                                @if($logoBase64)
+                                    <img src="{{ $logoBase64 }}" alt="Logo" class="store-logo-img">
+                                @else
+                                    <div class="logo-box">TB</div>
+                                @endif
                             </td>
                             <td class="company-cell">
                                 <div class="company-name">{{ \App\Models\Setting::get('store_name', config('app.name')) }}</div>
