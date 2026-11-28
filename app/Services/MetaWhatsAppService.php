@@ -120,6 +120,27 @@ class MetaWhatsAppService
                         ['type' => 'text', 'text' => $totalAmount],
                     ],
                 ];
+            } elseif ($templateName === 'glam_invoice_bill' || $templateName === 'glam_billing_template') {
+                $components[] = [
+                    'type' => 'header',
+                    'parameters' => [
+                        [
+                            'type' => 'document',
+                            'document' => [
+                                'link' => $pdfUrl,
+                                'filename' => "Invoice-{$invoiceNumber}.pdf",
+                            ],
+                        ],
+                    ],
+                ];
+                $components[] = [
+                    'type' => 'body',
+                    'parameters' => [
+                        ['type' => 'text', 'text' => $customerName],
+                        ['type' => 'text', 'text' => $invoiceNumber],
+                        ['type' => 'text', 'text' => $totalAmount],
+                    ],
+                ];
             } else {
                 $components[] = [
                     'type' => 'header',
